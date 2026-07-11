@@ -10,6 +10,12 @@ ROOT="$(cd "$HERE/.." && pwd)"
 SLUG="${1:?usage: render.sh <role-slug>}"
 APPDIR="$ROOT/applications/$SLUG"
 
+# The Typst installer puts a static binary in ~/.local/bin, which may not be
+# on PATH in fresh shells. Fall back to it if typst is not already found.
+if ! command -v typst >/dev/null 2>&1 && [ -x "$HOME/.local/bin/typst" ]; then
+  PATH="$HOME/.local/bin:$PATH"
+fi
+
 # Pull a field from a yaml: `field <file> name` (contacts.name) or `field <file> role`.
 field() {
   python3 -c "import yaml,sys

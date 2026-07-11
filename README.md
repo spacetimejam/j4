@@ -38,7 +38,7 @@ The wizard will:
 
 Open the job-search-kit folder in your AI tool and say: **"run setup"**
 
-Your AI tool will guide you through intake, then manage applications, track progress, and redraft materials as you refine your search.
+Your AI tool will guide you through intake, then manage applications, track progress, and redraft materials as you refine your search. See `docs/first-session.md` for what that first session looks like, including choosing a Typst CV template with the assistant.
 
 ## Principles
 

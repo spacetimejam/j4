@@ -86,7 +86,12 @@ if [ "$SKIP_DEPS" = "no" ]; then
       echo "  python3 + yaml: found"
     else
       echo "  python3 found, but the yaml module is missing."
-      read -r -p "  Run 'pip3 install --user pyyaml' now? [y/N]: " reply
+      if [ -t 0 ]; then
+        read -r -p "  Run 'pip3 install --user pyyaml' now? [y/N]: " reply
+      else
+        reply="y"
+        echo "  Non-interactive session: installing pyyaml."
+      fi
       case "$reply" in
         y|Y) pip3 install --user pyyaml ;;
         *) echo "  Skipped. The render pipeline needs pyyaml." ;;
@@ -104,7 +109,12 @@ if [ "$SKIP_DEPS" = "no" ]; then
       Darwin)
         echo "  On macOS, install with: brew install typst" ;;
       *)
-        read -r -p "  Run template/render/install-typst.sh now? [y/N]: " reply
+        if [ -t 0 ]; then
+          read -r -p "  Run template/render/install-typst.sh now? [y/N]: " reply
+        else
+          reply="y"
+          echo "  Non-interactive session: running the Typst installer."
+        fi
         case "$reply" in
           y|Y) bash "$TEMPLATE_DIR/render/install-typst.sh" ;;
           *) echo "  Skipped. The installer also ships in your project at render/install-typst.sh." ;;
