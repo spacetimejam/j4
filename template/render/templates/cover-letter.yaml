@@ -1,6 +1,6 @@
 # SKELETON - layout proofing only; every sentence here is placeholder copy.
 # The real per-role tailored versions live in applications/<slug>/cover-letter.yaml.
-# The {{USER_*}} placeholders in contacts are substituted by the setup wizard.
+# The contacts block is filled in by the setup wizard from your answers.
 
 theme: {}
 
