@@ -7,11 +7,11 @@ A complete, AI-operated working environment for managing a job search: from sour
 Job Search Kit is a starter template for building a personal job-search project in your AI tool. It provides a structured approach to applications, keeping your search organised and your materials tailored to each role.
 
 The kit handles:
-- **Sourcing and shortlisting** — capture jobs, assess fit, define your criteria
-- **CV tailoring** — one master CV, tailored versions per role
-- **Cover letters** — structured drafting and version tracking
-- **Interview preparation** — role-specific prep notes and evidence banks
-- **Application tracking** — log, timeline, follow-up management
+- **Sourcing and shortlisting:** capture jobs, assess fit, define your criteria
+- **CV tailoring:** one master CV, tailored versions per role
+- **Cover letters:** structured drafting and version tracking
+- **Interview preparation:** role-specific prep notes and evidence banks
+- **Application tracking:** log, timeline, follow-up management
 
 ## Requirements
 
@@ -53,12 +53,12 @@ Your AI tool will guide you through intake, then manage applications, track prog
 ## Structure
 
 The kit creates:
-- `core/` — durable source documents (profile, CV, stories, voice)
-- `applications/` — one folder per role with spec, fit assessment, tailored CV, cover letter, interview prep
-- `templates/` — reusable copy and layouts
-- `portfolio/` — case-study bank (optional)
-- `render/` — Typst rendering for professional PDFs (optional)
-- `tracker/` — configuration for your application log
+- `core/`: durable source documents (profile, CV, stories, voice)
+- `applications/`: one folder per role with spec, fit assessment, tailored CV, cover letter, interview prep
+- `templates/`: reusable copy and layouts
+- `portfolio/`: case-study bank (optional)
+- `render/`: Typst rendering for professional PDFs (optional)
+- `tracker/`: configuration for your application log
 
 See `WORKFLOW.md` for the job-description-to-logged-application process.
 
