@@ -58,7 +58,7 @@ The kit creates:
 - `core/`: durable source documents (profile, CV, stories, voice)
 - `applications/`: one folder per role with spec, fit assessment, tailored CV, cover letter, interview prep
 - `templates/`: reusable copy and layouts
-- `portfolio/`: case-study bank (added by the creative module in a later release)
+- `portfolio/`: case-study bank (created when you choose the creative module in setup)
 - `render/`: Typst rendering for professional PDFs (optional; bring your own template)
 - `tracker/`: configuration for your application log
 

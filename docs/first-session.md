@@ -38,6 +38,11 @@ minutes, most of it conversation.
 7. **Cleanup.** The assistant deletes `SETUP.md` and tells you the project is
    ready to judge fits and draft applications.
 
+If you chose the creative module in the wizard, the assistant will also offer
+the case-study interview as a follow-on: a structured conversation, described
+in `portfolio/case-studies/README.md`, that turns your top projects into
+written case studies.
+
 ## Example transcript shape
 
 A condensed sketch of how the session tends to flow:

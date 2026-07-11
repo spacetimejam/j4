@@ -57,6 +57,7 @@ else
   ask USER_PHONE "Phone number"
   ask USER_LOCATION "Location (city)"
   ask FIELD "Your field (e.g. software engineering, graphic design)"
+  ask CREATIVE "Is your work portfolio-led (design, illustration, photography, other creative work)? [y/N]" "no"
   ask SENIORITY "Seniority (e.g. mid-weight, senior)" "senior"
   ask_menu EMPLOYMENT_STATUS "Current employment status:" "employed" "between roles"
   ask_menu AI_TOOL "Which AI assistant will you use?" "claude-code" "other"
@@ -68,7 +69,13 @@ if [ -z "${TARGET_DIR:-}" ]; then
   ask TARGET_DIR "Where should the project live?" "$HOME/job-search"
 fi
 
-for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL TRACKER PORTAL; do
+# Normalise the creative answer like PORTAL below.
+CREATIVE="${CREATIVE:-no}"
+case "$CREATIVE" in
+  y|Y|yes|Yes|YES) CREATIVE="yes" ;;
+esac
+
+for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL TRACKER PORTAL CREATIVE; do
   eval "val=\${$v:-}"
   if [ -z "$val" ]; then
     echo "Missing answer: $v" >&2
@@ -161,6 +168,11 @@ fi
 cp -R "$TEMPLATE_DIR/." "$TARGET_DIR/"
 cp "$SETUP_DIR/SETUP.md.tmpl" "$TARGET_DIR/SETUP.md.tmpl"
 
+# Creative module: copy before substitution so any tokens in it resolve too.
+if [ "$CREATIVE" = "yes" ]; then
+  cp -R "$KIT_DIR/modules/creative/portfolio" "$TARGET_DIR/portfolio"
+fi
+
 # --- Substitute placeholders -------------------------------------------------
 
 substitute_all "$TARGET_DIR"
@@ -168,9 +180,34 @@ substitute_all "$TARGET_DIR"
 # --- Per-answer wiring -------------------------------------------------------
 
 if [ "$AI_TOOL" = "claude-code" ]; then
-  mv "$TARGET_DIR/CLAUDE.md.tmpl" "$TARGET_DIR/CLAUDE.md"
+  SPINE_FILE="$TARGET_DIR/CLAUDE.md"
+  mv "$TARGET_DIR/CLAUDE.md.tmpl" "$SPINE_FILE"
 else
-  mv "$TARGET_DIR/CLAUDE.md.tmpl" "$TARGET_DIR/AGENTS.md"
+  SPINE_FILE="$TARGET_DIR/AGENTS.md"
+  mv "$TARGET_DIR/CLAUDE.md.tmpl" "$SPINE_FILE"
+fi
+
+if [ "$CREATIVE" = "yes" ]; then
+  # Repo map entry: insert a portfolio/ line before the tracker/ entry.
+  spine_tmp="$SPINE_FILE.creative.$$"
+  awk '
+    /^tracker\// && !done {
+      print "portfolio/           - case-study bank; start at portfolio/case-studies/README.md"
+      done = 1
+    }
+    { print }
+  ' "$SPINE_FILE" > "$spine_tmp" && mv "$spine_tmp" "$SPINE_FILE"
+
+  cat >> "$SPINE_FILE" <<'EOF'
+
+## Portfolio and case studies
+
+This is a portfolio-led search. The `portfolio/` folder holds a map of the
+live portfolio site (`portfolio/site.md`) and a case-study bank built through
+a structured interview and synthesis flow. Start at
+`portfolio/case-studies/README.md`, which explains the method end to end.
+Keep case studies accurate: build them only from what the user actually did.
+EOF
 fi
 
 if [ "$TRACKER" = "grist" ]; then
@@ -198,6 +235,12 @@ fi
 # --- SETUP.md ----------------------------------------------------------------
 
 mv "$TARGET_DIR/SETUP.md.tmpl" "$TARGET_DIR/SETUP.md"
+if [ "$CREATIVE" = "yes" ]; then
+  printf '\n%s\n%s\n' \
+    "- Offer the case-study interview: read portfolio/case-studies/README.md and, when the" \
+    "  user is ready, run the interview and synthesis flow for their top projects." \
+    >> "$TARGET_DIR/SETUP.md"
+fi
 if [ -n "$PORTAL_NOTE" ]; then
   printf '\n%s\n' "$PORTAL_NOTE" >> "$TARGET_DIR/SETUP.md"
 fi

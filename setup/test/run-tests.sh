@@ -111,6 +111,18 @@ else
   pass
 fi
 
+# The non-creative run must not include the creative module.
+if [ -d "$TARGET1/portfolio" ]; then
+  fail "portfolio/ should not exist when CREATIVE=no"
+else
+  pass
+fi
+if grep -q "case-study interview" "$TARGET1/SETUP.md" 2>/dev/null; then
+  fail "SETUP.md should not mention the case-study interview when CREATIVE=no"
+else
+  pass
+fi
+
 # --- Run 2: AI_TOOL=other ---------------------------------------------------
 
 WORK2="$(mktemp -d)"
@@ -128,8 +140,33 @@ else
   pass
 fi
 
+# --- Run 3: creative module -------------------------------------------------
+
+WORK3="$(mktemp -d)"
+TARGET3="$WORK3/my-search"
+
+bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-creative.env" --target "$TARGET3" --skip-deps >/dev/null 2>&1 \
+  || fail "setup.sh exited non-zero on creative run"
+
+check "portfolio/site.md exists" test -f "$TARGET3/portfolio/site.md"
+check "portfolio/case-studies/README.md exists" test -f "$TARGET3/portfolio/case-studies/README.md"
+check "interview-questions.md exists" test -f "$TARGET3/portfolio/case-studies/interview-questions.md"
+check "question-generator prompt exists" test -f "$TARGET3/portfolio/case-studies/prompts/question-generator.md"
+check "synthesis prompt exists" test -f "$TARGET3/portfolio/case-studies/prompts/synthesis.md"
+check "hiring-manager-review prompt exists" test -f "$TARGET3/portfolio/case-studies/prompts/hiring-manager-review.md"
+check "CLAUDE.md mentions portfolio/" grep -q "portfolio/" "$TARGET3/CLAUDE.md"
+check "SETUP.md has a case-study item" grep -q "case-study interview" "$TARGET3/SETUP.md"
+
+# No leftover tokens in the creative project either.
+LEFTOVER3="$(grep -rl '{{' "$TARGET3" --include='*.md' --include='*.yaml' --include='*.tmpl' 2>/dev/null || true)"
+if [ -n "$LEFTOVER3" ]; then
+  fail "leftover {{ tokens in creative project: $LEFTOVER3"
+else
+  pass
+fi
+
 # --- Summary ----------------------------------------------------------------
 
-rm -rf "$WORK1" "$WORK2"
+rm -rf "$WORK1" "$WORK2" "$WORK3"
 echo "Passed: $PASSES  Failed: $FAILS"
 [ "$FAILS" -eq 0 ]
