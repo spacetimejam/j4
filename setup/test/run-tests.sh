@@ -123,6 +123,23 @@ else
   pass
 fi
 
+# The non-portal run must not include the portal.
+if [ -d "$TARGET1/portal" ]; then
+  fail "portal/ should not exist when PORTAL=no"
+else
+  pass
+fi
+if grep -q "If you chose the portal" "$TARGET1/SETUP.md" 2>/dev/null; then
+  fail "SETUP.md should not contain a portal task when PORTAL=no"
+else
+  pass
+fi
+if [ -f "$TARGET1/docs/portal.md" ]; then
+  fail "docs/portal.md should not exist when PORTAL=no"
+else
+  pass
+fi
+
 # --- Run 2: AI_TOOL=other ---------------------------------------------------
 
 WORK2="$(mktemp -d)"
@@ -177,8 +194,65 @@ else
   pass
 fi
 
+# --- Run 4: portal -----------------------------------------------------------
+
+WORK4="$(mktemp -d)"
+TARGET4="$WORK4/my-search"
+
+bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-portal.env" --target "$TARGET4" --skip-deps >/dev/null 2>&1 \
+  || fail "setup.sh exited non-zero on portal run"
+
+check "portal/src/server.js exists" test -f "$TARGET4/portal/src/server.js"
+check "portal/package.json exists" test -f "$TARGET4/portal/package.json"
+check "portal/.env.example exists" test -f "$TARGET4/portal/.env.example"
+check "docs/portal.md exists in target" test -f "$TARGET4/docs/portal.md"
+if [ -d "$TARGET4/portal/node_modules" ]; then
+  fail "portal/node_modules must not be copied into the target"
+else
+  pass
+fi
+if [ -d "$TARGET4/portal/data" ]; then
+  fail "portal/data must not be copied into the target"
+else
+  pass
+fi
+if [ -f "$TARGET4/portal/.env" ]; then
+  fail "portal/.env must not be copied into the target"
+else
+  pass
+fi
+check "SETUP.md has a portal task" grep -q "If you chose the portal" "$TARGET4/SETUP.md"
+
+# The portal task must sit inside the numbered Tasks list, before the
+# "Delete this file" step, so an AI working the list in order sees it.
+PORTAL_LINE="$(grep -n "If you chose the portal" "$TARGET4/SETUP.md" | head -1 | cut -d: -f1)"
+DEL_LINE4="$(grep -n "Delete this file" "$TARGET4/SETUP.md" | head -1 | cut -d: -f1)"
+if [ -z "$PORTAL_LINE" ] || [ -z "$DEL_LINE4" ]; then
+  fail "could not locate portal task or delete-this-file line in SETUP.md"
+elif [ "$PORTAL_LINE" -lt "$DEL_LINE4" ]; then
+  pass
+else
+  fail "portal task (line $PORTAL_LINE) is not before the delete-this-file line (line $DEL_LINE4)"
+fi
+
+# --- Portal unit tests (optional) ---------------------------------------------
+# The portal's own node tests need its dependencies installed first
+# (cd portal && npm install). Skip cleanly when node or node_modules is
+# absent so this suite still runs on machines without a node toolchain.
+
+KIT_DIR="$(dirname "$SETUP_DIR")"
+if command -v node >/dev/null 2>&1 && [ -d "$KIT_DIR/portal/node_modules" ]; then
+  if (cd "$KIT_DIR/portal" && npm test >/dev/null 2>&1); then
+    pass
+  else
+    fail "portal unit tests (cd portal && npm test) failed"
+  fi
+else
+  echo "SKIP: portal unit tests (node or portal/node_modules not available)"
+fi
+
 # --- Summary ----------------------------------------------------------------
 
-rm -rf "$WORK1" "$WORK2" "$WORK3"
+rm -rf "$WORK1" "$WORK2" "$WORK3" "$WORK4"
 echo "Passed: $PASSES  Failed: $FAILS"
 [ "$FAILS" -eq 0 ]

@@ -43,6 +43,9 @@ the case-study interview as a follow-on: a structured conversation, described
 in `portfolio/case-studies/README.md`, that turns your top projects into
 written case studies.
 
+If you chose the submission portal, the assistant will also help you
+configure it, following `docs/portal.md`, and test a submission end to end.
+
 ## Example transcript shape
 
 A condensed sketch of how the session tends to flow:

@@ -62,7 +62,7 @@ else
   ask_menu EMPLOYMENT_STATUS "Current employment status:" "employed" "between roles"
   ask_menu AI_TOOL "Which AI assistant will you use?" "claude-code" "other"
   ask_menu TRACKER "Application tracker:" "file" "grist"
-  ask PORTAL "Set up the submission portal? (ships in a later release)" "no"
+  ask PORTAL "Set up the submission portal (submit job descriptions from your phone)? [y/N]" "no"
 fi
 
 if [ -z "${TARGET_DIR:-}" ]; then
@@ -223,14 +223,23 @@ location) and keep the same columns.
 EOF
 fi
 
-PORTAL_NOTE=""
 case "$PORTAL" in
   y|Y|yes|Yes|YES) PORTAL="yes" ;;
+  n|N|no|No|NO) PORTAL="no" ;;
 esac
 if [ "$PORTAL" = "yes" ]; then
+  # Copy the portal source, excluding local-only directories and secrets.
+  cp -R "$KIT_DIR/portal" "$TARGET_DIR/portal"
+  rm -rf "$TARGET_DIR/portal/node_modules" "$TARGET_DIR/portal/data"
+  rm -f "$TARGET_DIR/portal/.env"
+  mkdir -p "$TARGET_DIR/docs"
+  cp "$KIT_DIR/docs/portal.md" "$TARGET_DIR/docs/portal.md"
   echo
-  echo "Note: the submission portal ships in a later release. Recorded in SETUP.md as pending."
-  PORTAL_NOTE="- Pending: submission portal requested; it ships in a later release."
+  if command -v node >/dev/null 2>&1; then
+    echo "Portal copied. node found: $(node --version). Run 'npm install' inside portal/ before first use."
+  else
+    echo "Portal copied, but node was NOT found. The portal needs Node 20 or newer; install it before configuring the portal (see docs/portal.md)."
+  fi
 fi
 
 # --- SETUP.md ----------------------------------------------------------------
@@ -256,8 +265,23 @@ if [ "$CREATIVE" = "yes" ]; then
     { print }
   ' "$TARGET_DIR/SETUP.md" > "$setup_tmp" && mv "$setup_tmp" "$TARGET_DIR/SETUP.md"
 fi
-if [ -n "$PORTAL_NOTE" ]; then
-  printf '\n%s\n' "$PORTAL_NOTE" >> "$TARGET_DIR/SETUP.md"
+if [ "$PORTAL" = "yes" ]; then
+  # Insert the portal task into the numbered Tasks list, before the
+  # "Delete this file" step, mirroring the creative-module insertion above.
+  setup_tmp="$TARGET_DIR/SETUP.md.portal.$$"
+  awk '
+    /^[0-9]+\. Delete this file/ {
+      split($0, parts, ".")
+      n = parts[1] + 0
+      print n ". If you chose the portal: configure it per docs/portal.md (email provider,"
+      print "   allowed emails, .env), install its dependencies with npm install, and test"
+      print "   a submission end to end with the user."
+      sub(/^[0-9]+\./, (n + 1) ".", $0)
+      print
+      next
+    }
+    { print }
+  ' "$TARGET_DIR/SETUP.md" > "$setup_tmp" && mv "$setup_tmp" "$TARGET_DIR/SETUP.md"
 fi
 
 # --- Initialise git ------------------------------------------------------------
