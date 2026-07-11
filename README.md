@@ -28,6 +28,8 @@ Clone the kit and run the setup wizard:
 git clone https://github.com/OWNER/job-search-kit && cd job-search-kit && ./setup/setup.sh
 ```
 
+(The clone URL will be finalised when the kit is published; replace OWNER with the publisher's GitHub account.)
+
 The wizard will:
 - Create your project structure (core documents, templates, application folders)
 - Set up your file tracker connection
@@ -36,7 +38,7 @@ The wizard will:
 
 ## Getting started
 
-Open the job-search-kit folder in your AI tool and say: **"run setup"**
+First run the setup wizard from the kit folder (see Installation above). Then open the newly created project folder, the target directory you chose during the wizard, in your AI tool and say: **"run setup"**
 
 Your AI tool will guide you through intake, then manage applications, track progress, and redraft materials as you refine your search. See `docs/first-session.md` for what that first session looks like, including choosing a Typst CV template with the assistant.
 
@@ -56,7 +58,7 @@ The kit creates:
 - `core/`: durable source documents (profile, CV, stories, voice)
 - `applications/`: one folder per role with spec, fit assessment, tailored CV, cover letter, interview prep
 - `templates/`: reusable copy and layouts
-- `portfolio/`: case-study bank (optional)
+- `portfolio/`: case-study bank (added by the creative module in a later release)
 - `render/`: Typst rendering for professional PDFs (optional; bring your own template)
 - `tracker/`: configuration for your application log
 
@@ -68,6 +70,6 @@ Licensed under MIT. Contributions welcome. Built as a personal tool, generalised
 
 ## Questions?
 
-See `CLAUDE.md` for operating conventions, `WORKFLOW.md` for the day-to-day process, and the docs in `docs/` for deeper guidance.
+See the `CLAUDE.md` (or `AGENTS.md`) inside your generated project for operating conventions, `WORKFLOW.md` for the day-to-day process, and the docs in `docs/` for deeper guidance.
 
 Happy hunting.

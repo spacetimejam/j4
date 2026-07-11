@@ -2,7 +2,7 @@
 
 Typst rendering for send-ready CV and cover letter PDFs. The kit deliberately
 does not ship a finished CV design: you choose a Typst template yourself (see
-"Choosing your template" below), vendor it into `templates/`, and adapt it with
+"Choosing your template" below), vendor it into `render/templates/`, and adapt it with
 your AI assistant to read the yaml content model described here. The design is
 yours; the content model and the hard rules stay the same regardless of which
 template you pick.
@@ -45,7 +45,7 @@ back here: it expects `templates/main.typ` (the CV) and
 1. **Browse Typst Universe** at https://typst.app/universe and search its CV
    templates; any of the currently popular CV packages is a fine starting
    point. Pick a design you would be happy to send.
-2. **Vendor it into `templates/`.** Copy the template's source files in (do not
+2. **Vendor it into `render/templates/`.** Copy the template's source files in (do not
    rely on a package import that can change under you), and keep its licence
    file alongside the source.
 3. **Adapt it to the content model.** With your AI assistant, rework the

@@ -51,6 +51,24 @@ check "WORKFLOW.md exists" test -f "$TARGET1/WORKFLOW.md"
 check "tracker/applications.csv exists" test -f "$TARGET1/tracker/applications.csv"
 check "render/render.sh exists" test -f "$TARGET1/render/render.sh"
 
+# The instantiated project is a git repo with exactly one commit.
+if git -C "$TARGET1" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  pass
+else
+  fail "target project is not a git repository"
+fi
+COMMITS="$(git -C "$TARGET1" rev-list --count HEAD 2>/dev/null || echo 0)"
+if [ "$COMMITS" = "1" ]; then
+  pass
+else
+  fail "target project should have exactly one commit, has: $COMMITS"
+fi
+if git -C "$TARGET1" log -1 --format=%s 2>/dev/null | grep -q "initial project from job-search-kit"; then
+  pass
+else
+  fail "initial commit message mismatch"
+fi
+
 # With no vendored template, render.sh must fail with a clear pointer at the
 # README's "Choosing your template" section, not a raw typst error.
 mkdir -p "$TARGET1/applications/dummy-role"

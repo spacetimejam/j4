@@ -29,7 +29,7 @@ Decide, for this role:
 - **Which projects lead.** Start from the patterns in `profile.md` and add to those patterns as they emerge.
 - **The header line** (`position:` in both yamls): the default title from `profile.md`, moved toward the target title only where honest.
 - **Key skills cut and order:** from the master list, job-relevant first; trim rather than pad.
-- **About me angle:** re-angle the sidebar paragraphs to the sector without inventing.
+- **About me angle:** re-angle the about paragraphs to the sector without inventing.
 - **Portfolio or work-sample links:** which pieces the letter and CV point to.
 - **[STOP]** The user confirms the dials.
 

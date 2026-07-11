@@ -13,7 +13,7 @@ KIT="$(cd "$HERE/../.." && pwd)"
 docker run --rm -v "$KIT:/kit:ro" ubuntu:24.04 bash -ec '
   apt-get update -qq >/dev/null
   apt-get install -y -qq git curl ca-certificates python3 python3-yaml xz-utils >/dev/null
-  /kit/setup/setup.sh --answers /kit/setup/test/answers.env --target /root/my-search
+  /kit/setup/setup.sh --answers /kit/setup/test/answers.env --target /root/my-search --assume-deps-yes
   cd /root/my-search
   export PATH="$HOME/.local/bin:$PATH"
   typst --version

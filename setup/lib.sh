@@ -11,6 +11,8 @@ sed_escape() {
 # Replaces every {{PLACEHOLDER}} token in .md, .tmpl and .yaml files under
 # <dir> with the value of the matching shell variable. Uses a temp file per
 # file for portability (no sed -i).
+# Full token list: USER_NAME, USER_EMAIL, USER_PHONE, USER_LOCATION, FIELD,
+# SENIORITY, EMPLOYMENT_STATUS, AI_TOOL, DATE, TRACKER, PORTAL.
 substitute_all() {
   target="$1"
   name_esc="$(sed_escape "$USER_NAME")"

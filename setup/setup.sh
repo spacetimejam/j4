@@ -4,6 +4,7 @@
 #   ./setup.sh                                   interactive
 #   ./setup.sh --answers file.env --target dir   non-interactive
 #   --skip-deps skips dependency checks (used by tests).
+#   --assume-deps-yes answers yes to dependency install prompts.
 # Bash 3.2 compatible.
 
 set -eu
@@ -18,14 +19,16 @@ TEMPLATE_DIR="$KIT_DIR/template"
 ANSWERS_FILE=""
 TARGET_DIR=""
 SKIP_DEPS="no"
+ASSUME_DEPS_YES="no"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --answers) ANSWERS_FILE="$2"; shift 2 ;;
     --target)  TARGET_DIR="$2"; shift 2 ;;
     --skip-deps) SKIP_DEPS="yes"; shift ;;
+    --assume-deps-yes) ASSUME_DEPS_YES="yes"; shift ;;
     -h|--help)
-      echo "Usage: setup.sh [--answers <file>] [--target <dir>] [--skip-deps]"
+      echo "Usage: setup.sh [--answers <file>] [--target <dir>] [--skip-deps] [--assume-deps-yes]"
       exit 0 ;;
     *) echo "Unknown flag: $1" >&2; exit 1 ;;
   esac
@@ -38,9 +41,13 @@ if [ -n "$ANSWERS_FILE" ]; then
     echo "Answers file not found: $ANSWERS_FILE" >&2
     exit 1
   fi
+  # The --target flag wins over any TARGET_DIR line in the answers file.
+  TARGET_DIR_FLAG="${TARGET_DIR:-}"
   # shellcheck disable=SC1090
   . "$ANSWERS_FILE"
-  [ -n "${TARGET_DIR:-}" ] || TARGET_DIR="${TARGET_DIR:-}"
+  if [ -n "$TARGET_DIR_FLAG" ]; then
+    TARGET_DIR="$TARGET_DIR_FLAG"
+  fi
 else
   echo "Job Search Kit setup"
   echo "===================="
@@ -86,11 +93,14 @@ if [ "$SKIP_DEPS" = "no" ]; then
       echo "  python3 + yaml: found"
     else
       echo "  python3 found, but the yaml module is missing."
-      if [ -t 0 ]; then
+      if [ "$ASSUME_DEPS_YES" = "yes" ]; then
+        reply="y"
+        echo "  --assume-deps-yes: installing pyyaml."
+      elif [ -t 0 ]; then
         read -r -p "  Run 'pip3 install --user pyyaml' now? [y/N]: " reply
       else
-        reply="y"
-        echo "  Non-interactive session: installing pyyaml."
+        reply="n"
+        echo "  Non-interactive session: skipping pyyaml install (use --assume-deps-yes to install)."
       fi
       case "$reply" in
         y|Y) pip3 install --user pyyaml ;;
@@ -109,11 +119,14 @@ if [ "$SKIP_DEPS" = "no" ]; then
       Darwin)
         echo "  On macOS, install with: brew install typst" ;;
       *)
-        if [ -t 0 ]; then
+        if [ "$ASSUME_DEPS_YES" = "yes" ]; then
+          reply="y"
+          echo "  --assume-deps-yes: running the Typst installer."
+        elif [ -t 0 ]; then
           read -r -p "  Run template/render/install-typst.sh now? [y/N]: " reply
         else
-          reply="y"
-          echo "  Non-interactive session: running the Typst installer."
+          reply="n"
+          echo "  Non-interactive session: skipping the Typst installer (use --assume-deps-yes to install)."
         fi
         case "$reply" in
           y|Y) bash "$TEMPLATE_DIR/render/install-typst.sh" ;;
@@ -173,6 +186,9 @@ EOF
 fi
 
 PORTAL_NOTE=""
+case "$PORTAL" in
+  y|Y|yes|Yes|YES) PORTAL="yes" ;;
+esac
 if [ "$PORTAL" = "yes" ]; then
   echo
   echo "Note: the submission portal ships in a later release. Recorded in SETUP.md as pending."
@@ -184,6 +200,21 @@ fi
 mv "$TARGET_DIR/SETUP.md.tmpl" "$TARGET_DIR/SETUP.md"
 if [ -n "$PORTAL_NOTE" ]; then
   printf '\n%s\n' "$PORTAL_NOTE" >> "$TARGET_DIR/SETUP.md"
+fi
+
+# --- Initialise git ------------------------------------------------------------
+
+if command -v git >/dev/null 2>&1; then
+  (
+    cd "$TARGET_DIR"
+    git init -q
+    git add -A
+    git -c user.name="Job Search Kit" -c user.email="setup@job-search-kit.invalid" \
+      commit -q -m "initial project from job-search-kit"
+  )
+  echo "Initialised a git repository in the project with an initial commit."
+else
+  echo "git not found: skipping repository initialisation for the project."
 fi
 
 echo

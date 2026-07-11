@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Render an application's CV and cover letter to send-ready PDFs, named:
-#   "<Name> - <Role> - CV.pdf"  and  "<Name> - <Role> - Cover Letter.pdf"
+#   "CV - <Name> - <Role>.pdf"  and  "Cover Letter - <Name> - <Role>.pdf"
 # Name comes from contacts.name, Role from the top-level `role:` field in each yaml.
 # Usage: render/render.sh <role-slug>
 set -euo pipefail

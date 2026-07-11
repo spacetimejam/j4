@@ -4,9 +4,10 @@
 # copy; replace it with the user's actual material, never send it as-is.
 # The contacts block is filled in by the setup wizard from your answers.
 
-# Theme dials. Read by main.typ; overridable per role. Defaults are the neutral
-# look (teal accent, pale sidebar, Inter) baked into lib.typ, so this block is
-# optional. Example:
+# Theme dials, overridable per role. These keys are read by whatever template
+# you vendor into render/templates/ (see render/README.md "Choosing your
+# template"), so the block is optional and its accepted keys depend on your
+# template. Example:
 # theme:
 #   accent: "#2b6777"
 #   sidebar_fill: "#f2f5f5"
