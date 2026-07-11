@@ -25,10 +25,8 @@ The kit handles:
 Clone the kit and run the setup wizard:
 
 ```bash
-git clone https://github.com/OWNER/job-search-kit && cd job-search-kit && ./setup/setup.sh
+git clone https://github.com/spacetimejam/job-search-kit && cd job-search-kit && ./setup/setup.sh
 ```
-
-(The clone URL will be finalised when the kit is published; replace OWNER with the publisher's GitHub account.)
 
 The wizard will:
 - Create your project structure (core documents, templates, application folders)
