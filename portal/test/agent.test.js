@@ -1,0 +1,99 @@
+import test from 'node:test';
+import assert from 'node:assert';
+process.env.DB_PATH = ':memory:';
+process.env.AGENT_RUNNER = 'cli';
+process.env.AGENT_CMD = 'fake-agent --output-format json --model {model}';
+process.env.AGENT_CMD_RESUME = 'fake-agent --output-format json --resume {sessionId}';
+const { parseEmailDirective, runAgentTurn } = await import('../src/agent.js');
+const { runCli } = await import('../src/runners/cli.js');
+
+test('extracts email directive and strips it from text', () => {
+  const text = 'All done!\n\n```email-to-user\n{"subject":"Your CV","body":"Here you go","attachments":["/tmp/a.md"]}\n```';
+  const { clean, email } = parseEmailDirective(text);
+  assert.equal(clean.trim(), 'All done!');
+  assert.equal(email.subject, 'Your CV');
+  assert.deepEqual(email.attachments, ['/tmp/a.md']);
+});
+
+test('returns null email when no directive', () => {
+  const { clean, email } = parseEmailDirective('Just a question?');
+  assert.equal(email, null);
+  assert.equal(clean, 'Just a question?');
+});
+
+test('malformed JSON yields null email, keeps text', () => {
+  const { email } = parseEmailDirective('x\n```email-to-user\nnot json\n```');
+  assert.equal(email, null);
+});
+
+test('runAgentTurn selects the configured runner and passes the contract fields', async () => {
+  let seen;
+  const runners = { cli: async args => { seen = args; return { sessionId: 's1', text: 'hi' }; } };
+  const out = await runAgentTurn({ prompt: 'JD text', resumeSessionId: null }, { runners });
+  assert.deepEqual(out, { sessionId: 's1', text: 'hi' });
+  assert.equal(seen.prompt, 'JD text');
+  assert.equal(seen.resumeSessionId, null);
+  assert.ok(seen.systemPrompt.includes('email-to-user'));
+  assert.ok(seen.cwd);
+  assert.ok(seen.model);
+});
+
+test('runAgentTurn rejects an unknown runner', async () => {
+  await assert.rejects(runAgentTurn({ prompt: 'x' }, { runners: {} }), /unknown agent runner/);
+});
+
+function fakeSpawn({ stdout = '', code = 0 } = {}) {
+  const calls = [];
+  const spawnImpl = (bin, args, opts) => {
+    const handlers = {};
+    const child = {
+      stdout: { on: (ev, fn) => { if (ev === 'data') child._out = fn; } },
+      stderr: { on: () => {} },
+      on: (ev, fn) => { handlers[ev] = fn; },
+      stdin: {
+        end: input => {
+          calls.push({ bin, args, opts, input });
+          queueMicrotask(() => {
+            if (stdout) child._out(stdout);
+            handlers.close(code);
+          });
+        },
+      },
+    };
+    return child;
+  };
+  return { spawnImpl, calls };
+}
+
+test('cli runner substitutes {model}, pipes prompt to stdin, parses JSON output', async () => {
+  const json = JSON.stringify({ result: 'Final answer', session_id: 'sess-42' });
+  const { spawnImpl, calls } = fakeSpawn({ stdout: json });
+  const out = await runCli(
+    { prompt: 'JD here', systemPrompt: 'SYS', resumeSessionId: null, cwd: '/tmp', model: 'model-x' },
+    { spawnImpl },
+  );
+  assert.deepEqual(out, { sessionId: 'sess-42', text: 'Final answer' });
+  assert.equal(calls[0].bin, 'fake-agent');
+  assert.deepEqual(calls[0].args, ['--output-format', 'json', '--model', 'model-x']);
+  assert.equal(calls[0].opts.cwd, '/tmp');
+  assert.ok(calls[0].input.startsWith('SYS'));
+  assert.ok(calls[0].input.includes('JD here'));
+});
+
+test('cli runner uses the resume template and carries sessionId over raw-text output', async () => {
+  const { spawnImpl, calls } = fakeSpawn({ stdout: 'plain text reply\n' });
+  const out = await runCli(
+    { prompt: 'notes', systemPrompt: 'SYS', resumeSessionId: 'sess-42', cwd: '/tmp', model: 'model-x' },
+    { spawnImpl },
+  );
+  assert.deepEqual(out, { sessionId: 'sess-42', text: 'plain text reply' });
+  assert.deepEqual(calls[0].args, ['--output-format', 'json', '--resume', 'sess-42']);
+});
+
+test('cli runner rejects on a non-zero exit code', async () => {
+  const { spawnImpl } = fakeSpawn({ stdout: '', code: 1 });
+  await assert.rejects(
+    runCli({ prompt: 'x', systemPrompt: 'S', resumeSessionId: null, cwd: '/tmp', model: 'm' }, { spawnImpl }),
+    /exited 1/,
+  );
+});

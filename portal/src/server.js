@@ -1,0 +1,112 @@
+import express from 'express';
+import { basename } from 'node:path';
+import { getDb, newId } from './db.js';
+import { config } from './config.js';
+import { issueToken, redeemToken, makeCookie, requireAuth } from './auth.js';
+import { sendEmail } from './email.js';
+import { enqueue, startWorker } from './queue.js';
+
+const OWNER_EMAIL = () => config.allowedEmails[0]; // first allowlisted address is the portal owner
+
+export function createApp({ send = sendEmail } = {}) {
+  const app = express();
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.static(new URL('../public', import.meta.url).pathname));
+
+  app.get('/api/meta', (req, res) => res.json({ title: config.portalTitle }));
+
+  app.post('/api/login', async (req, res) => {
+    const token = issueToken(req.body?.email);
+    if (token) {
+      const link = `${config.baseUrl}/auth/${token}`;
+      try {
+        await send({
+          to: String(req.body.email).toLowerCase(),
+          subject: `Your ${config.portalTitle} login link`,
+          text: `Hello! Click to log in (valid for 15 minutes): ${link}`,
+          attachments: [],
+        });
+      } catch (err) { console.error('login email failed:', err); }
+    }
+    res.json({ ok: true }); // same response either way; no allowlist oracle
+  });
+
+  app.get('/auth/:token', (req, res) => {
+    const email = redeemToken(req.params.token);
+    if (!email) return res.status(400).send('This link has expired. Please request a new one.');
+    res.setHeader('Set-Cookie',
+      `jskit=${makeCookie(email)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${90 * 86400}`);
+    res.redirect('/');
+  });
+
+  app.get('/api/me', requireAuth, (req, res) => res.json({ email: req.userEmail }));
+
+  app.get('/api/sessions', requireAuth, (req, res) => {
+    const db = getDb();
+    const rows = req.userEmail === OWNER_EMAIL()
+      ? db.prepare('select * from sessions where user_email = ? order by updated_at desc').all(req.userEmail)
+      : db.prepare('select * from sessions order by updated_at desc').all();
+    res.json(rows);
+  });
+
+  app.post('/api/sessions', requireAuth, (req, res) => {
+    const jd = req.body?.jd?.trim();
+    if (!jd) return res.status(400).json({ error: 'jd required' });
+    const isLink = /^https?:\/\/\S+$/.test(jd);
+    const firstLine = jd.split('\n').find(l => l.trim())?.trim() || 'New application';
+    const title = isLink
+      ? jd.replace(/^https?:\/\//, '').slice(0, 80)
+      : firstLine.slice(0, 80);
+    const id = newId();
+    const db = getDb();
+    db.prepare("insert into sessions (id, user_email, title, status) values (?, ?, ?, 'working')")
+      .run(id, req.userEmail, title);
+    db.prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
+      .run(newId(), id, 'user', jd);
+    const prompt = isLink
+      ? `${config.userName} has sent a link to a job listing via the portal. Fetch the job description from this URL (use WebFetch; if the page is blocked or empty, ask for the text to be pasted instead), then proceed as with any new job description.\n\n${jd}`
+      : `New job description from ${config.userName} via the portal.\n\n${jd}`;
+    enqueue({ sessionId: id, prompt });
+    res.json({ id });
+  });
+
+  app.get('/api/sessions/:id', requireAuth, (req, res) => {
+    const db = getDb();
+    const session = db.prepare('select * from sessions where id = ?').get(req.params.id);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    const messages = db.prepare('select * from messages where session_id = ? order by created_at').all(session.id);
+    const files = (JSON.parse(session.files || '[]')).map((p, idx) => ({ idx, name: basename(p) }));
+    res.json({ ...session, messages, files });
+  });
+
+  app.get('/api/sessions/:id/files/:idx', requireAuth, (req, res) => {
+    const session = getDb().prepare('select * from sessions where id = ?').get(req.params.id);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    const paths = JSON.parse(session.files || '[]');
+    const idx = Number(req.params.idx);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= paths.length) return res.status(404).json({ error: 'not found' });
+    res.download(paths[idx], basename(paths[idx]), err => {
+      if (err && !res.headersSent) res.status(404).json({ error: 'file unavailable' });
+    });
+  });
+
+  app.post('/api/sessions/:id/reply', requireAuth, (req, res) => {
+    const body = req.body?.body?.trim();
+    if (!body) return res.status(400).json({ error: 'body required' });
+    const db = getDb();
+    const session = db.prepare('select * from sessions where id = ?').get(req.params.id);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    db.prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
+      .run(newId(), session.id, 'user', body);
+    db.prepare("update sessions set status = 'working', updated_at = datetime('now') where id = ?").run(session.id);
+    enqueue({ sessionId: session.id, prompt: `${config.userName} replies via the portal:\n\n${body}` });
+    res.json({ ok: true });
+  });
+
+  return app;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  createApp().listen(config.port, () => console.log(`${config.portalTitle} on :${config.port}`));
+  startWorker();
+}
