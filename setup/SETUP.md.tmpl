@@ -12,9 +12,12 @@ order with {{USER_NAME}}, then delete this file.
 3. Synthesise `core/master-cv.md` from {{USER_NAME}}'s existing CV. Ask them to
    drop a copy (any format) into `core/source/` first.
 4. Seed `core/stories.md` and `core/voice.md` from the conversation so far.
-5. Confirm the tracker works. Then set up rendering: help {{USER_NAME}} choose
-   a CV template from Typst Universe (https://typst.app/universe), customise it
-   to their taste, and confirm a test compile to PDF succeeds.
+5. Confirm the tracker works. Then set up the render templates: help
+   {{USER_NAME}} choose a Typst Universe CV template
+   (https://typst.app/universe), or replicate their existing CV design from an
+   example they provide, and vendor it into `render/templates/` so `main.typ`
+   and `cover-letter.typ` exist and `render.sh` works end to end; verify with
+   a real render of a dummy slug.
 6. Delete this file and tell {{USER_NAME}} the project is ready to judge fits
    and draft applications.
 

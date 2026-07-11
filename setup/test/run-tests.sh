@@ -51,6 +51,22 @@ check "WORKFLOW.md exists" test -f "$TARGET1/WORKFLOW.md"
 check "tracker/applications.csv exists" test -f "$TARGET1/tracker/applications.csv"
 check "render/render.sh exists" test -f "$TARGET1/render/render.sh"
 
+# With no vendored template, render.sh must fail with a clear pointer at the
+# README's "Choosing your template" section, not a raw typst error.
+mkdir -p "$TARGET1/applications/dummy-role"
+RENDER_OUT="$(bash "$TARGET1/render/render.sh" dummy-role 2>&1)"
+RENDER_RC=$?
+if [ "$RENDER_RC" -ne 0 ]; then
+  pass
+else
+  fail "render.sh should exit non-zero without a vendored template"
+fi
+if echo "$RENDER_OUT" | grep -q "Choosing your template"; then
+  pass
+else
+  fail "render.sh missing-template message should point at 'Choosing your template' in render/README.md"
+fi
+
 # No remaining {{ tokens anywhere in substituted file types.
 LEFTOVER="$(grep -rl '{{' "$TARGET1" --include='*.md' --include='*.yaml' --include='*.tmpl' 2>/dev/null || true)"
 if [ -n "$LEFTOVER" ]; then

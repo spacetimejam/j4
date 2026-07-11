@@ -16,6 +16,14 @@ if ! command -v typst >/dev/null 2>&1 && [ -x "$HOME/.local/bin/typst" ]; then
   PATH="$HOME/.local/bin:$PATH"
 fi
 
+# No template yet? Stop with guidance rather than a raw typst error.
+if [ ! -f "$HERE/templates/main.typ" ]; then
+  echo "error: no CV template found at render/templates/main.typ." >&2
+  echo "The kit does not ship a CV design. Pick and vendor a Typst template first:" >&2
+  echo "see the 'Choosing your template' section in render/README.md." >&2
+  exit 1
+fi
+
 # Pull a field from a yaml: `field <file> name` (contacts.name) or `field <file> role`.
 field() {
   python3 -c "import yaml,sys

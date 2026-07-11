@@ -31,7 +31,7 @@ git clone https://github.com/OWNER/job-search-kit && cd job-search-kit && ./setu
 The wizard will:
 - Create your project structure (core documents, templates, application folders)
 - Set up your file tracker connection
-- Initialise an optional Typst render pipeline for polished CV and cover-letter PDFs
+- Initialise an optional Typst render pipeline for polished CV and cover-letter PDFs (you pick your own template from Typst Universe; the kit does not ship a design)
 - Seed template documents with your information
 
 ## Getting started
@@ -57,7 +57,7 @@ The kit creates:
 - `applications/`: one folder per role with spec, fit assessment, tailored CV, cover letter, interview prep
 - `templates/`: reusable copy and layouts
 - `portfolio/`: case-study bank (optional)
-- `render/`: Typst rendering for professional PDFs (optional)
+- `render/`: Typst rendering for professional PDFs (optional; bring your own template)
 - `tracker/`: configuration for your application log
 
 See `WORKFLOW.md` for the job-description-to-logged-application process.
