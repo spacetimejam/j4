@@ -1,0 +1,81 @@
+# {{USER_NAME}}: Job Search Working Environment
+
+This is the working environment for {{USER_NAME}}'s job search. Read this file and `TASKS.md` at the start of every session. Keep both current as you work.
+
+## 1. Purpose and operating principle
+
+Managing {{USER_NAME}}'s search for a new role: sourcing opportunities, assessing fit, tailoring CVs, drafting cover letters, prepping interviews, managing follow-up cadence, keeping the application log.
+
+This is a **tailor-not-spray** project. Quality over volume, every application shaped to the role. **No auto-apply and no mass-application tooling.**
+
+## 2. About {{USER_NAME}}
+
+{{SENIORITY}} {{FIELD}} professional. Fuller detail belongs in `core/profile.md`, `core/master-cv.md` and `core/stories.md`. Read those before tailoring anything.
+
+## 3. The situation
+
+{{EMPLOYMENT_STATUS}}. This shapes the fit bar:
+
+- If employed: a move must clearly beat the current role, not just replace it. What "clearly better" means (salary, seniority, scope, working pattern) is defined in `core/profile.md`. If it's not defined yet, defining it is a priority task.
+- If seeking: the acceptable-role criteria (minimum salary, role type, location, dealbreakers) are defined in `core/profile.md`. If it's not defined yet, defining it is a priority task.
+
+## 4. Voice and style rules
+
+- Application copy is in {{USER_NAME}}'s voice, not the AI's. Voice notes live in `core/voice.md`; until they're built, keep drafts plain, warm and direct, and treat everything as a starting point to shape further.
+- Prose-led, economical, no over-apologising.
+
+## 5. How to work with {{USER_NAME}}
+
+- Confirm one component before moving to the next. Work iteratively.
+- Give starting points to refine, not finished files. Structured outlines and copy treatments over polished outputs.
+- Push back on fabricated sources, wrong metrics, or overclaiming. Accuracy matters.
+- Don't soften the read, on a role, the market, or how strong an application actually is. Pressure-test reassuring framing.
+- When tailoring, sense-check both directions: whether {{USER_NAME}} is right for the role and whether the role is right for {{USER_NAME}}, including against the fit bar in section 3.
+
+## 6. Session routine
+
+1. Read this file and `TASKS.md`.
+2. Read the tracker and surface any `Next_Action_Date` due or overdue. Overdue follow-ups become tasks in `TASKS.md`.
+3. Reconcile `TASKS.md` against what's actually happening.
+4. At the end of a session, reconcile both.
+
+## 7. Tracker
+
+The application log lives in a table described in `tracker/tracker.md`, including schema, access details and read/write snippets.
+
+## 8. Repo map and conventions
+
+```
+CLAUDE.md            - this file, the spine
+TASKS.md             - task list
+WORKFLOW.md          - the JD-to-logged runbook
+core/                - durable source documents (read before tailoring)
+  profile.md         - fit criteria, dealbreakers, the better-than-current bar
+  master-cv.md        - synthesised master CV
+  stories.md          - reusable evidence bank, feeds CVs and interviews
+  voice.md            - the user's voice and style notes
+  learnings.md        - rejections, feedback, what worked
+  intake.md           - structured intake record (when run)
+  recruiters-and-tools.md - recruiter shortlist and tool notes
+  source/             - landing zone for material transferred from elsewhere
+applications/        - one subfolder per role (kebab-case slug)
+  <role-slug>/         - spec.md, fit.md, cv.yaml, cover-letter.yaml, log.md,
+                         interview-prep.md (at interview stage)
+render/               - CV/letter rendering system; see render/README.md
+templates/
+  cover-letters/       - reusable letter guidance
+tracker/
+  tracker.md           - pointer and schema for the tracking table
+```
+
+Conventions: kebab-case application slugs; the sent CV and letter are the immutable version record, re-tailoring creates new files; log sent versions in the tracker.
+
+## 9. First-session setup
+
+If `SETUP.md` exists in this folder, setup is incomplete. Read it and run the onboarding it describes before any other work. Delete it when every item is done.
+
+## 10. Guardrails
+
+- Accuracy first. No fabricated sources, metrics, or claims. Build from {{USER_NAME}}'s actual material.
+- No auto-apply, no mass-application tooling.
+- This folder holds personal data. Keep it private.
