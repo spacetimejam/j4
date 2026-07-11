@@ -73,6 +73,7 @@ fi
 CREATIVE="${CREATIVE:-no}"
 case "$CREATIVE" in
   y|Y|yes|Yes|YES) CREATIVE="yes" ;;
+  n|N|no|No|NO) CREATIVE="no" ;;
 esac
 
 for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL TRACKER PORTAL CREATIVE; do
@@ -236,10 +237,24 @@ fi
 
 mv "$TARGET_DIR/SETUP.md.tmpl" "$TARGET_DIR/SETUP.md"
 if [ "$CREATIVE" = "yes" ]; then
-  printf '\n%s\n%s\n' \
-    "- Offer the case-study interview: read portfolio/case-studies/README.md and, when the" \
-    "  user is ready, run the interview and synthesis flow for their top projects." \
-    >> "$TARGET_DIR/SETUP.md"
+  # Insert the creative case-study task into the numbered Tasks list, before
+  # the "Delete this file" step, and renumber that step to stay last. Using
+  # awk for portability with bash 3.2.
+  setup_tmp="$TARGET_DIR/SETUP.md.creative.$$"
+  awk '
+    /^[0-9]+\. Delete this file/ {
+      split($0, parts, ".")
+      n = parts[1] + 0
+      print n ". If you chose the creative module: populate portfolio/site.md (the map of"
+      print "   your portfolio site), then offer the case-study interview: read"
+      print "   portfolio/case-studies/README.md and, when the user is ready, run the"
+      print "   interview and synthesis flow for their top projects."
+      sub(/^[0-9]+\./, (n + 1) ".", $0)
+      print
+      next
+    }
+    { print }
+  ' "$TARGET_DIR/SETUP.md" > "$setup_tmp" && mv "$setup_tmp" "$TARGET_DIR/SETUP.md"
 fi
 if [ -n "$PORTAL_NOTE" ]; then
   printf '\n%s\n' "$PORTAL_NOTE" >> "$TARGET_DIR/SETUP.md"

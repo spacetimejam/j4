@@ -157,6 +157,18 @@ check "hiring-manager-review prompt exists" test -f "$TARGET3/portfolio/case-stu
 check "CLAUDE.md mentions portfolio/" grep -q "portfolio/" "$TARGET3/CLAUDE.md"
 check "SETUP.md has a case-study item" grep -q "case-study interview" "$TARGET3/SETUP.md"
 
+# The case-study item must sit inside the numbered Tasks list, before the
+# "Delete this file" step, so an AI working the list in order sees it.
+CS_LINE="$(grep -n "case-study interview" "$TARGET3/SETUP.md" | head -1 | cut -d: -f1)"
+DEL_LINE="$(grep -n "Delete this file" "$TARGET3/SETUP.md" | head -1 | cut -d: -f1)"
+if [ -z "$CS_LINE" ] || [ -z "$DEL_LINE" ]; then
+  fail "could not locate case-study item or delete-this-file line in SETUP.md"
+elif [ "$CS_LINE" -lt "$DEL_LINE" ]; then
+  pass
+else
+  fail "case-study item (line $CS_LINE) is not before the delete-this-file line (line $DEL_LINE)"
+fi
+
 # No leftover tokens in the creative project either.
 LEFTOVER3="$(grep -rl '{{' "$TARGET3" --include='*.md' --include='*.yaml' --include='*.tmpl' 2>/dev/null || true)"
 if [ -n "$LEFTOVER3" ]; then
