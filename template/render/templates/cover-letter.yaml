@@ -1,0 +1,45 @@
+# SKELETON - layout proofing only; every sentence here is placeholder copy.
+# The real per-role tailored versions live in applications/<slug>/cover-letter.yaml.
+# The {{USER_*}} placeholders in contacts are substituted by the setup wizard.
+
+theme: {}
+
+contacts:
+  name: "{{USER_NAME}}"
+  phone: "{{USER_PHONE}}"
+  email: "{{USER_EMAIL}}"
+  location: "{{USER_LOCATION}}"
+  website:
+    url: "https://www.example.com"
+    displayText: "www.example.com"
+  linkedin:
+    url: "https://www.linkedin.com/in/alex-example"
+    displayText: "linkedin.com/in/alex-example"
+
+position: "Senior Widget Analyst"
+
+# Used in the PDF title and output filename.
+role: "Senior Widget Analyst"
+
+date: 1 January 2026
+
+# recipient: |
+#   Hiring Team
+#   Company Name
+subject: "Application for Senior Widget Analyst"
+
+greeting: "Dear Hiring Team,"
+
+paragraphs:
+  - >-
+    Placeholder opening paragraph. The real letter states the role, where it
+    was seen, and one line on why the fit is strong.
+  - >-
+    Placeholder middle paragraph. Two or three sentences of evidence drawn
+    from the stories bank, matched to what the job description actually asks
+    for.
+  - >-
+    Placeholder closing paragraph. Availability, portfolio pointer, and a
+    plain sign-off line.
+
+signoff: "Best wishes,"

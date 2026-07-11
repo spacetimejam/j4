@@ -1,0 +1,77 @@
+# SKELETON - full schema with fictional example content, for layout proofing
+# and as the starting point for tailoring. The real per-role tailored versions
+# live in applications/<slug>/cv.yaml. Everything below is invented example
+# copy; replace it with the user's actual material, never send it as-is.
+# The {{USER_*}} placeholders in contacts are substituted by the setup wizard.
+
+# Theme dials. Read by main.typ; overridable per role. Defaults are the neutral
+# look (teal accent, pale sidebar, Inter) baked into lib.typ, so this block is
+# optional. Example:
+# theme:
+#   accent: "#2b6777"
+#   sidebar_fill: "#f2f5f5"
+#   body_font: "Inter"
+theme: {}
+
+contacts:
+  name: "{{USER_NAME}}"
+  phone: "{{USER_PHONE}}"
+  email: "{{USER_EMAIL}}"
+  location: "{{USER_LOCATION}}"
+  website:
+    url: "https://www.example.com"
+    displayText: "www.example.com"
+  linkedin:
+    url: "https://www.linkedin.com/in/alex-example"
+    displayText: "linkedin.com/in/alex-example"
+
+# Headline shown under the name in the letterhead.
+position: "Senior Widget Analyst"
+
+# The role applied for; used in the PDF title and output filename.
+role: "Senior Widget Analyst"
+
+about:
+  - >-
+    Example about paragraph one. Two or three sentences on experience, sector
+    focus and what the candidate is strongest at, drawn from their real CV.
+  - >-
+    Example about paragraph two. A line on how they work and what they enjoy,
+    in the candidate's own voice.
+
+key_skills:
+  - Example skill one
+  - Example skill two
+  - Example skill three
+  - Example skill four
+  - Example skill five
+  - Example skill six
+
+education:
+  - qualification: BA (Hons)
+    course: Example Studies
+    institution: University of Example
+    dates: 2010 - 2013
+
+jobs:
+  - position: Senior Widget Analyst
+    company: Example Industries
+    from: Jan 2022
+    to: Present
+    intro: >-
+      One-line summary of the role and its scope, taken from the candidate's
+      real experience.
+    description:
+      - Example achievement bullet, ideally with a concrete outcome.
+      - Example responsibility bullet describing day-to-day work.
+      - Example collaboration bullet naming the teams worked with.
+  - position: Widget Analyst
+    company: Sample & Sons
+    from: Mar 2018
+    to: Dec 2021
+    intro: >-
+      One-line summary of the earlier role.
+    description:
+      - Example bullet one.
+      - Example bullet two.
+      - Example bullet three.
