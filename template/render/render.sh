@@ -24,6 +24,13 @@ if [ ! -f "$HERE/templates/main.typ" ]; then
   exit 1
 fi
 
+if [ ! -f "$HERE/templates/cover-letter.typ" ]; then
+  echo "error: no cover letter template found at render/templates/cover-letter.typ." >&2
+  echo "The kit does not ship a cover letter design. Pick and vendor a Typst template first:" >&2
+  echo "see the 'Choosing your template' section in render/README.md." >&2
+  exit 1
+fi
+
 # Pull a field from a yaml: `field <file> name` (contacts.name) or `field <file> role`.
 field() {
   python3 -c "import yaml,sys

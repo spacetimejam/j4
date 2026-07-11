@@ -67,6 +67,24 @@ else
   fail "render.sh missing-template message should point at 'Choosing your template' in render/README.md"
 fi
 
+# Also test missing cover-letter.typ with main.typ present.
+# Create both templates, then remove only cover-letter.typ.
+touch "$TARGET1/render/templates/main.typ"
+touch "$TARGET1/render/templates/cover-letter.typ"
+rm "$TARGET1/render/templates/cover-letter.typ"
+RENDER_OUT2="$(bash "$TARGET1/render/render.sh" dummy-role 2>&1)"
+RENDER_RC2=$?
+if [ "$RENDER_RC2" -ne 0 ]; then
+  pass
+else
+  fail "render.sh should exit non-zero without a vendored cover-letter template"
+fi
+if echo "$RENDER_OUT2" | grep -q "Choosing your template"; then
+  pass
+else
+  fail "render.sh missing-cover-letter-template message should point at 'Choosing your template' in render/README.md"
+fi
+
 # No remaining {{ tokens anywhere in substituted file types.
 LEFTOVER="$(grep -rl '{{' "$TARGET1" --include='*.md' --include='*.yaml' --include='*.tmpl' 2>/dev/null || true)"
 if [ -n "$LEFTOVER" ]; then

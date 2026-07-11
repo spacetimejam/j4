@@ -38,7 +38,7 @@ Decide, for this role:
 - Levers, in rough order of effect: job `intro` lines re-angled to the job description; bullets reordered so the relevant lead, cut to fit; `key_skills` order; `about` paragraphs.
 - Jobs stay chronological. Don't drop a role without asking.
 - Work from `master-cv.md` and `stories.md`. **Never invent or inflate.**
-- **Hard rules: one page, never over** (check the render, don't shrink type); template type sizes are the floor.
+- **Hard rules: one page, never over** (check the render, don't shrink type); your chosen template's type sizes are the floor.
 - Render: `render/render.sh <role-slug>`.
 - **[STOP]** The user confirms the content; they own the craft.
 
