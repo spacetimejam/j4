@@ -2,12 +2,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib.colors import HexColor
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Preformatted
+from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Preformatted, KeepTogether
 from reportlab.lib.enums import TA_LEFT
 
 teal = HexColor("#2b6777"); ink = HexColor("#1a1a1a"); panel = HexColor("#f2f5f5")
 h1 = ParagraphStyle('h1', fontName='Helvetica-Bold', fontSize=20, leading=24, textColor=teal, spaceAfter=12)
-h2 = ParagraphStyle('h2', fontName='Helvetica-Bold', fontSize=13, leading=16, textColor=teal, spaceBefore=14, spaceAfter=6)
+h2 = ParagraphStyle('h2', fontName='Helvetica-Bold', fontSize=13, leading=16, textColor=teal, spaceBefore=14, spaceAfter=6, keepWithNext=1)
 body = ParagraphStyle('body', fontName='Helvetica', fontSize=10.5, leading=14.5, textColor=ink, spaceAfter=6)
 bullet = ParagraphStyle('bullet', parent=body, leftIndent=14, bulletIndent=4, spaceAfter=4)
 code = ParagraphStyle('code', fontName='Courier', fontSize=9.5, leading=13, textColor=ink, backColor=panel,
@@ -46,9 +46,11 @@ story = [
  P("If that prints a version number, move on. If not:"),
  B("<b>macOS:</b> run <font face='Courier'>xcode-select --install</font> and accept the prompt."),
  B("<b>Linux / WSL:</b> run <font face='Courier'>sudo apt update &amp;&amp; sudo apt install -y git</font>"),
- H("Step 3: install your AI assistant"),
- P("For Claude Code, run the installer, then start it (two commands, one at a time):"),
- C("curl -fsSL https://claude.ai/install.sh | bash\nclaude"),
+ KeepTogether([
+  H("Step 3: install your AI assistant"),
+  P("For Claude Code, run the installer, then start it (two commands, one at a time):"),
+  C("curl -fsSL https://claude.ai/install.sh | bash\nclaude"),
+ ]),
  P("The first launch walks you through logging in with your Claude account. When you can type a question and get an answer, you are done here: type <font face='Courier'>/exit</font> to close Claude Code and return to the terminal. You will not need it again until the wizard hands back to it at the end of setup."),
  P("If you prefer a different assistant, install it per its own instructions. During setup the wizard will ask which tool you use and prepare the project accordingly."),
  H("Step 4 (optional): Node.js, for the portal"),
