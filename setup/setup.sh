@@ -304,6 +304,13 @@ fi
 echo
 echo "Done. Your project is at: $TARGET_DIR"
 echo
-echo "Next step: open the project with your AI assistant and ask it to read"
-echo "SETUP.md. It walks the first session through intake, profile building"
-echo "and a test render, then deletes itself when setup is complete."
+echo "Next step: start your AI assistant from inside the project folder"
+if [ "$AI_TOOL" = "claude-code" ]; then
+  echo "  cd $TARGET_DIR"
+  echo "  claude"
+else
+  echo "  cd $TARGET_DIR   (then launch your AI tool there)"
+fi
+echo "and ask it to read SETUP.md. It walks the first session through intake,"
+echo "profile building and a test render, then deletes itself when setup is"
+echo "complete."
