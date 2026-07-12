@@ -28,7 +28,7 @@ story = [
  Paragraph("Job Search Kit: getting started", h1),
  P("This guide takes you from a bare computer to the moment the kit's own setup wizard takes over. Nothing here is difficult, and none of it needs programming knowledge. Allow half an hour."),
  H("What you are setting up"),
- P("The Job Search Kit is a private, AI-operated working environment for a job search. Once it is installed, an AI assistant works inside it with you: assessing whether roles are genuinely worth your time, tailoring your CV to each one, drafting cover letters in your voice, prepping you for interviews, and keeping an application log so nothing goes cold. Everything lives in a folder on your machine. There are no accounts, no cloud services holding your data, and it never applies to anything on your behalf."),
+ P("The Job Search Kit is a private, AI-operated working environment for a job search. Once it is installed, an AI assistant works inside it with you: assessing whether roles are genuinely worth your time, tailoring your CV to each one, drafting cover letters in your voice, prepping you for interviews, and keeping an application log so nothing goes cold. Everything lives in a folder on your machine, and it never applies to anything on your behalf."),
  H("What you need"),
  B("A computer running <b>macOS</b>, <b>Linux</b>, or <b>Windows</b> (Windows works through WSL, step 1 below)."),
  B("An <b>AI coding assistant</b>. The kit is built for <b>Claude Code</b> and works best with it; a paid Claude plan (Pro or Max) is required. Other tools that read AGENTS.md files (Codex, Gemini CLI, Cursor) also work."),

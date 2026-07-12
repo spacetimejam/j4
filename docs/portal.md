@@ -61,26 +61,73 @@ Then edit `.env`, field by field:
 
 Set `EMAIL_PROVIDER` to one of:
 
-- `brevo` (recommended): a hosted transactional email service with a free
-  tier that comfortably covers a job search. Create an account, generate an
-  API key, and set `BREVO_API_KEY` and `EMAIL_FROM`. The sender address must
-  be one Brevo has verified for your account.
-- `smtp`: any SMTP account you already have. Set `SMTP_URL` as a nodemailer
-  connection URL, for example
-  `smtps://user:pass@smtp.example.com:465`, plus `EMAIL_FROM`.
+- `smtp` (recommended): send through a mailbox you already have. No new
+  account needed. Full walkthrough below.
+- `brevo`: a hosted transactional email service with a free tier that
+  comfortably covers a job search. Create an account, generate an API key,
+  and set `BREVO_API_KEY` and `EMAIL_FROM`. The sender address must be one
+  Brevo has verified for your account. Choose this over `smtp` if your
+  mailbox provider does not allow app passwords or SMTP access.
 - `webhook`: the portal POSTs `{to, subject, text, attachments}` as JSON to
   `WEBHOOK_URL`, and delivery is your problem. Attachments are included as
   base64. Use this to hand delivery to an automation tool such as n8n, or
   for local testing with a dummy listener.
 
 One wrinkle to know about: **the code's built-in default is `webhook`, not
-`brevo`.** If `EMAIL_PROVIDER` is unset, the portal behaves as if you chose
+`smtp`.** If `EMAIL_PROVIDER` is unset, the portal behaves as if you chose
 `webhook`; and if `WEBHOOK_URL` is also unset, login links and deliverable
 emails are not sent anywhere, they are only written to the portal's log.
 That bare-env mode is handy for a first smoke test (you can copy the login
 link out of the log), but it means a half-filled `.env` fails quietly rather
-than loudly. For real use, set `EMAIL_PROVIDER` explicitly; `brevo` is the
-recommended setup.
+than loudly. For real use, always set `EMAIL_PROVIDER` explicitly.
+
+### Setting up SMTP, step by step
+
+You need two values in `.env`: `SMTP_URL` and `EMAIL_FROM`.
+
+`SMTP_URL` is a nodemailer connection URL in this shape:
+
+```
+smtps://USERNAME:PASSWORD@HOST:465
+```
+
+Three rules that catch almost everyone:
+
+1. **The username is usually your full email address**, and the `@` in it
+   must be written as `%40`. So `alex@gmail.com` becomes `alex%40gmail.com`.
+2. **The password is not your normal login password.** Most providers
+   require an app password (see below). If the password contains special
+   characters, percent-encode those too (`#` becomes `%23`, `/` becomes
+   `%2F` and so on); letters, digits and spaces removed are safest.
+3. **Use `smtps://` with port 465** where your provider offers it. If your
+   provider only lists port 587 (STARTTLS), use `smtp://HOST:587` instead.
+
+**Gmail:**
+
+1. Turn on 2-step verification at myaccount.google.com/security (app
+   passwords are only available once it is on).
+2. Go to myaccount.google.com/apppasswords, create a password named
+   "job search portal", and copy the 16-character code Google shows you.
+   Remove the spaces.
+3. Set, using your address and that code:
+
+```
+EMAIL_PROVIDER=smtp
+SMTP_URL=smtps://alex%40gmail.com:abcdefghijklmnop@smtp.gmail.com:465
+EMAIL_FROM=alex@gmail.com
+```
+
+**Other providers:** search "SMTP settings" plus your provider's name for
+the host and port, and check whether they need an app password. Yahoo and
+iCloud work like Gmail (app password, port 465). Outlook.com has been
+retiring basic SMTP authentication, so if it refuses to authenticate, use
+`brevo` instead rather than fighting it.
+
+**Test it:** start the portal (`node src/server.js`), open `BASE_URL`, and
+request a login link to your own address. If nothing arrives, the portal
+log will show the SMTP error; an authentication failure means the username
+or password in `SMTP_URL` is wrong, and a connection error means the host
+or port is.
 
 ## Running it
 
