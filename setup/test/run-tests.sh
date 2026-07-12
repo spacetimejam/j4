@@ -28,12 +28,44 @@ check() {
   fi
 }
 
-# --- Run 0: default target dir is personalised ----------------------------
+# --- Unit tests: suggest_target_dir ----------------------------------------
 
+# shellcheck source=../lib.sh
+. "$SETUP_DIR/lib.sh"
+
+UWORK="$(mktemp -d)"
+check "initials from two-word name" \
+  test "$(suggest_target_dir "$UWORK" "Sam Jackson" 2>/dev/null)" = "$UWORK/sj"
+check "initials strip punctuation" \
+  test "$(suggest_target_dir "$UWORK" "Anna Marie O'Brien" 2>/dev/null)" = "$UWORK/amo"
+check "single-word name" \
+  test "$(suggest_target_dir "$UWORK" "Cher" 2>/dev/null)" = "$UWORK/c"
+mkdir "$UWORK/sj"
+check "clash extends into last name" \
+  test "$(suggest_target_dir "$UWORK" "Sam Jackson" 2>/dev/null)" = "$UWORK/sja"
+if suggest_target_dir "$UWORK" "Sam Jackson" 2>&1 >/dev/null | grep -q "suggesting sja"; then
+  pass
+else
+  fail "clash should print a note about the suggested alternative"
+fi
+mkdir "$UWORK/sja" "$UWORK/sjac" "$UWORK/sjack" "$UWORK/sjacks" "$UWORK/sjackso" "$UWORK/sjackson"
+check "exhausted last name falls back to numbers" \
+  test "$(suggest_target_dir "$UWORK" "Sam Jackson" 2>/dev/null)" = "$UWORK/sj2"
+mkdir "$UWORK/c"
+check "single-word clash goes straight to numbers" \
+  test "$(suggest_target_dir "$UWORK" "Cher" 2>/dev/null)" = "$UWORK/c2"
+rm -rf "$UWORK"
+
+# --- Run 0: default target is an initials subfolder of the kit root --------
+
+# The default lands inside the kit root, so run setup from a temp copy of
+# the kit rather than polluting the real repo.
 WORK0="$(mktemp -d)"
-printf '\n' | HOME="$WORK0" bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers.env" --skip-deps >/dev/null 2>&1 \
+mkdir "$WORK0/kit"
+(cd "$(dirname "$SETUP_DIR")" && tar cf - --exclude .git --exclude portal/node_modules --exclude portal/data .) | (cd "$WORK0/kit" && tar xf -)
+printf '\n' | bash "$WORK0/kit/setup/setup.sh" --answers "$TEST_DIR/answers.env" --skip-deps >/dev/null 2>&1 \
   || fail "setup.sh exited non-zero when using the default target"
-check "default target is named after the user" test -f "$WORK0/job-search-alex/CLAUDE.md"
+check "default target is the user's initials under the kit root" test -f "$WORK0/kit/ae/CLAUDE.md"
 
 # --- Run 1: AI_TOOL=claude-code -------------------------------------------
 
@@ -260,6 +292,6 @@ fi
 
 # --- Summary ----------------------------------------------------------------
 
-rm -rf "$WORK1" "$WORK2" "$WORK3" "$WORK4"
+rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"
 echo "Passed: $PASSES  Failed: $FAILS"
 [ "$FAILS" -eq 0 ]

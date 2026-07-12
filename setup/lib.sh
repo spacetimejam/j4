@@ -47,6 +47,44 @@ substitute_all() {
   done
 }
 
+# suggest_target_dir <kit_dir> <user_name>
+# Prints a suggested project path: a subfolder of <kit_dir> named with the
+# person's lowercase initials ("Sam Jackson" -> sj). If that folder exists,
+# extends with further letters of the last name (sj -> sja -> sjac ...);
+# once the last name is exhausted, or for one-word names, appends 2, 3, ...
+# Notes any clash-driven change on stderr.
+suggest_target_dir() {
+  std_kit="$1"
+  std_name="$2"
+  std_initials="$(printf '%s' "$std_name" | awk '{s=""; for(i=1;i<=NF;i++) s=s substr($i,1,1); print tolower(s)}' | tr -cd 'a-z0-9')"
+  [ -z "$std_initials" ] && std_initials="me"
+  if [ ! -e "$std_kit/$std_initials" ]; then
+    printf '%s' "$std_kit/$std_initials"
+    return
+  fi
+  std_words="$(printf '%s' "$std_name" | awk '{print NF}')"
+  if [ "$std_words" -ge 2 ]; then
+    std_prefix="$(printf '%s' "$std_name" | awk '{s=""; for(i=1;i<NF;i++) s=s substr($i,1,1); print tolower(s)}' | tr -cd 'a-z0-9')"
+    std_last="$(printf '%s' "$std_name" | awk '{print tolower($NF)}' | tr -cd 'a-z0-9')"
+    std_k=2
+    while [ "$std_k" -le "${#std_last}" ]; do
+      std_candidate="$std_prefix$(printf '%s' "$std_last" | cut -c1-"$std_k")"
+      if [ ! -e "$std_kit/$std_candidate" ]; then
+        echo "Note: $std_initials/ is taken, suggesting $std_candidate/ instead." >&2
+        printf '%s' "$std_kit/$std_candidate"
+        return
+      fi
+      std_k=$((std_k + 1))
+    done
+  fi
+  std_n=2
+  while [ -e "$std_kit/$std_initials$std_n" ]; do
+    std_n=$((std_n + 1))
+  done
+  echo "Note: $std_initials/ is taken, suggesting $std_initials$std_n/ instead." >&2
+  printf '%s' "$std_kit/$std_initials$std_n"
+}
+
 # ask <varname> <prompt> [default]
 # Interactive free-text question; shows the default in brackets.
 ask() {

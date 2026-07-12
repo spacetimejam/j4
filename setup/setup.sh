@@ -66,9 +66,10 @@ else
 fi
 
 if [ -z "${TARGET_DIR:-}" ]; then
-  # Each project folder serves one person, so name it after them by default.
-  FIRST_NAME=$(printf '%s' "${USER_NAME:-}" | awk '{print tolower($1)}' | tr -cd 'a-z0-9-')
-  ask TARGET_DIR "Where should the project live?" "$HOME/job-search${FIRST_NAME:+-$FIRST_NAME}"
+  # Each project folder serves one person and lives beside the kit, named
+  # after their initials; suggest_target_dir handles initials clashes.
+  DEFAULT_TARGET="$(suggest_target_dir "$KIT_DIR" "${USER_NAME:-}")"
+  ask TARGET_DIR "Where should the project live?" "$DEFAULT_TARGET"
 fi
 
 # Normalise the creative answer like PORTAL below.
