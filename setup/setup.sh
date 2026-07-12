@@ -66,7 +66,9 @@ else
 fi
 
 if [ -z "${TARGET_DIR:-}" ]; then
-  ask TARGET_DIR "Where should the project live?" "$HOME/job-search"
+  # Each project folder serves one person, so name it after them by default.
+  FIRST_NAME=$(printf '%s' "${USER_NAME:-}" | awk '{print tolower($1)}' | tr -cd 'a-z0-9-')
+  ask TARGET_DIR "Where should the project live?" "$HOME/job-search${FIRST_NAME:+-$FIRST_NAME}"
 fi
 
 # Normalise the creative answer like PORTAL below.

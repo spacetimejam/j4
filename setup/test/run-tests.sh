@@ -28,6 +28,13 @@ check() {
   fi
 }
 
+# --- Run 0: default target dir is personalised ----------------------------
+
+WORK0="$(mktemp -d)"
+printf '\n' | HOME="$WORK0" bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers.env" --skip-deps >/dev/null 2>&1 \
+  || fail "setup.sh exited non-zero when using the default target"
+check "default target is named after the user" test -f "$WORK0/job-search-alex/CLAUDE.md"
+
 # --- Run 1: AI_TOOL=claude-code -------------------------------------------
 
 WORK1="$(mktemp -d)"
