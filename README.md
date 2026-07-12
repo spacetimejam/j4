@@ -25,7 +25,7 @@ The kit handles:
 Clone the kit and run the setup wizard:
 
 ```bash
-git clone https://github.com/spacetimejam/job-search-kit && cd job-search-kit && ./setup/setup.sh
+git clone https://github.com/spacetimejam/j4 && cd j4 && ./setup/setup.sh
 ```
 
 The wizard will:
@@ -36,7 +36,7 @@ The wizard will:
 
 ## Getting started
 
-First run the setup wizard from the kit folder (see Installation above). Then start your AI tool from inside the newly created project folder (the target directory you chose during the wizard), for example `cd ~/job-search-alex` then `claude`, and say: **"run setup"**
+First run the setup wizard from the kit folder (see Installation above). Then start your AI tool from inside the newly created project folder (the target directory you chose during the wizard), for example `cd ~/j4/ae` then `claude`, and say: **"run setup"**
 
 Your AI tool will guide you through intake, then manage applications, track progress, and redraft materials as you refine your search. See `docs/first-session.md` for what that first session looks like, including choosing a Typst CV template with the assistant.
 
