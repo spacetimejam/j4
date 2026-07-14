@@ -7,6 +7,7 @@ export const config = {
   allowedEmails: (process.env.ALLOWED_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
   projectDir: process.env.PROJECT_DIR || `${process.env.HOME}/job-search`,
   dbPath: process.env.DB_PATH || new URL('../data/portal.db', import.meta.url).pathname,
+  usersFile: process.env.PORTAL_USERS_FILE || new URL('../data/users.json', import.meta.url).pathname,
   portalTitle: process.env.PORTAL_TITLE || 'Job Search Portal',
   userName: process.env.USER_NAME || 'the owner',
   agentModel: process.env.AGENT_MODEL || 'claude-opus-4-8',

@@ -1,0 +1,4 @@
+{
+  "alice@example.com": { "name": "Alice Example", "projectDir": "/home/alice/job-search-alice", "admin": true },
+  "bob@example.com": { "name": "Bob Example", "projectDir": "/home/alice/job-search-bob" }
+}
