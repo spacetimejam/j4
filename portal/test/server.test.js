@@ -13,6 +13,7 @@ const app = createApp({ send: async e => sentEmails.push(e) });
 const server = app.listen(0);
 const base = `http://localhost:${server.address().port}`;
 const ownerCookie = `jskit=${makeCookie('owner@test.com')}`;
+const operatorCookie = `jskit=${makeCookie('operator@test.com')}`;
 
 test('meta endpoint returns the configured title', async () => {
   const r = await fetch(`${base}/api/meta`);
@@ -88,6 +89,32 @@ test('deliverable files are listed and downloadable, with bounds checks', async 
   assert.equal(bad.status, 404);
   const noauth = await fetch(`${base}/api/sessions/${id}/files/0`);
   assert.equal(noauth.status, 401);
+});
+
+test('users see only their own sessions', async () => {
+  // owner creates a session
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Isolation test role' }),
+  });
+  const { id } = await r.json();
+
+  // operator's list must not contain it
+  const list = await (await fetch(`${base}/api/sessions`, { headers: { cookie: operatorCookie } })).json();
+  assert.ok(!list.some(s => s.id === id));
+
+  // and direct access, reply, and file download must 404, not 403
+  assert.equal((await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: operatorCookie } })).status, 404);
+  assert.equal((await fetch(`${base}/api/sessions/${id}/reply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: operatorCookie },
+    body: JSON.stringify({ body: 'peek' }),
+  })).status, 404);
+  assert.equal((await fetch(`${base}/api/sessions/${id}/files/0`, { headers: { cookie: operatorCookie } })).status, 404);
+
+  // the owner still sees it
+  assert.equal((await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).status, 200);
 });
 
 test.after(() => server.close());

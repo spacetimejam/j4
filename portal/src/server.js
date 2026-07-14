@@ -5,8 +5,14 @@ import { config } from './config.js';
 import { issueToken, redeemToken, makeCookie, requireAuth } from './auth.js';
 import { sendEmail } from './email.js';
 import { enqueue, startWorker } from './queue.js';
+import { getUser } from './users.js';
 
-const OWNER_EMAIL = () => config.allowedEmails[0]; // first allowlisted address is the portal owner
+// Look up a session only if it belongs to the requesting user. Missing and
+// forbidden are deliberately the same answer (404) so the API never confirms
+// that someone else's session id exists.
+function getOwnSession(db, id, email) {
+  return db.prepare('select * from sessions where id = ? and user_email = ?').get(id, email);
+}
 
 export function createApp({ send = sendEmail } = {}) {
   const app = express();
@@ -42,10 +48,9 @@ export function createApp({ send = sendEmail } = {}) {
   app.get('/api/me', requireAuth, (req, res) => res.json({ email: req.userEmail }));
 
   app.get('/api/sessions', requireAuth, (req, res) => {
-    const db = getDb();
-    const rows = req.userEmail === OWNER_EMAIL()
-      ? db.prepare('select * from sessions where user_email = ? order by updated_at desc').all(req.userEmail)
-      : db.prepare('select * from sessions order by updated_at desc').all();
+    const rows = getDb()
+      .prepare('select * from sessions where user_email = ? order by updated_at desc')
+      .all(req.userEmail);
     res.json(rows);
   });
 
@@ -63,16 +68,17 @@ export function createApp({ send = sendEmail } = {}) {
       .run(id, req.userEmail, title);
     db.prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
       .run(newId(), id, 'user', jd);
+    const userName = getUser(req.userEmail)?.name || 'the user';
     const prompt = isLink
-      ? `${config.userName} has sent a link to a job listing via the portal. Fetch the job description from this URL (use WebFetch; if the page is blocked or empty, ask for the text to be pasted instead), then proceed as with any new job description.\n\n${jd}`
-      : `New job description from ${config.userName} via the portal.\n\n${jd}`;
+      ? `${userName} has sent a link to a job listing via the portal. Fetch the job description from this URL (use WebFetch; if the page is blocked or empty, ask for the text to be pasted instead), then proceed as with any new job description.\n\n${jd}`
+      : `New job description from ${userName} via the portal.\n\n${jd}`;
     enqueue({ sessionId: id, prompt });
     res.json({ id });
   });
 
   app.get('/api/sessions/:id', requireAuth, (req, res) => {
     const db = getDb();
-    const session = db.prepare('select * from sessions where id = ?').get(req.params.id);
+    const session = getOwnSession(db, req.params.id, req.userEmail);
     if (!session) return res.status(404).json({ error: 'not found' });
     const messages = db.prepare('select * from messages where session_id = ? order by created_at').all(session.id);
     const files = (JSON.parse(session.files || '[]')).map((p, idx) => ({ idx, name: basename(p) }));
@@ -80,7 +86,7 @@ export function createApp({ send = sendEmail } = {}) {
   });
 
   app.get('/api/sessions/:id/files/:idx', requireAuth, (req, res) => {
-    const session = getDb().prepare('select * from sessions where id = ?').get(req.params.id);
+    const session = getOwnSession(getDb(), req.params.id, req.userEmail);
     if (!session) return res.status(404).json({ error: 'not found' });
     const paths = JSON.parse(session.files || '[]');
     const idx = Number(req.params.idx);
@@ -94,12 +100,13 @@ export function createApp({ send = sendEmail } = {}) {
     const body = req.body?.body?.trim();
     if (!body) return res.status(400).json({ error: 'body required' });
     const db = getDb();
-    const session = db.prepare('select * from sessions where id = ?').get(req.params.id);
+    const session = getOwnSession(db, req.params.id, req.userEmail);
     if (!session) return res.status(404).json({ error: 'not found' });
     db.prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
       .run(newId(), session.id, 'user', body);
     db.prepare("update sessions set status = 'working', updated_at = datetime('now') where id = ?").run(session.id);
-    enqueue({ sessionId: session.id, prompt: `${config.userName} replies via the portal:\n\n${body}` });
+    const userName = getUser(req.userEmail)?.name || 'the user';
+    enqueue({ sessionId: session.id, prompt: `${userName} replies via the portal:\n\n${body}` });
     res.json({ ok: true });
   });
 
