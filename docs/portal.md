@@ -40,17 +40,33 @@ Then edit `.env`, field by field:
   your phone on a VPN or tunnel).
 - `COOKIE_SECRET`: a long random string used to sign login cookies. Generate
   one with `openssl rand -hex 32` and never reuse it elsewhere.
-- `ALLOWED_EMAILS`: a comma-separated allowlist of addresses that may log in.
-  **The first address is the portal owner**: deliverable emails go there, and
-  it is the address the agent treats as "you". Any later addresses can also
-  log in and submit (useful for a helper who operates the search with you),
-  but PDFs are still emailed to the owner.
-- `PROJECT_DIR`: the absolute path of your generated job-search project. The
-  agent runs with this as its working directory.
+- **Users**: who can log in, and what project each of them works in, is
+  configured in `data/users.json` (gitignored), one entry per login email:
+
+  ```json
+  { "alice@example.com": { "name": "Alice", "projectDir": "/home/alice/job-search-alice", "admin": true } }
+  ```
+
+  Copy `users.example.json` to `data/users.json` and edit it. Each login
+  email maps to its own project folder; sessions, files, and deliverable
+  emails are visible only to their own user. `admin: true` marks who
+  receives failure alerts. Edits to the file take effect immediately.
+  Removing an entry revokes login and delivery for that address going
+  forward, because every route re-checks the registry; however, cookies
+  already issued to that address remain valid until they expire, so if you
+  are removing someone you no longer trust, also rotate `COOKIE_SECRET` to
+  invalidate their session immediately. `PORTAL_USERS_FILE` overrides where
+  the portal looks for this file, if you want it somewhere other than
+  `data/users.json`.
+
+  Legacy single-user installs can skip `users.json` entirely and instead set
+  `ALLOWED_EMAILS` (a comma-separated allowlist; the first address is the
+  owner), `PROJECT_DIR` (the absolute path of the generated job-search
+  project), and `USER_NAME` (how the agent and emails address you). This
+  fallback only applies when no users file exists.
 - `DB_PATH` (optional): where the SQLite database lives. Defaults to
   `data/portal.db` inside `portal/`.
 - `PORTAL_TITLE`: the name shown in the web app and email subjects.
-- `USER_NAME`: how the agent and emails address you.
 - `AGENT_MODEL`: the Claude model used for portal sessions.
 - `AGENT_RUNNER`, `AGENT_CMD`, `AGENT_CMD_RESUME`: see "Using a different
   LLM" below. Leave at the defaults to use the Claude Agent SDK.
@@ -238,12 +254,39 @@ Take this section seriously before exposing the portal to anything.
 - **Run it only on a network you control.** Localhost, a VPN such as
   Tailscale or WireGuard, or a tunnel that has its own authentication in
   front. Never expose the portal bare to the internet.
-- **Login links are the only authentication.** Anyone who can read the
-  owner's mailbox can log in. Protect the email accounts on the allowlist
-  (strong passwords, two-factor authentication) and keep the allowlist
-  short.
+- **Login links are the only authentication.** Anyone who can read a
+  registered user's mailbox can log in. Protect the email accounts in
+  `users.json` (or the allowlist, for legacy installs) with strong
+  passwords and two-factor authentication, and keep the list short.
 - **Costs.** Each submission is a real AI session, typically several minutes
   of agent work, and each round of notes extends it. If you are paying per
   token, expect portal use to show up on the bill; if you are on a
   subscription plan, it draws from the same usage limits as your normal
   sessions.
+- **No helper mode.** The portal is strictly one person per login: each
+  registered email sees only its own sessions and deliverables. Someone
+  helping with another person's search does so via Claude Code on the CLI,
+  working inside that person's project folder directly, rather than by
+  logging into the portal as them.
+
+### Multi-user isolation, honestly stated
+
+Isolation between users is enforced at the application layer: every API
+route is scoped to the logged-in email, downloads are confined to that
+user's project folder, and each agent session runs inside that user's
+project only. What the portal does NOT provide is operating-system
+isolation: all agent sessions run as the same OS account, with the same
+filesystem permissions and the same AI credentials. A determined user
+could try to steer the agent (via a crafted "job description") toward
+reading files outside their project; the prompt and the download
+containment resist this, but the OS does not enforce it. Share a portal
+instance only with people you trust, such as family or a small circle.
+Anything wider needs per-user OS accounts or containers, which is out of
+scope for this kit.
+
+### Public-repo hygiene
+
+`portal/.gitignore` already excludes `.env`, `data/` (which holds
+`users.json` and the SQLite database), and `node_modules/`. Never commit
+real emails, names, or project paths; that is why only
+`users.example.json` is tracked, not `users.json` itself.

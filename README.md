@@ -59,7 +59,7 @@ The kit creates:
 - `portfolio/`: case-study bank (created when you choose the creative module in setup)
 - `render/`: Typst rendering for professional PDFs (optional; bring your own template)
 - `tracker/`: configuration for your application log
-- `portal/`: an optional web app for submitting job descriptions from your phone (created when you choose the portal in setup). Each submission runs an agent session in your project and emails you the finished PDFs. Read the security notes before exposing it to any network.
+- `portal/`: an optional web app for submitting job descriptions from your phone (created when you choose the portal in setup). Each submission runs an agent session in your project and emails you the finished PDFs. Read the security notes before exposing it to any network. One instance can serve several people, each mapped to their own project folder.
 
 Portal setup, deployment and security guidance lives in `docs/portal.md`.
 
