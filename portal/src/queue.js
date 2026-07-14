@@ -4,6 +4,7 @@ import { getDb, newId } from './db.js';
 import { config } from './config.js';
 import { runAgentTurn, parseEmailDirective } from './agent.js';
 import { sendEmail } from './email.js';
+import { getUser, adminEmails } from './users.js';
 
 export function enqueue({ sessionId, prompt }) {
   getDb().prepare('insert into jobs (id, session_id, prompt) values (?, ?, ?)')
@@ -16,10 +17,13 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
   if (!job) return false;
   db.prepare("update jobs set status = 'running' where id = ?").run(job.id);
   const session = db.prepare('select * from sessions where id = ?').get(job.session_id);
+  const user = getUser(session.user_email);
   try {
+    if (!user) throw new Error(`no registered user for ${session.user_email}; add them to users.json`);
     const { sessionId: claudeId, text } = await runTurn({
       prompt: job.prompt,
       resumeSessionId: session.claude_session_id || null,
+      user,
     });
     const { clean, email } = parseEmailDirective(text);
     // Persist the turn immediately: if the email send fails below, the session
@@ -44,14 +48,16 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     db.prepare("update jobs set status = 'failed', error = ? where id = ?").run(String(err), job.id);
     db.prepare("update sessions set status = 'needs_attention', updated_at = datetime('now') where id = ?")
       .run(job.session_id);
-    try {
-      await send({
-        to: config.allowedEmails.find(e => e !== session.user_email) || config.allowedEmails[0],
-        subject: `${config.portalTitle}: session "${session.title}" needs attention`,
-        text: String(err),
-        attachments: [],
-      });
-    } catch { /* alert is best-effort */ }
+    for (const admin of adminEmails()) {
+      try {
+        await send({
+          to: admin,
+          subject: `${config.portalTitle}: session "${session.title}" needs attention`,
+          text: String(err),
+          attachments: [],
+        });
+      } catch { /* alert is best-effort */ }
+    }
   }
   return true;
 }

@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 process.env.DB_PATH = ':memory:';
 process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
+process.env.PROJECT_DIR = process.env.PROJECT_DIR || '/tmp/queue-test-project';
 const { getDb, newId } = await import('../src/db.js');
 const { enqueue, processOneJob } = await import('../src/queue.js');
 
@@ -17,8 +18,9 @@ function mkSession() {
 test('processOneJob stores reply and resumes with session id', async () => {
   const sid = mkSession();
   enqueue({ sessionId: sid, prompt: 'JD text here' });
-  const runTurn = async ({ prompt, resumeSessionId }) => {
+  const runTurn = async ({ prompt, resumeSessionId, user }) => {
     assert.equal(resumeSessionId, null);
+    assert.ok(user);
     return { sessionId: 'claude-123', text: 'What is the salary?' };
   };
   await processOneJob({ runTurn, send: async () => {} });
@@ -94,4 +96,16 @@ test('failure marks job failed and session needs_attention', async () => {
   await processOneJob({ runTurn: async () => { throw new Error('boom'); }, send: async () => {} });
   assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
   assert.equal(getDb().prepare("select status from jobs where session_id = ?").get(sid).status, 'failed');
+});
+
+test('processOneJob passes the session user to the runner', async () => {
+  // the legacy env fallback makes every allowlisted email a user whose
+  // projectDir is PROJECT_DIR
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'JD text here' });
+  let got;
+  const runTurn = async args => { got = args; return { sessionId: 'c1', text: 'assessment' }; };
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(got.user.projectDir, process.env.PROJECT_DIR);
+  assert.ok(got.user.name);
 });

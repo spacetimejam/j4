@@ -29,7 +29,10 @@ test('malformed JSON yields null email, keeps text', () => {
 test('runAgentTurn selects the configured runner and passes the contract fields', async () => {
   let seen;
   const runners = { cli: async args => { seen = args; return { sessionId: 's1', text: 'hi' }; } };
-  const out = await runAgentTurn({ prompt: 'JD text', resumeSessionId: null }, { runners });
+  const out = await runAgentTurn(
+    { prompt: 'JD text', resumeSessionId: null, user: { name: 'Test', projectDir: process.env.PROJECT_DIR || '/tmp' } },
+    { runners },
+  );
   assert.deepEqual(out, { sessionId: 's1', text: 'hi' });
   assert.equal(seen.prompt, 'JD text');
   assert.equal(seen.resumeSessionId, null);
@@ -40,6 +43,18 @@ test('runAgentTurn selects the configured runner and passes the contract fields'
 
 test('runAgentTurn rejects an unknown runner', async () => {
   await assert.rejects(runAgentTurn({ prompt: 'x' }, { runners: {} }), /unknown agent runner/);
+});
+
+test('runAgentTurn runs in the user projectDir with a personalised prompt', async () => {
+  let got;
+  const fake = async args => { got = args; return { sessionId: 's1', text: 'ok' }; };
+  await runAgentTurn(
+    { prompt: 'p', resumeSessionId: null, user: { name: 'Bob', projectDir: '/tmp/bobproj' } },
+    { runners: { [process.env.AGENT_RUNNER || 'claude-sdk']: fake } }
+  );
+  assert.equal(got.cwd, '/tmp/bobproj');
+  assert.match(got.systemPrompt, /Bob/);
+  assert.doesNotMatch(got.systemPrompt, /the owner/);
 });
 
 function fakeSpawn({ stdout = '', code = 0 } = {}) {
