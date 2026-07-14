@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { getUser } from './users.js';
 
 function parseFrom(from) {
   const m = String(from).match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
@@ -60,7 +61,7 @@ const PROVIDERS = { brevo: sendViaBrevo, smtp: sendViaSmtp, webhook: sendViaWebh
 export async function sendEmail({ to, subject, text, attachments = [] }, opts = {}) {
   const fetchImpl = opts.fetchImpl || fetch;
   const retryDelayMs = opts.retryDelayMs ?? 2000;
-  if (!config.allowedEmails.includes(String(to).toLowerCase())) {
+  if (!getUser(to)) {
     throw new Error(`recipient not on allowlist: ${to}`);
   }
   const provider = PROVIDERS[config.emailProvider];

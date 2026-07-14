@@ -1,13 +1,14 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getDb, newId } from './db.js';
 import { config } from './config.js';
+import { getUser } from './users.js';
 
 const TOKEN_TTL_MIN = 15;
 const COOKIE_TTL_DAYS = 90;
 
 export function issueToken(email) {
   email = String(email || '').trim().toLowerCase();
-  if (!config.allowedEmails.includes(email)) return null;
+  if (!getUser(email)) return null;
   const token = newId() + newId();
   getDb().prepare(
     "insert into tokens (token, email, expires_at) values (?, ?, datetime('now', ?))"
