@@ -134,3 +134,44 @@ ask_menu() {
     i=$((i + 1))
   done
 }
+
+# register_portal_user <registry_file> <email> <name> <project_dir> <admin yes|no>
+# Upserts one entry in the shared portal registry (portal/data/users.json).
+# The registry is edited with node so JSON escaping is always correct; the
+# portal itself needs Node 20+, so node being present is the normal case.
+# Without node, print the entry to add by hand and succeed anyway: portal
+# registration must never break project setup.
+register_portal_user() {
+  reg_file="$1"
+  reg_email="$2"
+  reg_name="$3"
+  reg_dir="$4"
+  reg_admin="$5"
+  reg_email_lc="$(printf '%s' "$reg_email" | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
+  if ! command -v node >/dev/null 2>&1; then
+    echo "node not found: cannot update the portal registry automatically."
+    echo "Add this entry to $reg_file by hand:"
+    if [ "$reg_admin" = "yes" ]; then
+      echo "  \"$reg_email_lc\": { \"name\": \"$reg_name\", \"projectDir\": \"$reg_dir\", \"admin\": true }"
+    else
+      echo "  \"$reg_email_lc\": { \"name\": \"$reg_name\", \"projectDir\": \"$reg_dir\" }"
+    fi
+    return 0
+  fi
+  REG_FILE="$reg_file" REG_EMAIL="$reg_email" REG_NAME="$reg_name" \
+  REG_DIR="$reg_dir" REG_ADMIN="$reg_admin" node -e '
+    const fs = require("fs");
+    const path = require("path");
+    const file = process.env.REG_FILE;
+    const email = process.env.REG_EMAIL.trim().toLowerCase();
+    let users = {};
+    if (fs.existsSync(file)) users = JSON.parse(fs.readFileSync(file, "utf8"));
+    const existed = Object.prototype.hasOwnProperty.call(users, email);
+    const entry = { name: process.env.REG_NAME, projectDir: process.env.REG_DIR };
+    if (process.env.REG_ADMIN === "yes") entry.admin = true;
+    users[email] = entry;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(users, null, 2) + "\n");
+    console.log((existed ? "Updated " : "Registered ") + email + " in " + file);
+  '
+}

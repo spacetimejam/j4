@@ -56,6 +56,54 @@ check "single-word clash goes straight to numbers" \
   test "$(suggest_target_dir "$UWORK" "Cher" 2>/dev/null)" = "$UWORK/c2"
 rm -rf "$UWORK"
 
+# --- Unit tests: register_portal_user ---------------------------------------
+
+RWORK="$(mktemp -d)"
+REG="$RWORK/data/users.json"
+
+if command -v node >/dev/null 2>&1; then
+  register_portal_user "$REG" " Alice@Example.COM " "Alice Example" "/home/x/proj-a" "yes" >/dev/null
+  check "registry file created" test -f "$REG"
+  check "email key is trimmed and lowercased" \
+    node -e 'const u=require(process.argv[1]); process.exit("alice@example.com" in u ? 0 : 1)' "$REG"
+  check "admin flag set when answered yes" \
+    node -e 'const u=require(process.argv[1]); process.exit(u["alice@example.com"].admin === true ? 0 : 1)' "$REG"
+  check "name and projectDir stored" \
+    node -e 'const u=require(process.argv[1])["alice@example.com"]; process.exit(u.name === "Alice Example" && u.projectDir === "/home/x/proj-a" ? 0 : 1)' "$REG"
+
+  register_portal_user "$REG" "bob@example.com" "Bob Example" "/home/x/proj-b" "no" >/dev/null
+  check "second user appended" \
+    node -e 'const u=require(process.argv[1]); process.exit(Object.keys(u).length === 2 ? 0 : 1)' "$REG"
+  check "non-admin entry has no admin key" \
+    node -e 'const u=require(process.argv[1]); process.exit("admin" in u["bob@example.com"] ? 1 : 0)' "$REG"
+  check "first user untouched by second registration" \
+    node -e 'const u=require(process.argv[1]); process.exit(u["alice@example.com"].admin === true ? 0 : 1)' "$REG"
+
+  out="$(register_portal_user "$REG" "alice@example.com" "Alice Renamed" "/home/x/proj-a2" "no")"
+  echo "$out" | grep -q "Updated alice@example.com" || fail "re-registration should report Updated"
+  check "re-registration updates in place, no duplicate" \
+    node -e 'const u=require(process.argv[1]); const a=u["alice@example.com"]; process.exit(Object.keys(u).length === 2 && a.name === "Alice Renamed" && a.projectDir === "/home/x/proj-a2" && !("admin" in a) ? 0 : 1)' "$REG"
+else
+  echo "SKIP: register_portal_user node-path tests (node not available)"
+fi
+
+# node-absent fallback: run in a subshell whose PATH has no node. The
+# fallback path only needs shell builtins plus tr, so a stub dir with a
+# tr symlink is enough.
+STUB="$(mktemp -d)"
+ln -s "$(command -v tr)" "$STUB/tr"
+FALLBACK_REG="$RWORK/fallback/users.json"
+out="$(PATH="$STUB" register_portal_user "$FALLBACK_REG" "Carol@Example.com" "Carol" "/home/x/proj-c" "yes" 2>&1)" \
+  || fail "register_portal_user must return 0 when node is missing"
+echo "$out" | grep -q "by hand" || fail "node-absent fallback should print manual instructions"
+echo "$out" | grep -q '"carol@example.com"' || fail "manual instructions should show the lowercased entry"
+if [ -f "$FALLBACK_REG" ]; then
+  fail "node-absent fallback must not create the registry file"
+else
+  pass
+fi
+rm -rf "$RWORK" "$STUB"
+
 # --- Run 0: default target is an initials subfolder of the kit root --------
 
 # The default lands inside the kit root, so run setup from a temp copy of
