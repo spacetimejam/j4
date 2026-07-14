@@ -51,11 +51,15 @@ Then edit `.env`, field by field:
   email maps to its own project folder; sessions, files, and deliverable
   emails are visible only to their own user. `admin: true` marks who
   receives failure alerts. Edits to the file take effect immediately.
-  Removing an entry revokes login and delivery for that address going
-  forward, because every route re-checks the registry; however, cookies
-  already issued to that address remain valid until they expire, so if you
-  are removing someone you no longer trust, also rotate `COOKIE_SECRET` to
-  invalidate their session immediately. `PORTAL_USERS_FILE` overrides where
+  Removing an entry is enforced at login, agent-run, email-delivery, and
+  download time: `issueToken` refuses new logins for the address, `queue.js`
+  fails any new job for it and alerts admins, `email.js` won't send it
+  deliverables, and new file downloads are blocked. It is not re-checked on
+  every read route, though: a cookie already issued before removal stays
+  valid until it expires, and its holder can still browse existing session
+  history and submit job descriptions (which then fail at queue time). If
+  you are removing someone you no longer trust, also rotate `COOKIE_SECRET`
+  to invalidate their session immediately. `PORTAL_USERS_FILE` overrides where
   the portal looks for this file, if you want it somewhere other than
   `data/users.json`.
 
