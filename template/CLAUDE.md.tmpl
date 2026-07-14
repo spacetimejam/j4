@@ -43,6 +43,8 @@ This is a **tailor-not-spray** project. Quality over volume, every application s
 
 The application log lives in a table described in `tracker/tracker.md`, including schema, access details and read/write snippets.
 
+**The tracker is the single source of truth for application state.** Whatever backend the setup wizard configured (CSV file, Grist, or anything else), per-application status lives only there and in the application's own folder. Never mirror application status into `TASKS.md` or any other file; mirrors go stale and hide live applications. `TASKS.md` holds cross-cutting tasks, including follow-ups generated from overdue `Next_Action_Date`s, not application state.
+
 ## 8. Repo map and conventions
 
 ```
