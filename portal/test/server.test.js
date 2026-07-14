@@ -1,5 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+const projectDir = mkdtempSync(join(tmpdir(), 'proj-'));
+process.env.PROJECT_DIR = projectDir;
 process.env.DB_PATH = ':memory:';
 process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
 process.env.COOKIE_SECRET = 'testsecret';
@@ -68,10 +73,7 @@ test('link-only submission gets a fetch prompt and URL title', async () => {
 });
 
 test('deliverable files are listed and downloadable, with bounds checks', async () => {
-  const { writeFileSync } = await import('node:fs');
-  const { join } = await import('node:path');
-  const { tmpdir } = await import('node:os');
-  const p = join(tmpdir(), 'cv-tailored-dl-test.md');
+  const p = join(projectDir, 'cv-tailored-dl-test.md');
   writeFileSync(p, 'CV body');
   const r = await fetch(`${base}/api/sessions`, {
     method: 'POST',
@@ -89,6 +91,26 @@ test('deliverable files are listed and downloadable, with bounds checks', async 
   assert.equal(bad.status, 404);
   const noauth = await fetch(`${base}/api/sessions/${id}/files/0`);
   assert.equal(noauth.status, 401);
+});
+
+test('file downloads are confined to the user projectDir', async () => {
+  const inside = join(projectDir, 'cv.pdf');
+  writeFileSync(inside, 'pdf-bytes');
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Download test role' }),
+  });
+  const { id } = await r.json();
+  getDb().prepare('update sessions set files = ? where id = ?')
+    .run(JSON.stringify([inside, '/etc/passwd']), id);
+
+  const ok = await fetch(`${base}/api/sessions/${id}/files/0`, { headers: { cookie: ownerCookie } });
+  assert.equal(ok.status, 200);
+  assert.equal(await ok.text(), 'pdf-bytes');
+
+  const evil = await fetch(`${base}/api/sessions/${id}/files/1`, { headers: { cookie: ownerCookie } });
+  assert.equal(evil.status, 404);
 });
 
 test('users see only their own sessions', async () => {

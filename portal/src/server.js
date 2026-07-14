@@ -1,5 +1,6 @@
 import express from 'express';
-import { basename } from 'node:path';
+import { basename, sep } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { getDb, newId } from './db.js';
 import { config } from './config.js';
 import { issueToken, redeemToken, makeCookie, requireAuth } from './auth.js';
@@ -91,7 +92,18 @@ export function createApp({ send = sendEmail } = {}) {
     const paths = JSON.parse(session.files || '[]');
     const idx = Number(req.params.idx);
     if (!Number.isInteger(idx) || idx < 0 || idx >= paths.length) return res.status(404).json({ error: 'not found' });
-    res.download(paths[idx], basename(paths[idx]), err => {
+    const user = getUser(req.userEmail);
+    let real, root;
+    try {
+      real = realpathSync(paths[idx]);
+      root = realpathSync(user.projectDir);
+    } catch {
+      return res.status(404).json({ error: 'not found' });
+    }
+    if (real !== root && !real.startsWith(root + sep)) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    res.download(real, basename(real), err => {
       if (err && !res.headersSent) res.status(404).json({ error: 'file unavailable' });
     });
   });
