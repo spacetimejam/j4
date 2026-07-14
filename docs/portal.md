@@ -63,6 +63,13 @@ Then edit `.env`, field by field:
   the portal looks for this file, if you want it somewhere other than
   `data/users.json`.
 
+  You rarely need to edit this file by hand to add someone: the setup wizard
+  registers each new person automatically when they answer yes to the portal
+  question, including asking whether they should receive failure alerts.
+  Manual edits remain the way to remove someone or change an existing entry.
+  The wizard honours `PORTAL_REGISTRY` if you keep the registry somewhere
+  other than `portal/data/users.json` in the kit checkout.
+
   Legacy single-user installs can skip `users.json` entirely and instead set
   `ALLOWED_EMAILS` (a comma-separated allowlist; the first address is the
   owner), `PROJECT_DIR` (the absolute path of the generated job-search
