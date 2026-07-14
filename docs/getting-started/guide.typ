@@ -86,7 +86,7 @@ git clone https://github.com/spacetimejam/j4
 cd j4 && ./setup/setup.sh
 ```
 
-The wizard checks your machine, asks a short set of questions about you and your search (including whether to register you with the shared submission portal, if your household runs one), and builds your personal project folder inside the kit, named with your initials (for example `j4/sj`). When it finishes, it tells you the final step: move into that new folder in the terminal and start your AI assistant from inside it, for example `cd ~/j4/sj` and then `claude`. Starting it from inside the folder is what lets the assistant see your project. Once it is running, say *"run setup"*. The assistant then interviews you properly, builds your profile and CV materials, and from that point on you are running your search together.
+The wizard checks your machine, asks a short set of questions about you and your search (including whether to register you with the shared submission portal, if your household runs one, and if so whether you should receive failure alerts from it), and builds your personal project folder inside the kit, named with your initials (for example `j4/sj`). When it finishes, it tells you the final step: move into that new folder in the terminal and start your AI assistant from inside it, for example `cd ~/j4/sj` and then `claude`. Starting it from inside the folder is what lets the assistant see your project. Once it is running, say *"run setup"*. The assistant then interviews you properly, builds your profile and CV materials, and from that point on you are running your search together.
 
 == Good to know
 

@@ -249,9 +249,9 @@ if [ "$PORTAL" = "yes" ]; then
   echo
   register_portal_user "$PORTAL_REGISTRY" "$USER_EMAIL" "$USER_NAME" "$ABS_TARGET" "$PORTAL_ADMIN"
   if [ "$PORTAL_ADMIN" = "yes" ]; then
-    echo "Portal: registered as a failure-alert recipient (admin)."
+    echo "Portal: registered as a failure-alert recipient (admin), project $ABS_TARGET."
   else
-    echo "Portal: registered (no failure alerts)."
+    echo "Portal: registered (no failure alerts), project $ABS_TARGET."
   fi
 fi
 
