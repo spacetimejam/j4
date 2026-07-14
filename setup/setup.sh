@@ -62,7 +62,11 @@ else
   ask_menu EMPLOYMENT_STATUS "Current employment status:" "employed" "between roles"
   ask_menu AI_TOOL "Which AI assistant will you use?" "claude-code" "other"
   ask_menu TRACKER "Application tracker:" "file" "grist"
-  ask PORTAL "Set up the submission portal (submit job descriptions from your phone)? [y/N]" "no"
+  ask PORTAL "Register with the shared submission portal (submit job descriptions from your phone)? [y/N]" "no"
+  case "$PORTAL" in
+    y|Y|yes|Yes|YES)
+      ask PORTAL_ADMIN "Should this person receive portal failure alerts? [y/N]" "no" ;;
+  esac
 fi
 
 if [ -z "${TARGET_DIR:-}" ]; then
@@ -77,6 +81,12 @@ CREATIVE="${CREATIVE:-no}"
 case "$CREATIVE" in
   y|Y|yes|Yes|YES) CREATIVE="yes" ;;
   n|N|no|No|NO) CREATIVE="no" ;;
+esac
+
+PORTAL_ADMIN="${PORTAL_ADMIN:-no}"
+case "$PORTAL_ADMIN" in
+  y|Y|yes|Yes|YES) PORTAL_ADMIN="yes" ;;
+  n|N|no|No|NO) PORTAL_ADMIN="no" ;;
 esac
 
 for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL TRACKER PORTAL CREATIVE; do
@@ -231,17 +241,17 @@ case "$PORTAL" in
   n|N|no|No|NO) PORTAL="no" ;;
 esac
 if [ "$PORTAL" = "yes" ]; then
-  # Copy the portal source, excluding local-only directories and secrets.
-  cp -R "$KIT_DIR/portal" "$TARGET_DIR/portal"
-  rm -rf "$TARGET_DIR/portal/node_modules" "$TARGET_DIR/portal/data"
-  rm -f "$TARGET_DIR/portal/.env"
-  mkdir -p "$TARGET_DIR/docs"
-  cp "$KIT_DIR/docs/portal.md" "$TARGET_DIR/docs/portal.md"
+  # Register this person with the shared portal run from the kit checkout.
+  # The registry is re-read by the portal on every lookup, so the new user
+  # can log in as soon as this entry lands; no restart needed.
+  PORTAL_REGISTRY="${PORTAL_REGISTRY:-$KIT_DIR/portal/data/users.json}"
+  ABS_TARGET="$(cd "$TARGET_DIR" && pwd)"
   echo
-  if command -v node >/dev/null 2>&1; then
-    echo "Portal copied. node found: $(node --version). Run 'npm install' inside portal/ before first use."
+  register_portal_user "$PORTAL_REGISTRY" "$USER_EMAIL" "$USER_NAME" "$ABS_TARGET" "$PORTAL_ADMIN"
+  if [ "$PORTAL_ADMIN" = "yes" ]; then
+    echo "Portal: registered as a failure-alert recipient (admin)."
   else
-    echo "Portal copied, but node was NOT found. The portal needs Node 20 or newer; install it before configuring the portal (see docs/portal.md)."
+    echo "Portal: registered (no failure alerts)."
   fi
 fi
 
@@ -276,9 +286,10 @@ if [ "$PORTAL" = "yes" ]; then
     /^[0-9]+\. Delete this file/ {
       split($0, parts, ".")
       n = parts[1] + 0
-      print n ". If you chose the portal: configure it per docs/portal.md (email provider,"
-      print "   allowed emails, .env), install its dependencies with npm install, and test"
-      print "   a submission end to end with the user."
+      print n ". If you chose the portal: this person is already registered with the"
+      print "   shared portal in the kit checkout. If that portal has never been set up,"
+      print "   configure it per the kit'"'"'s docs/portal.md (its .env and npm install in"
+      print "   the kit'"'"'s portal/ folder), then test a submission end to end with the user."
       sub(/^[0-9]+\./, (n + 1) ".", $0)
       print
       next

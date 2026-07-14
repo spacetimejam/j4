@@ -281,30 +281,26 @@ else
   pass
 fi
 
-# --- Run 4: portal -----------------------------------------------------------
+# --- Run 4: portal registration ---------------------------------------------
+# PORTAL=yes registers the person in the shared portal registry instead of
+# copying a portal into the project. PORTAL_REGISTRY points the wizard at a
+# temp registry so tests never touch the real kit one.
 
 WORK4="$(mktemp -d)"
 TARGET4="$WORK4/my-search"
+TARGET4B="$WORK4/second-search"
+REG4="$WORK4/reg/users.json"
 
-bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-portal.env" --target "$TARGET4" --skip-deps >/dev/null 2>&1 \
+PORTAL_REGISTRY="$REG4" bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-portal.env" --target "$TARGET4" --skip-deps >"$WORK4/out1.txt" 2>&1 \
   || fail "setup.sh exited non-zero on portal run"
 
-check "portal/src/server.js exists" test -f "$TARGET4/portal/src/server.js"
-check "portal/package.json exists" test -f "$TARGET4/portal/package.json"
-check "portal/.env.example exists" test -f "$TARGET4/portal/.env.example"
-check "docs/portal.md exists in target" test -f "$TARGET4/docs/portal.md"
-if [ -d "$TARGET4/portal/node_modules" ]; then
-  fail "portal/node_modules must not be copied into the target"
+if [ -d "$TARGET4/portal" ]; then
+  fail "portal/ must no longer be copied into the target"
 else
   pass
 fi
-if [ -d "$TARGET4/portal/data" ]; then
-  fail "portal/data must not be copied into the target"
-else
-  pass
-fi
-if [ -f "$TARGET4/portal/.env" ]; then
-  fail "portal/.env must not be copied into the target"
+if [ -f "$TARGET4/docs/portal.md" ]; then
+  fail "docs/portal.md must no longer be copied into the target"
 else
   pass
 fi
@@ -320,6 +316,38 @@ elif [ "$PORTAL_LINE" -lt "$DEL_LINE4" ]; then
   pass
 else
   fail "portal task (line $PORTAL_LINE) is not before the delete-this-file line (line $DEL_LINE4)"
+fi
+
+if command -v node >/dev/null 2>&1; then
+  check "registry created by wizard" test -f "$REG4"
+  check "wizard registered the user with admin flag" \
+    node -e 'const u=require(process.argv[1])["alex@example.com"]; process.exit(u && u.admin === true && u.name === "Alex Example" ? 0 : 1)' "$REG4"
+  check "projectDir is the absolute target" \
+    node -e 'const u=require(process.argv[1])["alex@example.com"]; process.exit(u.projectDir === process.argv[2] ? 0 : 1)' "$REG4" "$TARGET4"
+  check "wizard output mentions the registry" grep -q "users.json" "$WORK4/out1.txt"
+
+  PORTAL_REGISTRY="$REG4" bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-portal2.env" --target "$TARGET4B" --skip-deps >/dev/null 2>&1 \
+    || fail "setup.sh exited non-zero on second portal run"
+  check "second wizard run appended a second user" \
+    node -e 'const u=require(process.argv[1]); process.exit(Object.keys(u).length === 2 && "bea@example.com" in u ? 0 : 1)' "$REG4"
+  check "PORTAL_ADMIN defaults to no" \
+    node -e 'const u=require(process.argv[1]); process.exit("admin" in u["bea@example.com"] ? 1 : 0)' "$REG4"
+  check "first user survives second run" \
+    node -e 'const u=require(process.argv[1]); process.exit(u["alex@example.com"].admin === true ? 0 : 1)' "$REG4"
+else
+  echo "SKIP: portal registration assertions (node not available)"
+fi
+
+# PORTAL=no must not create or touch a registry.
+if [ -f "$WORK4/no-reg/users.json" ]; then
+  fail "unexpected pre-existing test registry"
+fi
+PORTAL_REGISTRY="$WORK4/no-reg/users.json" bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers.env" --target "$WORK4/no-portal" --skip-deps >/dev/null 2>&1 \
+  || fail "setup.sh exited non-zero on PORTAL=no run"
+if [ -f "$WORK4/no-reg/users.json" ]; then
+  fail "PORTAL=no must not create a registry"
+else
+  pass
 fi
 
 # --- Portal unit tests (optional) ---------------------------------------------
