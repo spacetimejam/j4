@@ -4,6 +4,9 @@ import { writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 process.env.DB_PATH = ':memory:';
+// Point the user registry at a missing file so a real data/users.json on the
+// host cannot shadow the ALLOWED_EMAILS fallback these tests rely on.
+process.env.PORTAL_USERS_FILE = '/nonexistent-portal-users.json';
 process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
 process.env.PROJECT_DIR = process.env.PROJECT_DIR || '/tmp/queue-test-project';
 const { getDb, newId } = await import('../src/db.js');

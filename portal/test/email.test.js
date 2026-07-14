@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert';
 process.env.DB_PATH = ':memory:';
+// Point the user registry at a missing file so a real data/users.json on the
+// host cannot shadow the ALLOWED_EMAILS fallback these tests rely on.
+process.env.PORTAL_USERS_FILE = '/nonexistent-portal-users.json';
 process.env.ALLOWED_EMAILS = 'owner@test.com';
 process.env.EMAIL_FROM = 'Portal <portal@test.com>';
 process.env.BREVO_API_KEY = 'brevo-key';

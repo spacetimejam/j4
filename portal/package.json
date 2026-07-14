@@ -4,6 +4,9 @@
   "description": "Web portal for submitting job descriptions to a Claude-driven job-search project",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test test/"

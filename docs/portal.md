@@ -14,7 +14,9 @@ rest of the kit works without it.
 
 ## Requirements
 
-- **Node 20 or newer.** Check with `node --version`.
+- **Node 18 or newer** (20+ recommended; every dependency, including the
+  Claude Agent SDK, requires only 18, and the full test suite passes on it).
+  Check with `node --version`.
 - **API access for your AI tool.** By default the portal drives Claude via
   the Claude Agent SDK, which needs either a logged-in Claude Code install or
   an `ANTHROPIC_API_KEY`. Other tools can be wired in; see "Using a different

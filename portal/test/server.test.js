@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 const projectDir = mkdtempSync(join(tmpdir(), 'proj-'));
 process.env.PROJECT_DIR = projectDir;
 process.env.DB_PATH = ':memory:';
+// Point the user registry at a missing file so a real data/users.json on the
+// host cannot shadow the ALLOWED_EMAILS fallback these tests rely on.
+process.env.PORTAL_USERS_FILE = '/nonexistent-portal-users.json';
 process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
 process.env.COOKIE_SECRET = 'testsecret';
 process.env.PORTAL_TITLE = 'Test Portal';
