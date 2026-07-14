@@ -61,7 +61,6 @@ else
   ask SENIORITY "Seniority (e.g. mid-weight, senior)" "senior"
   ask_menu EMPLOYMENT_STATUS "Current employment status:" "employed" "between roles"
   ask_menu AI_TOOL "Which AI assistant will you use?" "claude-code" "other"
-  ask_menu TRACKER "Application tracker:" "file" "grist"
   ask PORTAL "Register with the shared submission portal (submit job descriptions from your phone)? [y/N]" "no"
   case "$PORTAL" in
     y|Y|yes|Yes|YES)
@@ -89,7 +88,7 @@ case "$PORTAL_ADMIN" in
   n|N|no|No|NO) PORTAL_ADMIN="no" ;;
 esac
 
-for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL TRACKER PORTAL CREATIVE; do
+for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL PORTAL CREATIVE; do
   eval "val=\${$v:-}"
   if [ -z "$val" ]; then
     echo "Missing answer: $v" >&2
@@ -221,18 +220,6 @@ live portfolio site (`portfolio/site.md`) and a case-study bank built through
 a structured interview and synthesis flow. Start at
 `portfolio/case-studies/README.md`, which explains the method end to end.
 Keep case studies accurate: build them only from what the user actually did.
-EOF
-fi
-
-if [ "$TRACKER" = "grist" ]; then
-  cat >> "$TARGET_DIR/tracker/tracker.md" <<'EOF'
-
-## Grist note
-
-You chose Grist as your tracker. Full Grist support is out of scope for this
-release, so the kit ships with the file-based tracker above. Replace this file
-with your own Grist pointer (document ID, table name, API base and key
-location) and keep the same columns.
 EOF
 fi
 

@@ -32,7 +32,3 @@ When reading or writing the tracker:
 - **Quoting:** quote any field containing commas using double quotes, e.g. `"Director of Design, In-House"`.
 - **Dates:** use ISO format `YYYY-MM-DD` (e.g. `2026-07-11`); leave blank for null values.
 - **Status and Fit:** use only the choice values listed in the schema table above.
-
-## Using Grist instead
-
-If you prefer a database, replace this file with your Grist pointer and schema. The workflow only requires that the columns above exist somewhere the {{AI_TOOL}} can read and write.
