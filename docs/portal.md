@@ -7,7 +7,11 @@ an agent session inside your project: the agent follows `WORKFLOW.md` end to
 end, writes the usual application files, logs the tracker row, asks you any
 follow-up questions in the app, and emails you the rendered CV and cover
 letter PDFs. If you reply with notes on the PDFs, the same session redrafts
-and re-emails them.
+and re-emails them. After you apply, the same session handles what comes
+next: tell it you have landed an interview and it updates the tracker,
+researches the company and interviewers, and emails you an interview prep
+document; rejections, offers and other correspondence are logged and the
+tracker kept current.
 
 The portal lives in the `portal/` folder of your project. It is optional: the
 rest of the kit works without it.

@@ -53,7 +53,7 @@ Decide, for this role:
 
 ## 7. Follow up and interview
 - Keep `Next_Action` / `Next_Action_Date` populated while the application is live.
-- Reaching interview: build `interview-prep.md` (at-a-glance up top). Always include company background research (business, brand, recent direction) and a read on how the role fits within the company's context and work, e.g. where it sits, what the team ships, why the hire.
+- Reaching interview: build `interview-<round>-prep.md`, numbered per round (`interview-1-prep.md`, `interview-2-prep.md`), at-a-glance up top. Always include company background research (business, brand, recent direction) and a read on how the role fits within the company's context and work, e.g. where it sits, what the team ships, why the hire.
 - Correspondence, dates, recruiter notes → `log.md`.
 - Rejections and feedback → `core/learnings.md`.
 
