@@ -4,7 +4,7 @@ process.env.DB_PATH = ':memory:';
 process.env.AGENT_RUNNER = 'cli';
 process.env.AGENT_CMD = 'fake-agent --output-format json --model {model}';
 process.env.AGENT_CMD_RESUME = 'fake-agent --output-format json --resume {sessionId}';
-const { parseEmailDirective, runAgentTurn } = await import('../src/agent.js');
+const { parseEmailDirective, runAgentTurn, portalPrompt } = await import('../src/agent.js');
 const { runCli } = await import('../src/runners/cli.js');
 
 test('extracts email directive and strips it from text', () => {
@@ -111,4 +111,36 @@ test('cli runner rejects on a non-zero exit code', async () => {
     runCli({ prompt: 'x', systemPrompt: 'S', resumeSessionId: null, cwd: '/tmp', model: 'm' }, { spawnImpl }),
     /exited 1/,
   );
+});
+
+test('prompt includes a post-application stage 3', () => {
+  const p = portalPrompt('Test');
+  assert.match(p, /STAGE 3: AFTER APPLYING/);
+  assert.match(p, /Status is Applied or later/);
+});
+
+test('stage 3 handles interviews: tracker, log, numbered prep files, email delivery', () => {
+  const p = portalPrompt('Test');
+  assert.match(p, /Status = Interviewing/);
+  assert.match(p, /log\.md/);
+  assert.match(p, /interview-1-prep\.md, interview-2-prep\.md/);
+  assert.match(p, /complete prep in your reply/);
+  assert.match(p, /email-to-user block[\s\S]*?attaching the prep file/);
+});
+
+test('stage 3 asks for missing interview essentials instead of guessing', () => {
+  const p = portalPrompt('Test');
+  assert.match(p, /do not build\s+prep on guesswork/i);
+});
+
+test('stage 3 routes rejections to learnings without an email block', () => {
+  const p = portalPrompt('Test');
+  assert.match(p, /Status to Rejected/);
+  assert.match(p, /core\/learnings\.md/);
+});
+
+test('stage 3 covers offers and general correspondence', () => {
+  const p = portalPrompt('Test');
+  assert.match(p, /Status to Offer/);
+  assert.match(p, /Next_Action and Next_Action_Date current/);
 });
