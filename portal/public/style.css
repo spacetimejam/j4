@@ -1,188 +1,155 @@
-/* Airmail: job applications as correspondence.
-   Ground: pale airmail paper. Ink: deep blue-grey. Accents: postal blue,
-   stamp red (urgency only), moss (done), amber (in progress). */
-
-@font-face {
-  font-family: "Zilla Slab";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("fonts/zilla-slab-500.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Zilla Slab";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("fonts/zilla-slab-600.woff2") format("woff2");
-}
+/* Understated minimalism: near-monochrome, one muted slate-blue accent,
+   borderless cards on soft off-white, status shown as quiet coloured dots. */
 
 :root {
-  --paper: #edf1f4;
-  --card: #f9fafb;
-  --ink: #22313d;
-  --ink-soft: #5c6b76;
-  --line: #cdd7de;
-  --postal: #2c5a87;
-  --stamp: #c0452c;
-  --moss: #49745a;
-  --amber: #a9772e;
-  --stripe: repeating-linear-gradient(
-    -45deg,
-    var(--stamp) 0 8px,
-    var(--card) 8px 16px,
-    var(--postal) 16px 24px,
-    var(--card) 24px 32px
-  );
+  --bg: #f6f6f4;
+  --card: #ffffff;
+  --ink: #1d2126;
+  --ink-soft: #70787f;
+  --hairline: rgba(29, 33, 38, 0.07);
+  --accent: #48657f;
+  --accent-hover: #3a536a;
+  --tint: #eef1f4;
+  --amber: #ad7d2c;
+  --green: #4e7d5e;
+  --red: #b4513c;
+  --shadow: 0 1px 2px rgba(29, 33, 38, 0.04), 0 2px 8px rgba(29, 33, 38, 0.04);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #161d23;
-    --card: #1f2830;
-    --ink: #e3e9ed;
-    --ink-soft: #93a2ac;
-    --line: #34424d;
-    --postal: #7aa8d0;
-    --stamp: #d96a52;
-    --moss: #7fae90;
-    --amber: #cfa25e;
+    --bg: #16181c;
+    --card: #1e2126;
+    --ink: #e6e8eb;
+    --ink-soft: #969ea6;
+    --hairline: rgba(230, 232, 235, 0.08);
+    --accent: #8fb0cf;
+    --accent-hover: #a5c2dd;
+    --tint: #20262d;
+    --amber: #d0a25f;
+    --green: #82b291;
+    --red: #d97b62;
+    --shadow: none;
   }
 }
 
 * { box-sizing: border-box; margin: 0; }
 
 body {
-  font: 16px/1.55 "Seravek", "Gill Sans Nova", "Ubuntu", "Calibri", "DejaVu Sans", system-ui, sans-serif;
-  background: var(--paper);
+  font: 16px/1.6 "Seravek", "Gill Sans Nova", "Ubuntu", "Calibri", "DejaVu Sans", system-ui, sans-serif;
+  background: var(--bg);
   color: var(--ink);
 }
 
-#app { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+#app { max-width: 620px; margin: 0 auto; padding: 40px 20px 64px; }
 
-/* Letterhead */
 h1 {
-  font-family: "Zilla Slab", "Rockwell", "Courier New", serif;
+  font-size: 1.35rem;
   font-weight: 600;
-  font-size: 1.55rem;
-  letter-spacing: .01em;
-  margin: 10px 0 6px;
-}
-h1::after {
-  content: "";
-  display: block;
-  height: 6px;
-  margin: 12px 0 22px;
-  background: var(--stripe);
-  border-radius: 2px;
+  letter-spacing: -0.01em;
+  margin: 0 0 28px;
 }
 
 input, textarea, button {
   font: inherit;
   color: inherit;
   width: 100%;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
   margin-top: 14px;
-  background: var(--card);
+  background: var(--bg);
 }
 textarea { min-height: 160px; resize: vertical; }
 
 button {
-  background: var(--postal);
+  background: var(--accent);
   color: #fff;
   border: 0;
   cursor: pointer;
   font-weight: 600;
-  letter-spacing: .02em;
 }
-button:hover { filter: brightness(1.08); }
+button:hover { background: var(--accent-hover); }
+@media (prefers-color-scheme: dark) {
+  button { color: #16181c; }
+}
 
 :is(input, textarea, button, a):focus-visible {
-  outline: 2px solid var(--postal);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* Session cards: entries in the correspondence ledger */
 .card {
   background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 18px;
-  margin-bottom: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 22px;
+  margin-bottom: 18px;
   display: block;
   text-decoration: none;
   color: inherit;
 }
-a.card { transition: border-color .15s ease, transform .15s ease; }
-a.card:hover { border-color: var(--postal); transform: translateX(2px); }
+a.card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+a.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(29, 33, 38, 0.05), 0 6px 16px rgba(29, 33, 38, 0.07);
+}
 .card div { margin-top: 8px; }
 
-/* The composer is the envelope you post: airmail edge on top */
-.card:has(#jd) {
-  padding-top: 24px;
-  position: relative;
-  overflow: hidden;
-}
-.card:has(#jd)::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 6px;
-  background: var(--stripe);
-}
-
-/* Status pills as franking marks: small caps, stamped border, no fill */
+/* Status: a coloured dot and a quiet lowercase label */
 .pill {
-  font-size: .72rem;
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  padding: 2px 10px;
-  border-radius: 3px;
-  border: 1.5px solid currentColor;
-  background: transparent;
+  font-size: 0.8rem;
   color: var(--ink-soft);
   float: right;
-  margin-left: 10px;
+  margin-left: 12px;
+  white-space: nowrap;
 }
-.pill.working { color: var(--amber); animation: breathe 2.4s ease-in-out infinite; }
-.pill.awaiting_reply { color: var(--postal); }
-.pill.done { color: var(--moss); }
-.pill.needs_attention { color: var(--stamp); }
+.pill::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: 1px;
+  background: var(--ink-soft);
+}
+.pill.working::before { background: var(--amber); animation: breathe 2.4s ease-in-out infinite; }
+.pill.awaiting_reply::before { background: var(--accent); }
+.pill.done::before { background: var(--green); }
+.pill.needs_attention::before { background: var(--red); }
 
-@keyframes breathe { 50% { opacity: .45; } }
+@keyframes breathe { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) {
-  .pill.working { animation: none; }
+  .pill.working::before { animation: none; }
   a.card { transition: none; }
 }
 
-/* Correspondence thread */
+/* Conversation thread */
 .msg {
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin: 10px 0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 12px 0;
   white-space: pre-wrap;
 }
 .msg.user {
-  background: transparent;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--postal);
-  margin-left: 40px;
+  background: var(--tint);
+  margin-left: 44px;
 }
 .msg.claude {
   background: var(--card);
-  border: 1px solid var(--line);
-  margin-right: 40px;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow);
+  margin-right: 44px;
 }
 
-.muted { color: var(--ink-soft); font-size: .85rem; }
-a { color: var(--postal); }
+.muted { color: var(--ink-soft); font-size: 0.85rem; }
+a { color: var(--accent); }
 a.back {
   display: inline-block;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   color: var(--ink-soft);
   text-decoration: none;
 }
-a.back:hover { color: var(--postal); }
+a.back:hover { color: var(--accent); }
