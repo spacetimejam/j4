@@ -125,7 +125,7 @@ test('stage 3 handles interviews: tracker, log, numbered prep files, email deliv
   assert.match(p, /log\.md/);
   assert.match(p, /interview-1-prep\.md, interview-2-prep\.md/);
   assert.match(p, /complete prep in your reply/);
-  assert.match(p, /email-to-user block[\s\S]*?attaching the prep file/);
+  assert.match(p, /followed by an email-to-user block[\s\S]{0,80}attaching the prep file/);
 });
 
 test('stage 3 asks for missing interview essentials instead of guessing', () => {
@@ -137,6 +137,7 @@ test('stage 3 routes rejections to learnings without an email block', () => {
   const p = portalPrompt('Test');
   assert.match(p, /Status to Rejected/);
   assert.match(p, /core\/learnings\.md/);
+  assert.match(p, /Rejected[\s\S]*?No email block/);
 });
 
 test('stage 3 covers offers and general correspondence', () => {
