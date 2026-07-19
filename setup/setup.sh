@@ -61,7 +61,6 @@ else
   ask SENIORITY "Seniority (e.g. mid-weight, senior)" "senior"
   ask_menu EMPLOYMENT_STATUS "Current employment status:" "employed" "between roles"
   ask_menu AI_TOOL "Which AI assistant will you use?" "claude-code" "other"
-  ask BRIEF_REFRESH "Remind you to refresh the industry research brief every three months? [y/N]" "no"
   ask PORTAL "Register with the shared submission portal (submit job descriptions from your phone)? [y/N]" "no"
   case "$PORTAL" in
     y|Y|yes|Yes|YES)
@@ -82,13 +81,6 @@ case "$CREATIVE" in
   y|Y|yes|Yes|YES) CREATIVE="yes" ;;
   n|N|no|No|NO) CREATIVE="no" ;;
 esac
-
-BRIEF_REFRESH="${BRIEF_REFRESH:-no}"
-case "$BRIEF_REFRESH" in
-  y|Y|yes|Yes|YES) BRIEF_REFRESH="yes" ;;
-  n|N|no|No|NO) BRIEF_REFRESH="no" ;;
-esac
-
 PORTAL_ADMIN="${PORTAL_ADMIN:-no}"
 case "$PORTAL_ADMIN" in
   y|Y|yes|Yes|YES) PORTAL_ADMIN="yes" ;;

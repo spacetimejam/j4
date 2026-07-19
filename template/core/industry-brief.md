@@ -63,8 +63,4 @@ _Researched: (date)_
 
 ## Keeping it current
 
-Re-check the brief when the market read starts contradicting what applications are experiencing, or when the search shifts towards a different field. Update in place and refresh the researched date; move superseded readings to a short history note at the bottom if they explain past decisions.
-
-- Quarterly refresh reminder (chosen at setup; edit to change): {{BRIEF_REFRESH}}
-
-If the reminder is set to yes, also re-check the brief once it is more than about three months old. If no, rely on the event triggers above alone.
+Re-check the brief when the market read starts contradicting what applications are experiencing, or when the search shifts towards a different field. On top of those triggers, when a new application starts and the researched date is more than twelve months old, renew the research before the fit read. Update in place and refresh the researched date; move superseded readings to a short history note at the bottom if they explain past decisions.

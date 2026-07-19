@@ -19,7 +19,7 @@ Confirmation checkpoints are marked **[STOP]**. Work one component at a time; st
 - Log to the tracker: Role, Org, Source, `Status = Sourced` (or `Researching`).
 
 ## 2. Appraise fit, both directions  →  `fit.md`
-- Map the job description against `profile.md`, `master-cv.md`, `stories.md`, with `industry-brief.md` as the market lens.
+- Map the job description against `profile.md`, `master-cv.md`, `stories.md`, with `industry-brief.md` as the market lens. If the brief's researched date is more than twelve months old, renew the research first.
 - If the role sits outside the field the brief covers (adjacent sector, pivot), do a quick delta research for that field here in `fit.md` rather than stretching the brief; fold anything durable back into the brief afterwards.
 - Honest verdict, both directions, and explicitly against the fit bar in section 3 of `CLAUDE.md`: does this clearly beat what the user already has, or clearly meet their acceptable-role criteria? Don't soften.
 - Salary sense-check, practitioner sources first over publisher content.
