@@ -55,7 +55,7 @@ async function renderList() {
   const sessions = await (await api('/sessions')).json();
   app.innerHTML = `<div class="topbar"><h1>${esc(TITLE)}</h1>
       <button id="cog" class="icon-btn" title="Options" aria-label="Options">&#9881;</button></div>
-    <div class="card"><strong>New application</strong>
+    <div class="new-app"><strong>New application</strong>
       <textarea id="jd" placeholder="Paste the job description, or just a link to it"></textarea>
       <button id="submit">Send to Claude</button></div>
     <div id="list">${sessions.map(s => `

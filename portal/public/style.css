@@ -227,3 +227,7 @@ button.secondary { background: var(--tint); color: var(--ink); }
 button.secondary:hover { background: var(--hairline); }
 button.danger { background: var(--red); }
 button.danger:hover { background: var(--red); filter: brightness(0.9); }
+
+/* New-application block: bare on the page, full column width like the cards */
+.new-app { margin-bottom: 26px; }
+.new-app textarea { background: var(--card); }
