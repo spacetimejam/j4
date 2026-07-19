@@ -112,3 +112,57 @@ test('processOneJob passes the session user to the runner', async () => {
   assert.equal(got.user.projectDir, process.env.PROJECT_DIR);
   assert.ok(got.user.name);
 });
+
+test('title directive updates the session title and is stripped from the message', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'linkedin url' });
+  const runTurn = async () => ({
+    sessionId: 'c-title',
+    text: 'Here is my assessment.\n```session-title\n{"title": "Design Director at Acme"}\n```',
+  });
+  await processOneJob({ runTurn, send: async () => {} });
+  const s = getDb().prepare('select * from sessions where id = ?').get(sid);
+  assert.equal(s.title, 'Design Director at Acme');
+  const msg = getDb().prepare("select body from messages where session_id = ? and role = 'claude'").get(sid);
+  assert.equal(msg.body, 'Here is my assessment.');
+});
+
+test('title longer than 80 characters is truncated to 80', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  const long = 'A'.repeat(120);
+  const runTurn = async () => ({
+    sessionId: 'c-long',
+    text: `Text.\n\`\`\`session-title\n{"title": "${long}"}\n\`\`\``,
+  });
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(getDb().prepare('select title from sessions where id = ?').get(sid).title, 'A'.repeat(80));
+});
+
+test('empty or missing title leaves the session title unchanged', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  const runTurn = async () => ({
+    sessionId: 'c-empty',
+    text: 'Text.\n```session-title\n{"title": "   "}\n```',
+  });
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(getDb().prepare('select title from sessions where id = ?').get(sid).title, 'Test role');
+});
+
+test('a reply with both title and email blocks applies both and strips both', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  let sent;
+  const runTurn = async () => ({
+    sessionId: 'c-both',
+    text: 'Pack ready.\n```session-title\n{"title": "Writer at Beta"}\n```\n```email-to-user\n{"subject":"S","body":"B","attachments":[]}\n```',
+  });
+  await processOneJob({ runTurn, send: async e => { sent = e; } });
+  const s = getDb().prepare('select * from sessions where id = ?').get(sid);
+  assert.equal(s.title, 'Writer at Beta');
+  assert.equal(s.status, 'done');
+  assert.equal(sent.subject, 'S');
+  const msg = getDb().prepare("select body from messages where session_id = ? and role = 'claude'").get(sid);
+  assert.equal(msg.body, 'Pack ready.');
+});

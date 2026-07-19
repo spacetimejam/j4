@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { getDb, newId } from './db.js';
 import { config } from './config.js';
-import { runAgentTurn, parseEmailDirective } from './agent.js';
+import { runAgentTurn, parseEmailDirective, parseTitleDirective } from './agent.js';
 import { sendEmail } from './email.js';
 import { getUser, adminEmails } from './users.js';
 
@@ -25,13 +25,18 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
       resumeSessionId: session.claude_session_id || null,
       user,
     });
-    const { clean, email } = parseEmailDirective(text);
+    const { clean: afterEmail, email } = parseEmailDirective(text);
+    const { clean, title } = parseTitleDirective(afterEmail);
     // Persist the turn immediately: if the email send fails below, the session
     // must still be resumable and its deliverables downloadable from the UI.
     db.prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
       .run(newId(), job.session_id, 'claude', clean);
     db.prepare("update sessions set claude_session_id = ?, updated_at = datetime('now') where id = ?")
       .run(claudeId, job.session_id);
+    const newTitle = (title || '').trim().slice(0, 80);
+    if (newTitle) {
+      db.prepare('update sessions set title = ? where id = ?').run(newTitle, job.session_id);
+    }
     if (email) {
       db.prepare('update sessions set files = ? where id = ?')
         .run(JSON.stringify(email.attachments), job.session_id);

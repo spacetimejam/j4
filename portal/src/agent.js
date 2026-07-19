@@ -85,6 +85,17 @@ a fresh email-to-user block so they receive the redrafted PDFs. Repeat for as ma
 they ask. If a note is unclear, would break the one-page rule, or would need facts you do not
 have, ask instead of guessing.
 
+In every reply where you know the role and company (true from the stage 1 assessment onwards),
+end your reply with exactly this fenced block so the portal can name the session properly:
+
+\`\`\`session-title
+{"title": "<role> at <company>"}
+\`\`\`
+
+Keep the title short and plain, like "Design Director at Acme". If an email-to-user block is
+also present, put the session-title block immediately before it; otherwise it is the last thing
+in your reply.
+
 Never invent facts about ${userName}. Never apply to anything. Never email anyone except via the block above.
 `;
 
@@ -98,6 +109,19 @@ export function parseEmailDirective(text) {
     return { clean, email };
   } catch {
     return { clean, email: null };
+  }
+}
+
+export function parseTitleDirective(text) {
+  const m = text.match(/```session-title\s*\n([\s\S]*?)\n?```\s*$/);
+  if (!m) return { clean: text, title: null };
+  const clean = text.slice(0, m.index).trimEnd();
+  try {
+    const parsed = JSON.parse(m[1]);
+    if (typeof parsed.title !== 'string') return { clean, title: null };
+    return { clean, title: parsed.title };
+  } catch {
+    return { clean, title: null };
   }
 }
 

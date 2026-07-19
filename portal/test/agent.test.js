@@ -4,7 +4,7 @@ process.env.DB_PATH = ':memory:';
 process.env.AGENT_RUNNER = 'cli';
 process.env.AGENT_CMD = 'fake-agent --output-format json --model {model}';
 process.env.AGENT_CMD_RESUME = 'fake-agent --output-format json --resume {sessionId}';
-const { parseEmailDirective, runAgentTurn, portalPrompt } = await import('../src/agent.js');
+const { parseEmailDirective, parseTitleDirective, runAgentTurn, portalPrompt } = await import('../src/agent.js');
 const { runCli } = await import('../src/runners/cli.js');
 
 test('extracts email directive and strips it from text', () => {
@@ -144,4 +144,36 @@ test('stage 3 covers offers and general correspondence', () => {
   const p = portalPrompt('Test');
   assert.match(p, /Status to Offer/);
   assert.match(p, /Next_Action and Next_Action_Date current/);
+});
+
+test('parseTitleDirective extracts and strips a trailing title block', () => {
+  const text = 'Assessment here.\n```session-title\n{"title": "Designer at Acme"}\n```';
+  const { clean, title } = parseTitleDirective(text);
+  assert.equal(title, 'Designer at Acme');
+  assert.equal(clean, 'Assessment here.');
+});
+
+test('parseTitleDirective returns null title on malformed JSON', () => {
+  const text = 'Text.\n```session-title\n{not json}\n```';
+  const { clean, title } = parseTitleDirective(text);
+  assert.equal(title, null);
+  assert.equal(clean, 'Text.');
+});
+
+test('parseTitleDirective returns null when absent or title missing', () => {
+  assert.equal(parseTitleDirective('Just text.').title, null);
+  assert.equal(parseTitleDirective('Just text.').clean, 'Just text.');
+  const missing = parseTitleDirective('T.\n```session-title\n{"role": "x"}\n```');
+  assert.equal(missing.title, null);
+});
+
+test('parseTitleDirective ignores a block not at the end', () => {
+  const text = '```session-title\n{"title": "T"}\n```\ntrailing prose';
+  const { clean, title } = parseTitleDirective(text);
+  assert.equal(title, null);
+  assert.equal(clean, text);
+});
+
+test('portal prompt instructs the session-title block', () => {
+  assert.match(portalPrompt('Sam'), /session-title/);
 });

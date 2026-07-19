@@ -234,3 +234,7 @@ button.danger:hover { background: var(--red); filter: brightness(0.9); }
 /* New-application block: bare on the page, full column width like the cards */
 .new-app { margin-bottom: 26px; }
 .new-app textarea { background: var(--card); }
+
+/* Long unbroken titles (URLs) wrap inside the card instead of running past its
+   edge or under the dots strip; the h1 in the session view has the same risk. */
+.card strong, h1 { overflow-wrap: anywhere; }
