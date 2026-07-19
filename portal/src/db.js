@@ -51,6 +51,9 @@ export function getDb() {
     if (!cols.some(c => c.name === 'files')) {
       db.exec('alter table sessions add column files text'); // JSON array of absolute paths
     }
+    if (!cols.some(c => c.name === 'archived')) {
+      db.exec('alter table sessions add column archived integer not null default 0');
+    }
   }
   return db;
 }

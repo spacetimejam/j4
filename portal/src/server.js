@@ -7,6 +7,7 @@ import { issueToken, redeemToken, makeCookie, requireAuth } from './auth.js';
 import { sendEmail } from './email.js';
 import { enqueue, startWorker } from './queue.js';
 import { getUser } from './users.js';
+import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } from './deletion.js';
 
 // Look up a session only if it belongs to the requesting user. Missing and
 // forbidden are deliberately the same answer (404) so the API never confirms
@@ -49,10 +50,50 @@ export function createApp({ send = sendEmail } = {}) {
   app.get('/api/me', requireAuth, (req, res) => res.json({ email: req.userEmail }));
 
   app.get('/api/sessions', requireAuth, (req, res) => {
+    const archived = req.query.archived === '1' ? 1 : 0;
     const rows = getDb()
-      .prepare('select * from sessions where user_email = ? order by updated_at desc')
-      .all(req.userEmail);
+      .prepare('select * from sessions where user_email = ? and archived = ? order by updated_at desc')
+      .all(req.userEmail, archived);
     res.json(rows);
+  });
+
+  function setArchived(req, res, value) {
+    const db = getDb();
+    const session = getOwnSession(db, req.params.id, req.userEmail);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    db.prepare('update sessions set archived = ? where id = ?').run(value, session.id);
+    res.json({ ok: true });
+  }
+  app.post('/api/sessions/:id/archive', requireAuth, (req, res) => setArchived(req, res, 1));
+  app.post('/api/sessions/:id/restore', requireAuth, (req, res) => setArchived(req, res, 0));
+
+  app.delete('/api/sessions/:id', requireAuth, (req, res) => {
+    const db = getDb();
+    const session = getOwnSession(db, req.params.id, req.userEmail);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    if (!session.archived) return res.status(409).json({ error: 'archive before deleting' });
+    const user = getUser(req.userEmail);
+    const messageCount = db.prepare('select count(*) c from messages where session_id = ?').get(session.id).c;
+    const folder = deriveApplicationFolder(session, user);
+    let folderNote = folderNoteFor(folder);
+    if (folder) {
+      try {
+        removeFolder(folder);
+      } catch (err) {
+        console.error('folder removal failed:', err);
+        folderNote = `${folderNote} (removal failed, folder left in place)`;
+      }
+    }
+    try {
+      recordDeletion({
+        projectDir: user.projectDir, title: session.title, userName: user.name,
+        folderNote, messageCount, createdAt: session.created_at,
+      });
+    } catch (err) { console.error('DELETED.md write failed:', err); }
+    db.prepare('delete from jobs where session_id = ?').run(session.id);
+    db.prepare('delete from messages where session_id = ?').run(session.id);
+    db.prepare('delete from sessions where id = ?').run(session.id);
+    res.json({ ok: true });
   });
 
   app.post('/api/sessions', requireAuth, (req, res) => {
