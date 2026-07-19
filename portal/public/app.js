@@ -41,9 +41,11 @@ function openSheet(actions) {
 function renderLogin() {
   app.innerHTML = `<h1>${esc(TITLE)}</h1>
     <p>Enter your email and we will send you a login link.</p>
-    <input id="email" type="email" placeholder="you@example.com" autocomplete="email">
-    <button id="go">Send login link</button><p id="note" class="muted"></p>`;
-  document.getElementById('go').onclick = async () => {
+    <form id="login-form">
+    <input id="email" name="email" type="email" inputmode="email" placeholder="you@example.com" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send">
+    <button id="go">Send login link</button></form><p id="note" class="muted"></p>`;
+  document.getElementById('login-form').onsubmit = async e => {
+    e.preventDefault();
     await api('/login', { method: 'POST', body: JSON.stringify({ email: document.getElementById('email').value }) });
     document.getElementById('note').textContent = 'If that address is recognised, a login link is on its way. Check your inbox.';
   };
