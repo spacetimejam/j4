@@ -155,15 +155,18 @@ a.back {
 a.back:hover { color: var(--accent); }
 
 /* Top bar: title with a quiet cog on the right */
-.topbar { display: flex; align-items: baseline; justify-content: space-between; }
+.topbar { display: flex; align-items: center; justify-content: space-between; }
+.topbar h1 { margin-bottom: 0; }
+.topbar { margin-bottom: 28px; }
 .icon-btn {
+  display: inline-flex;
+  align-items: center;
   width: auto;
   padding: 4px 10px;
   margin: 0;
   background: none;
   border: 0;
   color: var(--ink-soft);
-  font-size: 1.1rem;
   cursor: pointer;
 }
 .icon-btn:hover { background: none; color: var(--accent); }
@@ -181,7 +184,7 @@ a.back:hover { color: var(--accent); }
   background: none;
   border: 0;
   color: var(--ink-soft);
-  font-size: 1.1rem;
+  font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
 }
