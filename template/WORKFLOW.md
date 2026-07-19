@@ -6,6 +6,7 @@ Detail references, not duplicated here:
 - **Fit criteria:** `core/profile.md`, including the fit bar and the per-role dials.
 - **Voice:** `core/voice.md`.
 - **Evidence:** `core/master-cv.md`, `core/stories.md`.
+- **Field norms:** `core/industry-brief.md`, what recruiters in the target field prioritise and the conventions that follow.
 - **Render:** `render/README.md`.
 - **Letter shape:** `templates/cover-letters/README.md`.
 - **Tracker:** `tracker/tracker.md`.
@@ -18,14 +19,15 @@ Confirmation checkpoints are marked **[STOP]**. Work one component at a time; st
 - Log to the tracker: Role, Org, Source, `Status = Sourced` (or `Researching`).
 
 ## 2. Appraise fit, both directions  →  `fit.md`
-- Map the job description against `profile.md`, `master-cv.md`, `stories.md`.
+- Map the job description against `profile.md`, `master-cv.md`, `stories.md`, with `industry-brief.md` as the market lens.
+- If the role sits outside the field the brief covers (adjacent sector, pivot), do a quick delta research for that field here in `fit.md` rather than stretching the brief; fold anything durable back into the brief afterwards.
 - Honest verdict, both directions, and explicitly against the fit bar in section 3 of `CLAUDE.md`: does this clearly beat what the user already has, or clearly meet their acceptable-role criteria? Don't soften.
 - Salary sense-check, practitioner sources first over publisher content.
 - Set `Fit` in the tracker.
 - **[STOP]** The user reacts before any tailoring.
 
-## 3. Set the per-role dials  (from `profile.md`)
-Decide, for this role:
+## 3. Set the per-role dials  (from `profile.md`, informed by `industry-brief.md`)
+Decide, for this role, letting the brief steer emphasis (what leads, how much space each evidence type gets) without overriding voice, the fit bar, or accuracy:
 - **Which projects lead.** Start from the patterns in `profile.md` and add to those patterns as they emerge.
 - **The header line** (`position:` in both yamls): the default title from `profile.md`, moved toward the target title only where honest.
 - **Key skills cut and order:** from the master list, job-relevant first; trim rather than pad.
@@ -53,7 +55,7 @@ Decide, for this role:
 
 ## 7. Follow up and interview
 - Keep `Next_Action` / `Next_Action_Date` populated while the application is live.
-- Reaching interview: build `interview-<round>-prep.md`, numbered per round (`interview-1-prep.md`, `interview-2-prep.md`), at-a-glance up top. Always include company background research (business, brand, recent direction) and a read on how the role fits within the company's context and work, e.g. where it sits, what the team ships, why the hire.
+- Reaching interview: build `interview-<round>-prep.md`, numbered per round (`interview-1-prep.md`, `interview-2-prep.md`), at-a-glance up top. Always include company background research (business, brand, recent direction) and a read on how the role fits within the company's context and work, e.g. where it sits, what the team ships, why the hire. Draw on `industry-brief.md` for field-typical formats and assessments (tastings, trade tests, portfolio walkthroughs, service scenarios) and current sector talking points.
 - Correspondence, dates, recruiter notes → `log.md`.
 - Rejections and feedback → `core/learnings.md`.
 

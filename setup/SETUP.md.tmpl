@@ -11,14 +11,18 @@ order with {{USER_NAME}}, then delete this file.
    {{EMPLOYMENT_STATUS}}: what a new role must offer before it is worth moving for.
 3. Synthesise `core/master-cv.md` from {{USER_NAME}}'s existing CV. Ask them to
    drop a copy (any format) into `core/source/` first.
-4. Seed `core/stories.md` and `core/voice.md` from the conversation so far.
-5. Confirm the tracker works. Then set up the render templates: help
+4. Research {{USER_NAME}}'s target field and build `core/industry-brief.md`: how
+   hiring works there, what recruiters prioritise, CV and letter conventions,
+   market state. Follow the guidance at the top of that file; it needs the CV
+   in `core/source/` and intake question 2 answered first.
+5. Seed `core/stories.md` and `core/voice.md` from the conversation so far.
+6. Confirm the tracker works. Then set up the render templates: help
    {{USER_NAME}} choose a Typst Universe CV template
    (https://typst.app/universe), or replicate their existing CV design from an
    example they provide, and vendor it into `render/templates/` so `main.typ`
    and `cover-letter.typ` exist and `render.sh` works end to end; verify with
    a real render of a dummy slug.
-6. Delete this file and tell {{USER_NAME}} the project is ready to judge fits
+7. Delete this file and tell {{USER_NAME}} the project is ready to judge fits
    and draft applications.
 
 ## Wizard answers

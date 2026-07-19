@@ -9,7 +9,7 @@ Run this as a conversation, one question at a time, not a form to fill in silent
 ## Intake interview script
 
 1. **Current situation.** What is the user's current or most recent role? Employed, or actively seeking? How did they get here, briefly: the shape of their career history.
-2. **What they want next.** What are they looking for in the next role: title, scope, sector, type of work?
+2. **What they want next.** What are they looking for in the next role: title, scope, sector, type of work? This one is mandatory and worth pressing on until it is concrete: together with the CV it seeds `core/industry-brief.md`, the field research that makes every later fit read and tailoring decision field-aware. Include fields they might plausibly move into, not just the one they are in.
 3. **The fit bar, dimension by dimension** (feeds `profile.md`):
    - Salary: minimum acceptable, and ideal.
    - Level: minimum seniority, and ideal.
@@ -24,3 +24,7 @@ Run this as a conversation, one question at a time, not a form to fill in silent
 8. **Notice period.** Current notice period, if employed.
 9. **Existing CV.** Where does their current CV live? Use it to seed `master-cv.md`.
 10. **Links.** Portfolio, LinkedIn, work samples, or any other public profile worth referencing.
+
+## After the interview
+
+Once the CV is in `core/source/` and question 2 is answered, research the target field and build `core/industry-brief.md` before the first fit read. The brief's own header explains what to research and what it may and may not change.
