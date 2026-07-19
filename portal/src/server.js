@@ -49,11 +49,22 @@ export function createApp({ send = sendEmail } = {}) {
   app.get('/api/me', requireAuth, (req, res) => res.json({ email: req.userEmail }));
 
   app.get('/api/sessions', requireAuth, (req, res) => {
+    const archived = req.query.archived === '1' ? 1 : 0;
     const rows = getDb()
-      .prepare('select * from sessions where user_email = ? order by updated_at desc')
-      .all(req.userEmail);
+      .prepare('select * from sessions where user_email = ? and archived = ? order by updated_at desc')
+      .all(req.userEmail, archived);
     res.json(rows);
   });
+
+  function setArchived(req, res, value) {
+    const db = getDb();
+    const session = getOwnSession(db, req.params.id, req.userEmail);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    db.prepare('update sessions set archived = ? where id = ?').run(value, session.id);
+    res.json({ ok: true });
+  }
+  app.post('/api/sessions/:id/archive', requireAuth, (req, res) => setArchived(req, res, 1));
+  app.post('/api/sessions/:id/restore', requireAuth, (req, res) => setArchived(req, res, 0));
 
   app.post('/api/sessions', requireAuth, (req, res) => {
     const jd = req.body?.jd?.trim();

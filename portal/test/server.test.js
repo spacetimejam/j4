@@ -142,4 +142,38 @@ test('users see only their own sessions', async () => {
   assert.equal((await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).status, 200);
 });
 
+test('archive hides a session from the list; restore brings it back', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Archive test role' }),
+  });
+  const { id } = await r.json();
+
+  let a = await fetch(`${base}/api/sessions/${id}/archive`, { method: 'POST', headers: { cookie: ownerCookie } });
+  assert.equal(a.status, 200);
+
+  const list = await (await fetch(`${base}/api/sessions`, { headers: { cookie: ownerCookie } })).json();
+  assert.ok(!list.some(s => s.id === id));
+  const archived = await (await fetch(`${base}/api/sessions?archived=1`, { headers: { cookie: ownerCookie } })).json();
+  assert.ok(archived.some(s => s.id === id));
+  assert.ok(archived.every(s => s.archived === 1));
+
+  a = await fetch(`${base}/api/sessions/${id}/restore`, { method: 'POST', headers: { cookie: ownerCookie } });
+  assert.equal(a.status, 200);
+  const back = await (await fetch(`${base}/api/sessions`, { headers: { cookie: ownerCookie } })).json();
+  assert.ok(back.some(s => s.id === id));
+});
+
+test('users cannot archive or restore each other\'s sessions', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Archive isolation role' }),
+  });
+  const { id } = await r.json();
+  assert.equal((await fetch(`${base}/api/sessions/${id}/archive`, { method: 'POST', headers: { cookie: operatorCookie } })).status, 404);
+  assert.equal((await fetch(`${base}/api/sessions/${id}/restore`, { method: 'POST', headers: { cookie: operatorCookie } })).status, 404);
+});
+
 test.after(() => server.close());
