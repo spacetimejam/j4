@@ -309,6 +309,6 @@ if [ "$AI_TOOL" = "claude-code" ]; then
 else
   echo "  cd $TARGET_DIR   (then launch your AI tool there)"
 fi
-echo "and ask it to read SETUP.md. It walks the first session through intake,"
-echo "profile building and a test render, then deletes itself when setup is"
-echo "complete."
+echo "and ask it to read SETUP.md. It stages setup over a few short sessions,"
+echo "from intake through to a test render, with research and CV synthesis"
+echo "running between sessions; it deletes itself when setup is complete."
