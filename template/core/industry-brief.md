@@ -10,6 +10,8 @@ Research the field the user is *aiming at*, not only the one they are in. If the
 
 Keep it honest about uncertainty. If sources disagree or evidence is thin, say so rather than presenting a guess as a norm.
 
+When the draft is ready, present it to the user for review, like any other core document. The brief steers nothing until they have read it, corrected it where their own knowledge of the field is better, and confirmed adopting it. **[STOP]**
+
 ## What this brief changes, and what it never changes
 
 The brief **informs**:
@@ -61,4 +63,8 @@ _Researched: (date)_
 
 ## Keeping it current
 
-Re-check the brief when it is more than about three months old, when the market read starts contradicting what applications are experiencing, or when the search shifts towards a different field. Update in place and refresh the researched date; move superseded readings to a short history note at the bottom if they explain past decisions.
+Re-check the brief when the market read starts contradicting what applications are experiencing, or when the search shifts towards a different field. Update in place and refresh the researched date; move superseded readings to a short history note at the bottom if they explain past decisions.
+
+- Quarterly refresh reminder (chosen at setup; edit to change): {{BRIEF_REFRESH}}
+
+If the reminder is set to yes, also re-check the brief once it is more than about three months old. If no, rely on the event triggers above alone.
