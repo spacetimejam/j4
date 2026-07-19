@@ -14,6 +14,8 @@ A kit for running AI-assisted job searches. The repo (the "kit checkout") holds 
 - **One person per portal login; no helper mode.** A helper uses Claude Code CLI in the person's project folder, never the portal. Do not add any "view another user's sessions" feature (owner decision, 2026-07-14).
 - **Shared portal, registry-based users.** `portal/data/users.json` (gitignored) maps lowercased email → `{name, projectDir, admin?}`; re-read on every lookup, so edits need no restart. The wizard registers users on `PORTAL=yes`; it no longer copies `portal/` into projects.
 - **File-based tracker only.** `tracker/applications.csv` is the single source of truth; the grist option was removed 2026-07-14. If readability becomes an issue, generate views from the CSV rather than switching backends.
+- **No mascot.** The capybara mascot experiment was judged a failed test and fully rolled back (owner decision, 2026-07-19). Do not reintroduce it.
+- **Archive then delete.** Portal applications are archived off the list first; permanent delete works only on archived sessions, removes the derived `applications/<slug>/` folder (realpath-validated, delivered-files paths only), and appends a record to the project's `applications/DELETED.md`. Spec: `docs/superpowers/specs/2026-07-19-portal-archive-delete-design.md`.
 
 ## Constraints
 
