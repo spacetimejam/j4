@@ -10,7 +10,7 @@ process.env.PORTAL_USERS_FILE = '/nonexistent-portal-users.json';
 process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
 process.env.PROJECT_DIR = process.env.PROJECT_DIR || '/tmp/queue-test-project';
 const { getDb, newId } = await import('../src/db.js');
-const { enqueue, processOneJob } = await import('../src/queue.js');
+const { enqueue, processOneJob, buildRecoveryPrompt } = await import('../src/queue.js');
 
 function mkSession() {
   const id = newId();
@@ -165,4 +165,80 @@ test('a reply with both title and email blocks applies both and strips both', as
   assert.equal(sent.subject, 'S');
   const msg = getDb().prepare("select body from messages where session_id = ? and role = 'claude'").get(sid);
   assert.equal(msg.body, 'Pack ready.');
+});
+
+test('buildRecoveryPrompt renders title, ordered labelled history, and the prompt last', () => {
+  const out = buildRecoveryPrompt(
+    { title: 'Designer at Acme' },
+    [
+      { role: 'user', body: 'the JD' },
+      { role: 'claude', body: 'my assessment' },
+      { role: 'system', body: 'housekeeping note' },
+    ],
+    'New reply from the portal.',
+  );
+  assert.match(out, /Portal session title: Designer at Acme/);
+  const iUser = out.indexOf('[User] the JD');
+  const iClaude = out.indexOf('[Claude] my assessment');
+  const iPortal = out.indexOf('[Portal] housekeeping note');
+  const iPrompt = out.indexOf('New reply from the portal.');
+  assert.ok(iUser >= 0 && iClaude > iUser && iPortal > iClaude && iPrompt > iPortal);
+  assert.ok(out.endsWith('New reply from the portal.'));
+});
+
+test('buildRecoveryPrompt truncates each message body to 2000 characters', () => {
+  const out = buildRecoveryPrompt(
+    { title: 'T' },
+    [{ role: 'user', body: 'x'.repeat(2001) }],
+    'p',
+  );
+  assert.ok(out.includes('x'.repeat(2000)));
+  assert.ok(!out.includes('x'.repeat(2001)));
+});
+
+test('failed resumed turn retries once fresh with a recovery prompt and heals the session', async () => {
+  const sid = mkSession();
+  getDb().prepare("update sessions set claude_session_id = 'stale-id' where id = ?").run(sid);
+  getDb().prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
+    .run(newId(), sid, 'user', 'original JD text');
+  enqueue({ sessionId: sid, prompt: 'Nat replies via the portal:\n\nany news?' });
+  const calls = [];
+  const runTurn = async args => {
+    calls.push(args);
+    if (args.resumeSessionId) throw new Error('agent turn failed: error_during_execution');
+    return { sessionId: 'fresh-id', text: 'Re-oriented and replied.' };
+  };
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].resumeSessionId, 'stale-id');
+  assert.equal(calls[1].resumeSessionId, null);
+  assert.match(calls[1].prompt, /Portal session title: Test role/);
+  assert.match(calls[1].prompt, /\[User\] original JD text/);
+  assert.match(calls[1].prompt, /any news\?$/);
+  const s = getDb().prepare('select * from sessions where id = ?').get(sid);
+  assert.equal(s.claude_session_id, 'fresh-id');
+  assert.equal(s.status, 'awaiting_reply');
+  assert.equal(getDb().prepare('select status from jobs where session_id = ?').get(sid).status, 'done');
+});
+
+test('failed resumed turn whose fresh retry also fails goes to needs_attention', async () => {
+  const sid = mkSession();
+  getDb().prepare("update sessions set claude_session_id = 'stale-id' where id = ?").run(sid);
+  enqueue({ sessionId: sid, prompt: 'x' });
+  let count = 0;
+  const runTurn = async () => { count++; throw new Error('boom'); };
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(count, 2);
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
+  assert.equal(getDb().prepare('select status from jobs where session_id = ?').get(sid).status, 'failed');
+});
+
+test('failed fresh turn is not retried', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  let count = 0;
+  const runTurn = async () => { count++; throw new Error('boom'); };
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(count, 1);
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
 });

@@ -11,6 +11,22 @@ export function enqueue({ sessionId, prompt }) {
     .run(newId(), sessionId, prompt);
 }
 
+// When a resumed turn fails (the Claude transcript may have been pruned), the
+// retry runs in a fresh session that has no memory of the conversation. This
+// prompt rebuilds that context from the portal's own message history.
+export function buildRecoveryPrompt(session, messages, prompt) {
+  const LABELS = { user: '[User]', claude: '[Claude]', system: '[Portal]' };
+  const history = messages
+    .map(m => `${LABELS[m.role] || `[${m.role}]`} ${m.body.slice(0, 2000)}`)
+    .join('\n\n');
+  return 'This is a resumed conversation whose earlier Claude session was lost. '
+    + `Portal session title: ${session.title}. The conversation so far, oldest first:\n\n`
+    + `${history}\n\n`
+    + 'Re-orient yourself from the project tracker and the matching application folder '
+    + 'before acting. Then handle the new message below as normal.\n\n'
+    + prompt;
+}
+
 export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail } = {}) {
   const db = getDb();
   const job = db.prepare("select * from jobs where status = 'queued' order by created_at limit 1").get();
@@ -20,11 +36,27 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
   const user = getUser(session.user_email);
   try {
     if (!user) throw new Error(`no registered user for ${session.user_email}; add them to users.json`);
-    const { sessionId: claudeId, text } = await runTurn({
-      prompt: job.prompt,
-      resumeSessionId: session.claude_session_id || null,
-      user,
-    });
+    let turn;
+    try {
+      turn = await runTurn({
+        prompt: job.prompt,
+        resumeSessionId: session.claude_session_id || null,
+        user,
+      });
+    } catch (err) {
+      // A resumed turn can fail because the Claude transcript was pruned.
+      // Retry once in a fresh session with context rebuilt from our own
+      // history; a fresh turn's failure is not retryable this way.
+      if (!session.claude_session_id) throw err;
+      const history = db.prepare('select role, body from messages where session_id = ? order by created_at')
+        .all(session.id);
+      turn = await runTurn({
+        prompt: buildRecoveryPrompt(session, history, job.prompt),
+        resumeSessionId: null,
+        user,
+      });
+    }
+    const { sessionId: claudeId, text } = turn;
     const { clean: afterEmail, email } = parseEmailDirective(text);
     const { clean, title } = parseTitleDirective(afterEmail);
     // Persist the turn immediately: if the email send fails below, the session

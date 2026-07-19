@@ -137,6 +137,7 @@ check "core/profile.md exists" test -f "$TARGET1/core/profile.md"
 check "WORKFLOW.md exists" test -f "$TARGET1/WORKFLOW.md"
 check "tracker/applications.csv exists" test -f "$TARGET1/tracker/applications.csv"
 check "render/render.sh exists" test -f "$TARGET1/render/render.sh"
+check ".claude/settings.json ships transcript retention" grep -q "cleanupPeriodDays" "$TARGET1/.claude/settings.json"
 
 # The instantiated project is a git repo with exactly one commit.
 if git -C "$TARGET1" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
