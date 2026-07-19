@@ -195,3 +195,50 @@ test('buildRecoveryPrompt truncates each message body to 2000 characters', () =>
   assert.ok(out.includes('x'.repeat(2000)));
   assert.ok(!out.includes('x'.repeat(2001)));
 });
+
+test('failed resumed turn retries once fresh with a recovery prompt and heals the session', async () => {
+  const sid = mkSession();
+  getDb().prepare("update sessions set claude_session_id = 'stale-id' where id = ?").run(sid);
+  getDb().prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
+    .run(newId(), sid, 'user', 'original JD text');
+  enqueue({ sessionId: sid, prompt: 'Nat replies via the portal:\n\nany news?' });
+  const calls = [];
+  const runTurn = async args => {
+    calls.push(args);
+    if (args.resumeSessionId) throw new Error('agent turn failed: error_during_execution');
+    return { sessionId: 'fresh-id', text: 'Re-oriented and replied.' };
+  };
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].resumeSessionId, 'stale-id');
+  assert.equal(calls[1].resumeSessionId, null);
+  assert.match(calls[1].prompt, /Portal session title: Test role/);
+  assert.match(calls[1].prompt, /\[User\] original JD text/);
+  assert.match(calls[1].prompt, /any news\?$/);
+  const s = getDb().prepare('select * from sessions where id = ?').get(sid);
+  assert.equal(s.claude_session_id, 'fresh-id');
+  assert.equal(s.status, 'awaiting_reply');
+  assert.equal(getDb().prepare('select status from jobs where session_id = ?').get(sid).status, 'done');
+});
+
+test('failed resumed turn whose fresh retry also fails goes to needs_attention', async () => {
+  const sid = mkSession();
+  getDb().prepare("update sessions set claude_session_id = 'stale-id' where id = ?").run(sid);
+  enqueue({ sessionId: sid, prompt: 'x' });
+  let count = 0;
+  const runTurn = async () => { count++; throw new Error('boom'); };
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(count, 2);
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
+  assert.equal(getDb().prepare('select status from jobs where session_id = ?').get(sid).status, 'failed');
+});
+
+test('failed fresh turn is not retried', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  let count = 0;
+  const runTurn = async () => { count++; throw new Error('boom'); };
+  await processOneJob({ runTurn, send: async () => {} });
+  assert.equal(count, 1);
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
+});
