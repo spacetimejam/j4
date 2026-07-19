@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const projectDir = mkdtempSync(join(tmpdir(), 'proj-'));
@@ -174,6 +174,62 @@ test('users cannot archive or restore each other\'s sessions', async () => {
   const { id } = await r.json();
   assert.equal((await fetch(`${base}/api/sessions/${id}/archive`, { method: 'POST', headers: { cookie: operatorCookie } })).status, 404);
   assert.equal((await fetch(`${base}/api/sessions/${id}/restore`, { method: 'POST', headers: { cookie: operatorCookie } })).status, 404);
+});
+
+async function createArchivedSession(jd) {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd }),
+  });
+  const { id } = await r.json();
+  await fetch(`${base}/api/sessions/${id}/archive`, { method: 'POST', headers: { cookie: ownerCookie } });
+  return id;
+}
+
+test('delete refuses non-archived sessions with 409', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Not archived yet' }),
+  });
+  const { id } = await r.json();
+  const d = await fetch(`${base}/api/sessions/${id}`, { method: 'DELETE', headers: { cookie: ownerCookie } });
+  assert.equal(d.status, 409);
+});
+
+test('delete removes rows, the application folder, and writes DELETED.md', async () => {
+  const folder = join(projectDir, 'applications', 'acme-designer');
+  mkdirSync(folder, { recursive: true });
+  const pdf = join(folder, 'cv.pdf');
+  writeFileSync(pdf, 'pdf');
+  const id = await createArchivedSession('Designer at Acme');
+  getDb().prepare('update sessions set files = ? where id = ?').run(JSON.stringify([pdf]), id);
+
+  const d = await fetch(`${base}/api/sessions/${id}`, { method: 'DELETE', headers: { cookie: ownerCookie } });
+  assert.equal(d.status, 200);
+  assert.equal(getDb().prepare('select count(*) c from sessions where id = ?').get(id).c, 0);
+  assert.equal(getDb().prepare('select count(*) c from messages where session_id = ?').get(id).c, 0);
+  assert.equal(getDb().prepare('select count(*) c from jobs where session_id = ?').get(id).c, 0);
+  assert.ok(!existsSync(folder));
+  const log = readFileSync(join(projectDir, 'applications', 'DELETED.md'), 'utf8');
+  assert.match(log, /Designer at Acme/);
+  assert.match(log, /applications\/acme-designer\//);
+});
+
+test('delete with no files removes rows only and logs none found', async () => {
+  const id = await createArchivedSession('No files role');
+  const d = await fetch(`${base}/api/sessions/${id}`, { method: 'DELETE', headers: { cookie: ownerCookie } });
+  assert.equal(d.status, 200);
+  assert.equal(getDb().prepare('select count(*) c from sessions where id = ?').get(id).c, 0);
+  const log = readFileSync(join(projectDir, 'applications', 'DELETED.md'), 'utf8');
+  assert.match(log, /No files role/);
+  assert.match(log, /none found/);
+});
+
+test('users cannot delete each other\'s sessions', async () => {
+  const id = await createArchivedSession('Delete isolation role');
+  assert.equal((await fetch(`${base}/api/sessions/${id}`, { method: 'DELETE', headers: { cookie: operatorCookie } })).status, 404);
 });
 
 test.after(() => server.close());
