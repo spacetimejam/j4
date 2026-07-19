@@ -19,7 +19,23 @@ async function main() {
 
 function route() {
   const id = location.hash.slice(1);
+  if (id === 'archived') return renderArchived();
   id ? renderSession(id) : renderList();
+}
+
+/* A minimal bottom sheet: dimmed backdrop, panel sliding up, tap the backdrop
+   to dismiss. Actions is a list of { label, run } so menus can grow later. */
+function openSheet(actions) {
+  const wrap = document.createElement('div');
+  wrap.className = 'sheet-wrap';
+  wrap.innerHTML = `<div class="sheet" role="menu">${actions.map((a, i) =>
+    `<button class="sheet-item" role="menuitem" data-i="${i}">${esc(a.label)}</button>`).join('')}</div>`;
+  wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
+  wrap.querySelectorAll('.sheet-item').forEach(b => {
+    b.onclick = () => { wrap.remove(); actions[Number(b.dataset.i)].run(); };
+  });
+  document.body.appendChild(wrap);
+  wrap.querySelector('.sheet-item')?.focus();
 }
 
 function renderLogin() {
@@ -35,19 +51,56 @@ function renderLogin() {
 
 async function renderList() {
   const sessions = await (await api('/sessions')).json();
-  app.innerHTML = `<h1>${esc(TITLE)}</h1>
+  app.innerHTML = `<div class="topbar"><h1>${esc(TITLE)}</h1>
+      <button id="cog" class="icon-btn" title="Options" aria-label="Options">&#9881;</button></div>
     <div class="card"><strong>New application</strong>
       <textarea id="jd" placeholder="Paste the job description, or just a link to it"></textarea>
       <button id="submit">Send to Claude</button></div>
     <div id="list">${sessions.map(s => `
-      <a class="card" href="#${s.id}"><span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
-      <strong>${esc(s.title)}</strong><div class="muted">${s.updated_at}</div></a>`).join('')}</div>`;
+      <a class="card has-menu" href="#${s.id}"><span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
+      <strong>${esc(s.title)}</strong><div class="muted">${s.updated_at}</div>
+      <button class="dots" data-id="${s.id}" aria-label="Options for ${esc(s.title)}">&#8942;</button></a>`).join('')}</div>`;
   document.getElementById('submit').onclick = async () => {
     const jd = document.getElementById('jd').value;
     if (!jd.trim()) return alert('Please paste the job description or a link to it.');
     const { id } = await (await api('/sessions', { method: 'POST', body: JSON.stringify({ jd }) })).json();
     location.hash = id;
   };
+  document.getElementById('cog').onclick = () => openSheet([
+    { label: 'View archived applications', run: () => { location.hash = 'archived'; } },
+  ]);
+  document.querySelectorAll('.dots').forEach(b => b.onclick = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    openSheet([
+      { label: 'Archive application', run: async () => {
+        await api(`/sessions/${b.dataset.id}/archive`, { method: 'POST' });
+        renderList();
+      } },
+    ]);
+  });
+}
+
+async function renderArchived() {
+  const sessions = await (await api('/sessions?archived=1')).json();
+  app.innerHTML = `<a class="back" href="#">&larr; All applications</a>
+    <h1>Archived applications</h1>
+    ${sessions.length ? '' : '<p class="muted">Nothing is archived.</p>'}
+    <div id="list">${sessions.map(s => `
+      <div class="card"><strong>${esc(s.title)}</strong><div class="muted">${s.updated_at}</div>
+      <div class="row">
+        <button class="restore secondary" data-id="${s.id}">Restore</button>
+        <button class="delete danger" data-id="${s.id}" data-title="${esc(s.title)}">Delete permanently</button>
+      </div></div>`).join('')}</div>`;
+  document.querySelectorAll('.restore').forEach(b => b.onclick = async () => {
+    await api(`/sessions/${b.dataset.id}/restore`, { method: 'POST' });
+    renderArchived();
+  });
+  document.querySelectorAll('.delete').forEach(b => b.onclick = async () => {
+    if (!confirm(`Permanently delete "${b.dataset.title}"? This also deletes its application folder and files. This cannot be undone.`)) return;
+    await api(`/sessions/${b.dataset.id}`, { method: 'DELETE' });
+    renderArchived();
+  });
 }
 
 let pollTimer;
