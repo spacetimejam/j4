@@ -11,6 +11,22 @@ export function enqueue({ sessionId, prompt }) {
     .run(newId(), sessionId, prompt);
 }
 
+// When a resumed turn fails (the Claude transcript may have been pruned), the
+// retry runs in a fresh session that has no memory of the conversation. This
+// prompt rebuilds that context from the portal's own message history.
+export function buildRecoveryPrompt(session, messages, prompt) {
+  const LABELS = { user: '[User]', claude: '[Claude]', system: '[Portal]' };
+  const history = messages
+    .map(m => `${LABELS[m.role] || `[${m.role}]`} ${m.body.slice(0, 2000)}`)
+    .join('\n\n');
+  return 'This is a resumed conversation whose earlier Claude session was lost. '
+    + `Portal session title: ${session.title}. The conversation so far, oldest first:\n\n`
+    + `${history}\n\n`
+    + 'Re-orient yourself from the project tracker and the matching application folder '
+    + 'before acting. Then handle the new message below as normal.\n\n'
+    + prompt;
+}
+
 export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail } = {}) {
   const db = getDb();
   const job = db.prepare("select * from jobs where status = 'queued' order by created_at limit 1").get();
