@@ -24,7 +24,8 @@ substitute_all() {
   employment_esc="$(sed_escape "$EMPLOYMENT_STATUS")"
   ai_tool_esc="$(sed_escape "$AI_TOOL")"
   portal_esc="$(sed_escape "$PORTAL")"
-  creative_esc="$(sed_escape "${CREATIVE:-no}")"  date_esc="$(sed_escape "$(date +%Y-%m-%d)")"
+  creative_esc="$(sed_escape "${CREATIVE:-no}")"
+  date_esc="$(sed_escape "$(date +%Y-%m-%d)")"
 
   find "$target" -type f \( -name '*.md' -o -name '*.tmpl' -o -name '*.yaml' \) |
   while IFS= read -r file; do
@@ -38,7 +39,8 @@ substitute_all() {
         -e "s/{{EMPLOYMENT_STATUS}}/$employment_esc/g" \
         -e "s/{{AI_TOOL}}/$ai_tool_esc/g" \
         -e "s/{{PORTAL}}/$portal_esc/g" \
-        -e "s/{{CREATIVE}}/$creative_esc/g" \        -e "s/{{DATE}}/$date_esc/g" \
+        -e "s/{{CREATIVE}}/$creative_esc/g" \
+        -e "s/{{DATE}}/$date_esc/g" \
         "$file" > "$tmp" && mv "$tmp" "$file"
   done
 }
