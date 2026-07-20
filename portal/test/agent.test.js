@@ -26,6 +26,13 @@ test('malformed JSON yields null email, keeps text', () => {
   assert.equal(email, null);
 });
 
+test('extracts email directive when the agent appends content after the block', () => {
+  const text = 'All done!\n\n```email-to-user\n{"subject":"Your CV","body":"Here you go","attachments":["/tmp/a.md"]}\n```\n\nSources: [a](https://x)';
+  const { clean, email } = parseEmailDirective(text);
+  assert.equal(email.subject, 'Your CV');
+  assert.equal(clean, 'All done!\n\nSources: [a](https://x)');
+});
+
 test('runAgentTurn selects the configured runner and passes the contract fields', async () => {
   let seen;
   const runners = { cli: async args => { seen = args; return { sessionId: 's1', text: 'hi' }; } };
@@ -167,11 +174,13 @@ test('parseTitleDirective returns null when absent or title missing', () => {
   assert.equal(missing.title, null);
 });
 
-test('parseTitleDirective ignores a block not at the end', () => {
-  const text = '```session-title\n{"title": "T"}\n```\ntrailing prose';
+test('parseTitleDirective extracts the title when the agent appends a Sources section after the block', () => {
+  const text = 'Would you like to apply anyway, or shall I log it as Withdrawn?\n\n'
+    + '```session-title\n{"title": "Digital Director at Goodstuff"}\n```\n\n'
+    + 'Sources: [Goodstuff salaries](https://example.com/salaries)';
   const { clean, title } = parseTitleDirective(text);
-  assert.equal(title, null);
-  assert.equal(clean, text);
+  assert.equal(title, 'Digital Director at Goodstuff');
+  assert.equal(clean, 'Would you like to apply anyway, or shall I log it as Withdrawn?\n\nSources: [Goodstuff salaries](https://example.com/salaries)');
 });
 
 test('portal prompt instructs the session-title block', () => {
