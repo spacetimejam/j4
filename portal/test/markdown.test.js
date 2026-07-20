@@ -122,3 +122,15 @@ test('escapes HTML inside a fenced code block', () => {
 test('keeps a paragraph separate from a following list', () => {
   assert.equal(renderMarkdown('Intro:\n- one'), '<p>Intro:</p><ul><li>one</li></ul>');
 });
+
+test('handles an unterminated fenced code block', () => {
+  assert.equal(renderMarkdown('```\n<script>alert(1)</script>'),
+    '<pre><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></pre>');
+});
+
+test('ends a paragraph at a following heading, blockquote, rule or fence', () => {
+  assert.equal(renderMarkdown('text\n# Head'), '<p>text</p><h3>Head</h3>');
+  assert.equal(renderMarkdown('text\n> quote'), '<p>text</p><blockquote>quote</blockquote>');
+  assert.equal(renderMarkdown('text\n---'), '<p>text</p><hr>');
+  assert.equal(renderMarkdown('text\n```\ncode\n```'), '<p>text</p><pre><code>code</code></pre>');
+});

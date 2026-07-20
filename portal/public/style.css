@@ -162,6 +162,7 @@ a.card:hover {
   background: var(--tint);
   border-radius: 5px;
   padding: 0.12em 0.35em;
+  overflow-wrap: anywhere;
 }
 .msg.md pre {
   background: var(--tint);
