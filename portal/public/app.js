@@ -1,9 +1,16 @@
 import { renderMarkdown } from './markdown.js';
+import { isSubmitChord } from './keys.js';
 
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const LABELS = { working: 'Claude is working', awaiting_reply: 'Your turn', done: 'Sent to your inbox, reply here with any notes', needs_attention: 'Needs attention', active: 'New' };
+
+/* navigator.platform is deprecated but still populated everywhere current; the
+   userAgent fallback covers its removal. Getting this wrong only mislabels a
+   tooltip, because isSubmitChord accepts both modifiers on every platform. */
+const isMac = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
+const SUBMIT_HINT = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
 
 let TITLE = 'Job Search Portal';
 
@@ -40,6 +47,24 @@ function openSheet(actions) {
   wrap.querySelector('.sheet-item')?.focus();
 }
 
+/* Point a textarea and its button at the same submit, so the chord and a click
+   do the same thing. The in-flight flag means a fast second chord cannot fire a
+   second POST while the first is still going, which also covers double-clicks. */
+function bindSubmit(textarea, button, run) {
+  let busy = false;
+  const go = async () => {
+    if (busy) return;
+    busy = true;
+    try { await run(); } finally { busy = false; }
+  };
+  button.onclick = go;
+  textarea.onkeydown = e => {
+    if (!isSubmitChord(e)) return;
+    e.preventDefault();
+    go();
+  };
+}
+
 function renderLogin() {
   app.innerHTML = `<h1>${esc(TITLE)}</h1>
     <p>Enter your email and we will send you a login link.</p>
@@ -59,17 +84,17 @@ async function renderList() {
       <button id="cog" class="icon-btn" title="Options" aria-label="Options"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>
     <div class="new-app"><strong>New application</strong>
       <textarea id="jd" placeholder="Paste the job description, or just a link to it"></textarea>
-      <button id="submit">Send to Claude</button></div>
+      <button id="submit" title="Send to Claude (${SUBMIT_HINT})">Send to Claude</button></div>
     <div id="list">${sessions.map(s => `
       <a class="card has-menu" href="#${s.id}"><span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
       <strong>${esc(s.title)}</strong><div class="muted">${s.updated_at}</div>
       <button class="dots" data-id="${s.id}" aria-label="Options for ${esc(s.title)}">&#8942;</button></a>`).join('')}</div>`;
-  document.getElementById('submit').onclick = async () => {
+  bindSubmit(document.getElementById('jd'), document.getElementById('submit'), async () => {
     const jd = document.getElementById('jd').value;
     if (!jd.trim()) return alert('Please paste the job description or a link to it.');
     const { id } = await (await api('/sessions', { method: 'POST', body: JSON.stringify({ jd }) })).json();
     location.hash = id;
-  };
+  });
   document.getElementById('cog').onclick = () => openSheet([
     { label: 'View archived applications', run: () => { location.hash = 'archived'; } },
   ]);
@@ -119,13 +144,13 @@ async function renderSession(id) {
     ${s.files?.length ? `<div class="card"><strong>Your documents</strong>${s.files.map(f =>
       `<div><a href="/api/sessions/${id}/files/${f.idx}" download>${esc(f.name)}</a></div>`).join('')}</div>` : ''}
     ${s.status === 'working' ? '<p class="muted">Claude is working on this. You can close the page; it will be here when you come back.</p>' : ''}
-    <textarea id="reply" placeholder="Your reply"></textarea><button id="send">Send</button>`;
-  document.getElementById('send').onclick = async () => {
+    <textarea id="reply" placeholder="Your reply"></textarea><button id="send" title="Send (${SUBMIT_HINT})">Send</button>`;
+  bindSubmit(document.getElementById('reply'), document.getElementById('send'), async () => {
     const body = document.getElementById('reply').value;
     if (!body.trim()) return;
     await api(`/sessions/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
     renderSession(id);
-  };
+  });
   if (s.status === 'working') pollTimer = setInterval(() => location.hash.slice(1) === id && renderSession(id), 10000);
 }
 
