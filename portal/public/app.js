@@ -1,3 +1,5 @@
+import { renderMarkdown } from './markdown.js';
+
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -111,7 +113,9 @@ async function renderSession(id) {
   const s = await (await api('/sessions/' + id)).json();
   app.innerHTML = `<a class="back" href="#">&larr; All applications</a>
     <h1>${esc(s.title)} <span class="pill ${s.status}">${LABELS[s.status] || s.status}</span></h1>
-    ${s.messages.map(m => `<div class="msg ${m.role}">${esc(m.body)}</div>`).join('')}
+    ${s.messages.map(m => m.role === 'claude'
+      ? `<div class="msg claude md">${renderMarkdown(m.body)}</div>`
+      : `<div class="msg ${m.role}">${esc(m.body)}</div>`).join('')}
     ${s.files?.length ? `<div class="card"><strong>Your documents</strong>${s.files.map(f =>
       `<div><a href="/api/sessions/${id}/files/${f.idx}" download>${esc(f.name)}</a></div>`).join('')}</div>` : ''}
     ${s.status === 'working' ? '<p class="muted">Claude is working on this. You can close the page; it will be here when you come back.</p>' : ''}
