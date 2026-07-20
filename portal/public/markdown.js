@@ -9,6 +9,10 @@ const escapeHtml = s => s.replace(/[&<>"]/g, c => ESCAPES[c]);
 
 const SAFE_HREF = /^(https?:|mailto:)/i;
 
+/* A line that starts some other block, so a paragraph must stop before it. */
+const BLOCK_START = /^\s*(```|#{1,6}\s|>|[-*+]\s|\d+[.)]\s)/;
+const HR = /^\s*([-*_])\s*(\1\s*){2,}$/;
+
 /* Emphasis runs on already-escaped text. The italic underscore rule needs a
    word boundary so snake_case identifiers survive intact. */
 function emphasis(text) {
@@ -50,9 +54,60 @@ export function renderMarkdown(src) {
   const out = [];
   let i = 0;
   while (i < lines.length) {
-    if (!lines[i].trim()) { i++; continue; }
+    const line = lines[i];
+
+    if (!line.trim()) { i++; continue; }
+
+    if (/^\s*```/.test(line)) {
+      const body = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) body.push(lines[i++]);
+      i++; // step over the closing fence, if there is one
+      out.push(`<pre><code>${escapeHtml(body.join('\n'))}</code></pre>`);
+      continue;
+    }
+
+    if (HR.test(line)) { out.push('<hr>'); i++; continue; }
+
+    const heading = line.match(/^\s*(#{1,6})\s+(.*)$/);
+    if (heading) {
+      const tag = `h${Math.min(heading[1].length + 2, 6)}`;
+      out.push(`<${tag}>${renderInline(heading[2].trim())}</${tag}>`);
+      i++;
+      continue;
+    }
+
+    if (/^\s*>/.test(line)) {
+      const body = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) body.push(lines[i++].replace(/^\s*>\s?/, ''));
+      out.push(`<blockquote>${renderInline(body.join('\n'))}</blockquote>`);
+      continue;
+    }
+
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i]) && !HR.test(lines[i])) {
+        items.push(lines[i++].replace(/^\s*[-*+]\s+/, ''));
+      }
+      out.push(`<ul>${items.map(t => `<li>${renderInline(t)}</li>`).join('')}</ul>`);
+      continue;
+    }
+
+    if (/^\s*\d+[.)]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) {
+        items.push(lines[i++].replace(/^\s*\d+[.)]\s+/, ''));
+      }
+      out.push(`<ol>${items.map(t => `<li>${renderInline(t)}</li>`).join('')}</ol>`);
+      continue;
+    }
+
     const para = [];
-    while (i < lines.length && lines[i].trim()) para.push(lines[i++]);
+    while (i < lines.length && lines[i].trim()
+           && !BLOCK_START.test(lines[i]) && !HR.test(lines[i])) {
+      para.push(lines[i++]);
+    }
+    if (!para.length) { i++; continue; } // never stall on an unmatched line
     out.push(`<p>${renderInline(para.join('\n'))}</p>`);
   }
   return out.join('');

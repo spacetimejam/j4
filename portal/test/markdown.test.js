@@ -72,3 +72,53 @@ test('does not let a code span leak into a link href', () => {
   assert.ok(!html.includes('<a href'), 'must not produce an anchor');
   assert.ok(!/href="[^"]*<code>/.test(html), 'must not put a code element in an href');
 });
+
+test('renders headings clamped to h3..h6', () => {
+  assert.equal(renderMarkdown('# One'), '<h3>One</h3>');
+  assert.equal(renderMarkdown('## Two'), '<h4>Two</h4>');
+  assert.equal(renderMarkdown('### Three'), '<h5>Three</h5>');
+  assert.equal(renderMarkdown('#### Four'), '<h6>Four</h6>');
+  assert.equal(renderMarkdown('###### Six'), '<h6>Six</h6>');
+});
+
+test('renders a bullet list', () => {
+  assert.equal(renderMarkdown('- one\n- two'), '<ul><li>one</li><li>two</li></ul>');
+  assert.equal(renderMarkdown('* one\n* two'), '<ul><li>one</li><li>two</li></ul>');
+});
+
+test('renders an ordered list', () => {
+  assert.equal(renderMarkdown('1. one\n2. two'), '<ol><li>one</li><li>two</li></ol>');
+});
+
+test('formats inline markup inside list items', () => {
+  assert.equal(renderMarkdown('- a **b**'), '<ul><li>a <strong>b</strong></li></ul>');
+});
+
+test('renders a blockquote', () => {
+  assert.equal(renderMarkdown('> quoted'), '<blockquote>quoted</blockquote>');
+});
+
+test('renders a horizontal rule', () => {
+  assert.equal(renderMarkdown('---'), '<hr>');
+  assert.equal(renderMarkdown('***'), '<hr>');
+});
+
+test('renders a fenced code block without parsing its contents', () => {
+  assert.equal(renderMarkdown('```\na **b**\n```'),
+    '<pre><code>a **b**</code></pre>');
+});
+
+test('ignores the language tag on a fence', () => {
+  assert.equal(renderMarkdown('```js\nlet x = 1;\n```'),
+    '<pre><code>let x = 1;</code></pre>');
+});
+
+test('escapes HTML inside a fenced code block', () => {
+  const html = renderMarkdown('```\n<script>alert(1)</script>\n```');
+  assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('&lt;script&gt;'));
+});
+
+test('keeps a paragraph separate from a following list', () => {
+  assert.equal(renderMarkdown('Intro:\n- one'), '<p>Intro:</p><ul><li>one</li></ul>');
+});
