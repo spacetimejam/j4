@@ -66,3 +66,9 @@ test('handles empty and nullish input', () => {
   assert.equal(renderMarkdown(''), '');
   assert.equal(renderMarkdown(null), '');
 });
+
+test('does not let a code span leak into a link href', () => {
+  const html = renderMarkdown('[x](https://a.com/`code`)');
+  assert.ok(!html.includes('<a href'), 'must not produce an anchor');
+  assert.ok(!/href="[^"]*<code>/.test(html), 'must not put a code element in an href');
+});

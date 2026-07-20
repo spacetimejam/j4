@@ -28,7 +28,7 @@ function renderInline(src) {
 
   let text = src.replace(/`([^`]+)`/g, (_, code) => hold(`<code>${escapeHtml(code)}</code>`));
   text = escapeHtml(text);
-  text = text.replace(/\[([^\]]*)\]\(([^)\s]*)\)/g, (whole, label, href) => {
+  text = text.replace(/\[([^\]]*)\]\(([^)\s\x00]*)\)/g, (whole, label, href) => {
     const url = href.trim();
     if (!SAFE_HREF.test(url)) return whole;
     return hold(`<a href="${url}" target="_blank" rel="noopener noreferrer">${emphasis(label)}</a>`);
