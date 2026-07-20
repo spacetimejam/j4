@@ -23,6 +23,8 @@ test('ignores the chord when Alt or Shift is also held', () => {
   assert.equal(isSubmitChord(chord({ metaKey: true, altKey: true })), false);
   assert.equal(isSubmitChord(chord({ metaKey: true, shiftKey: true })), false);
   assert.equal(isSubmitChord(chord({ ctrlKey: true, shiftKey: true })), false);
+  // AltGr on Windows and European layouts reports as Ctrl+Alt, so this must not submit.
+  assert.equal(isSubmitChord(chord({ ctrlKey: true, altKey: true })), false);
 });
 
 test('ignores other keys held with the modifier', () => {
