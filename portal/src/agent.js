@@ -99,12 +99,28 @@ in your reply.
 Never invent facts about ${userName}. Never apply to anything. Never email anyone except via the block above.
 `;
 
+// Pull the last fenced block with the given label out of `text`, wherever it
+// sits, and return { clean, raw }: `clean` is the reply with just that block
+// removed (any text before AND after it kept), `raw` its inner body, or null
+// when absent. Tolerating trailing content is deliberate: the agent routinely
+// appends a Sources/citations section after the directive, so anchoring the
+// block to the very end left the JSON visible and the directive unapplied.
+function extractLastFenced(text, label) {
+  const re = new RegExp('```' + label + '\\s*\\n([\\s\\S]*?)\\n?```[ \\t]*(?:\\n|$)', 'g');
+  let last = null;
+  for (const m of text.matchAll(re)) last = m;
+  if (!last) return { clean: text, raw: null };
+  const before = text.slice(0, last.index);
+  const after = text.slice(last.index + last[0].length);
+  const clean = `${before.trimEnd()}\n\n${after.trimStart()}`.trim();
+  return { clean, raw: last[1] };
+}
+
 export function parseEmailDirective(text) {
-  const m = text.match(/```email-to-user\s*\n([\s\S]*?)\n?```\s*$/);
-  if (!m) return { clean: text, email: null };
-  const clean = text.slice(0, m.index).trimEnd();
+  const { clean, raw } = extractLastFenced(text, 'email-to-user');
+  if (raw === null) return { clean: text, email: null };
   try {
-    const email = JSON.parse(m[1]);
+    const email = JSON.parse(raw);
     if (!email.subject || !email.body || !Array.isArray(email.attachments)) return { clean, email: null };
     return { clean, email };
   } catch {
@@ -113,11 +129,10 @@ export function parseEmailDirective(text) {
 }
 
 export function parseTitleDirective(text) {
-  const m = text.match(/```session-title\s*\n([\s\S]*?)\n?```\s*$/);
-  if (!m) return { clean: text, title: null };
-  const clean = text.slice(0, m.index).trimEnd();
+  const { clean, raw } = extractLastFenced(text, 'session-title');
+  if (raw === null) return { clean: text, title: null };
   try {
-    const parsed = JSON.parse(m[1]);
+    const parsed = JSON.parse(raw);
     if (typeof parsed.title !== 'string') return { clean, title: null };
     return { clean, title: parsed.title };
   } catch {
