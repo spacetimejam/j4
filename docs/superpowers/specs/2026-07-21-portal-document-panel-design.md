@@ -121,6 +121,11 @@ rewritten to call it, with no change in behaviour.
   `resolveOwnedFile`, then `res.download`. Any failure is a 404, matching the
   existing route's habit of not distinguishing "absent" from "forbidden".
 
+The permanent-delete route gains `delete from documents where session_id = ?`
+alongside its existing deletes of `jobs`, `messages` and `sessions`. Without it,
+deleting a session would leave rows pointing at a folder that has just been
+removed from disk.
+
 ### 4. `portal/public/app.js`: the chat bar
 
 `renderSession` currently emits a back link and an `h1`. Both are replaced by one
@@ -210,6 +215,7 @@ change.
 - A path that no longer exists on disk is returned with `available: false`.
 - `GET /documents/:docId` downloads a real file, 404s for a document id from
   another session, and 404s for a path outside the user's `projectDir`.
+- Permanently deleting a session leaves no `documents` rows behind.
 
 The bar and panel are DOM code and are not unit-tested, following the precedent
 set for `bindSubmit`: verifying them needs a real DOM, and jsdom is not worth
