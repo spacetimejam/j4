@@ -149,7 +149,7 @@ test('stage 3 routes rejections to learnings without an email block', () => {
 
 test('stage 3 covers offers and general correspondence', () => {
   const p = portalPrompt('Test');
-  assert.match(p, /Status to Interviewing and record the offer in the notes/);
+  assert.match(p, /keep the tracker Status at Interviewing, record the offer in the notes/);
   assert.match(p, /Next_Action and Next_Action_Date current/);
 });
 

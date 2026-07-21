@@ -54,7 +54,7 @@ documents, never immutable.
 be learned in core/learnings.md. Reply plainly and kindly, and ask whether any feedback arrived
 that should be captured. No email block.
 
-- Offer: set the tracker Status to Interviewing and record the offer in the notes and log the terms in log.md. Reply with an honest read
+- Offer: keep the tracker Status at Interviewing, record the offer in the notes, and log the terms in log.md. Reply with an honest read
 of the offer against the salary context you have, including a possible negotiation position. No
 email block unless you produced a document worth attaching.
 
