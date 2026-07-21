@@ -39,6 +39,18 @@ create table if not exists jobs (
   error text,
   created_at text not null default (datetime('now'))
 );
+create table if not exists documents (
+  id text primary key,
+  session_id text not null references sessions(id),
+  path text not null,
+  delivered_at text not null default (datetime('now'))
+);
+create unique index if not exists documents_session_path
+  on documents (session_id, path);
+create table if not exists meta (
+  key text primary key,
+  value text
+);
 `;
 
 export function getDb() {
@@ -53,6 +65,38 @@ export function getDb() {
     }
     if (!cols.some(c => c.name === 'archived')) {
       db.exec('alter table sessions add column archived integer not null default 0');
+    }
+    // One-time backfill for databases that predate the documents table: the
+    // files column holds only the most recent delivery, so this is the whole
+    // history we can recover. updated_at is the closest available date, being
+    // last activity rather than delivery, and is only ever shown as a caption.
+    // Guarded by a marker row in meta rather than "documents is empty", because
+    // an empty table is also what the table looks like after every row has been
+    // deleted on purpose; re-running the scan in that case would resurrect them.
+    const done = db.prepare("select 1 from meta where key = 'documents_backfill_done'").get();
+    if (!done) {
+      const rows = db.prepare("select id, files, updated_at from sessions where files is not null and files != ''").all();
+      const insert = db.prepare('insert or ignore into documents (id, session_id, path, delivered_at) values (?, ?, ?, ?)');
+      const markDone = db.prepare("insert or ignore into meta (key, value) values ('documents_backfill_done', datetime('now'))");
+      const backfill = db.transaction(() => {
+        for (const row of rows) {
+          let paths;
+          try {
+            paths = JSON.parse(row.files);
+          } catch {
+            continue; // a malformed column must not stop the server starting
+          }
+          if (!Array.isArray(paths)) continue;
+          for (const p of paths) {
+            if (typeof p === 'string' && p) insert.run(newId(), row.id, p, row.updated_at);
+          }
+        }
+        // Written inside the same transaction as the inserts above, so a crash
+        // mid-backfill cannot leave the marker set without the data it promises,
+        // or the data inserted without the marker to stop it happening again.
+        markDone.run();
+      });
+      backfill();
     }
   }
   return db;

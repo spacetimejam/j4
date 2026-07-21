@@ -28,6 +28,7 @@ async function main() {
 }
 
 function route() {
+  closeDocPanel?.();
   const id = location.hash.slice(1);
   if (id === 'archived') return renderArchived();
   id ? renderSession(id) : renderList();
@@ -46,6 +47,91 @@ function openSheet(actions) {
   });
   document.body.appendChild(wrap);
   wrap.querySelector('.sheet-item')?.focus();
+}
+
+/* The documents panel is mounted on document.body rather than inside #app.
+   That is load-bearing: while a session is working, renderSession reruns every
+   ten seconds and rewrites app.innerHTML, which would tear an open panel out
+   from under the reader mid-scroll. renderSession refreshes it in place
+   instead. */
+let docPanel = null;
+/* Closes the currently open panel, or does nothing if none is open. Kept at
+   module scope, alongside docPanel, so route() can reach it on every
+   navigation (see below): a hash change must not leave the panel showing
+   over an unrelated screen. */
+let closeDocPanel = null;
+/* The markup .doc-list was last rendered with. refreshDocPanel compares
+   against this, not against list.innerHTML: a bare boolean attribute like
+   `download` round-trips through innerHTML as `download=""`, and esc()'s
+   `&quot;` in a document name only gets re-escaped for `&`, `<` and `>` on
+   read-back, so an innerHTML comparison never matches even when nothing
+   changed. Remembering what we rendered sidesteps the browser's
+   serialisation entirely. */
+let docPanelHtml = '';
+
+function docRows(sessionId, docs) {
+  if (!docs.length) return '<p class="muted">No documents yet.</p>';
+  return docs.map(d => d.available
+    ? `<a class="doc-row" href="/api/sessions/${sessionId}/documents/${d.id}" download>
+         <span class="doc-name">${esc(d.name)}</span>
+         <span class="muted">${formatLondon(d.delivered_at)}</span></a>`
+    : `<div class="doc-row unavailable">
+         <span class="doc-name">${esc(d.name)}</span>
+         <span class="muted">no longer available</span></div>`).join('');
+}
+
+function refreshDocPanel(sessionId, docs) {
+  if (!docPanel) return;
+  /* docRows is deterministic, so only touch the DOM when the markup actually
+     changed. The ten-second poll calls this every tick while a session is
+     working, and an unconditional innerHTML rewrite would drop keyboard focus
+     and any text selection inside the list even when nothing changed. Compare
+     against docPanelHtml, the string we last wrote, rather than reading
+     list.innerHTML back: see the comment on docPanelHtml for why. */
+  const next = docRows(sessionId, docs);
+  if (next === docPanelHtml) return;
+  docPanelHtml = next;
+  docPanel.querySelector('.doc-list').innerHTML = next;
+}
+
+function openDocPanel(sessionId, docs) {
+  if (docPanel) return; // one panel at a time; a double-click on the opener must not orphan a second wrap
+  const opener = document.activeElement;
+  const wrap = document.createElement('div');
+  wrap.className = 'doc-wrap';
+  docPanelHtml = docRows(sessionId, docs);
+  wrap.innerHTML = `<div class="doc-panel" role="dialog" aria-modal="true" aria-label="Documents">
+    <div class="doc-head"><strong>Documents</strong>
+      <button class="doc-close icon-btn" aria-label="Close">&times;</button></div>
+    <div class="doc-list">${docPanelHtml}</div></div>`;
+  /* Operates on the wrap it closed over, not on the shared module variable,
+     so it can always remove itself and is safe to call more than once
+     (route(), Escape, a backdrop click and the close button can all reach
+     it). The module variables are cleared only if they still point at this
+     panel, so a second panel closing cannot clobber state for a different,
+     still-open one. */
+  const close = () => {
+    if (!wrap.isConnected) return;
+    wrap.remove();
+    const owned = docPanel === wrap;
+    if (owned) docPanel = null;
+    if (closeDocPanel === close) closeDocPanel = null;
+    if (owned) docPanelHtml = ''; // so a reopened panel can't compare against a previous one's markup
+    document.removeEventListener('keydown', onKey);
+    /* The captured opener is #doc-btn at the moment the panel opened. While a
+       session is working, the ten-second poll rewrites app.innerHTML and
+       detaches it, so fall back to whichever #doc-btn is current rather than
+       leaving focus stranded on <body>. */
+    (opener?.isConnected ? opener : document.getElementById('doc-btn'))?.focus();
+  };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  wrap.onclick = e => { if (e.target === wrap) close(); };
+  wrap.querySelector('.doc-close').onclick = close;
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(wrap);
+  docPanel = wrap;
+  closeDocPanel = close;
+  wrap.querySelector('.doc-close').focus();
 }
 
 /* Point a textarea and its button at the same submit, so the chord and a click
@@ -136,9 +222,15 @@ async function renderArchived() {
 let pollTimer;
 async function renderSession(id) {
   clearInterval(pollTimer);
-  const s = await (await api('/sessions/' + id)).json();
-  app.innerHTML = `<a class="back" href="#">&larr; All applications</a>
-    <h1>${esc(s.title)} <span class="pill ${s.status}">${LABELS[s.status] || s.status}</span></h1>
+  const [sRes, dRes] = await Promise.all([api('/sessions/' + id), api(`/sessions/${id}/documents`)]);
+  const s = await sRes.json();
+  const docs = dRes.ok ? await dRes.json() : [];
+  app.innerHTML = `<div class="chat-bar">
+      <a class="back" href="#" aria-label="All applications">&larr;</a>
+      <h1 class="chat-title" title="${esc(s.title)}">${esc(s.title)}</h1>
+      <span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
+      ${docs.length ? `<button id="doc-btn" class="icon-btn" title="Documents" aria-label="Documents (${docs.length})"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="doc-count">${docs.length}</span></button>` : ''}
+    </div>
     ${s.messages.map(m => m.role === 'claude'
       ? `<div class="msg claude md">${renderMarkdown(m.body)}</div>`
       : `<div class="msg ${m.role}">${esc(m.body)}</div>`).join('')}
@@ -152,6 +244,8 @@ async function renderSession(id) {
     await api(`/sessions/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
     renderSession(id);
   });
+  document.getElementById('doc-btn')?.addEventListener('click', () => openDocPanel(id, docs));
+  refreshDocPanel(id, docs);
   if (s.status === 'working') pollTimer = setInterval(() => location.hash.slice(1) === id && renderSession(id), 10000);
 }
 

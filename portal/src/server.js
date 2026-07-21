@@ -16,6 +16,23 @@ function getOwnSession(db, id, email) {
   return db.prepare('select * from sessions where id = ? and user_email = ?').get(id, email);
 }
 
+// Resolve a recorded absolute path, but only if it is inside the user's own
+// project directory after symlinks are followed. realpathSync throws for a
+// missing path, so a deleted file resolves to null and is reported as
+// unavailable rather than offered as a broken download.
+function resolveOwnedFile(path, user) {
+  if (!path || !user?.projectDir) return null;
+  let real, root;
+  try {
+    real = realpathSync(path);
+    root = realpathSync(user.projectDir);
+  } catch {
+    return null;
+  }
+  if (real !== root && !real.startsWith(root + sep)) return null;
+  return real;
+}
+
 export function createApp({ send = sendEmail } = {}) {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -90,6 +107,7 @@ export function createApp({ send = sendEmail } = {}) {
         folderNote, messageCount, createdAt: session.created_at,
       });
     } catch (err) { console.error('DELETED.md write failed:', err); }
+    db.prepare('delete from documents where session_id = ?').run(session.id);
     db.prepare('delete from jobs where session_id = ?').run(session.id);
     db.prepare('delete from messages where session_id = ?').run(session.id);
     db.prepare('delete from sessions where id = ?').run(session.id);
@@ -133,17 +151,37 @@ export function createApp({ send = sendEmail } = {}) {
     const paths = JSON.parse(session.files || '[]');
     const idx = Number(req.params.idx);
     if (!Number.isInteger(idx) || idx < 0 || idx >= paths.length) return res.status(404).json({ error: 'not found' });
+    const real = resolveOwnedFile(paths[idx], getUser(req.userEmail));
+    if (!real) return res.status(404).json({ error: 'not found' });
+    res.download(real, basename(real), err => {
+      if (err && !res.headersSent) res.status(404).json({ error: 'file unavailable' });
+    });
+  });
+
+  app.get('/api/sessions/:id/documents', requireAuth, (req, res) => {
+    const db = getDb();
+    const session = getOwnSession(db, req.params.id, req.userEmail);
+    if (!session) return res.status(404).json({ error: 'not found' });
     const user = getUser(req.userEmail);
-    let real, root;
-    try {
-      real = realpathSync(paths[idx]);
-      root = realpathSync(user.projectDir);
-    } catch {
-      return res.status(404).json({ error: 'not found' });
-    }
-    if (real !== root && !real.startsWith(root + sep)) {
-      return res.status(404).json({ error: 'not found' });
-    }
+    const rows = db.prepare('select * from documents where session_id = ? order by delivered_at desc, rowid asc')
+      .all(session.id);
+    res.json(rows.map(r => ({
+      id: r.id,
+      name: basename(r.path),
+      delivered_at: r.delivered_at,
+      available: resolveOwnedFile(r.path, user) !== null,
+    })));
+  });
+
+  app.get('/api/sessions/:id/documents/:docId', requireAuth, (req, res) => {
+    const db = getDb();
+    const session = getOwnSession(db, req.params.id, req.userEmail);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    const row = db.prepare('select * from documents where id = ? and session_id = ?')
+      .get(req.params.docId, session.id);
+    if (!row) return res.status(404).json({ error: 'not found' });
+    const real = resolveOwnedFile(row.path, getUser(req.userEmail));
+    if (!real) return res.status(404).json({ error: 'not found' });
     res.download(real, basename(real), err => {
       if (err && !res.headersSent) res.status(404).json({ error: 'file unavailable' });
     });

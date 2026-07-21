@@ -232,4 +232,84 @@ test('users cannot delete each other\'s sessions', async () => {
   assert.equal((await fetch(`${base}/api/sessions/${id}`, { method: 'DELETE', headers: { cookie: operatorCookie } })).status, 404);
 });
 
+test('documents list is newest first, owner-scoped, and flags missing files', async () => {
+  const present = join(projectDir, 'kept.pdf');
+  writeFileSync(present, 'kept-bytes');
+  const gone = join(projectDir, 'gone.pdf');
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Documents list role' }),
+  });
+  const { id } = await r.json();
+  const ins = getDb().prepare('insert into documents (id, session_id, path, delivered_at) values (?, ?, ?, ?)');
+  ins.run('doc-old', id, present, '2026-07-01 09:00:00');
+  ins.run('doc-new', id, gone, '2026-07-05 09:00:00');
+
+  const docs = await (await fetch(`${base}/api/sessions/${id}/documents`, { headers: { cookie: ownerCookie } })).json();
+  assert.deepStrictEqual(docs, [
+    { id: 'doc-new', name: 'gone.pdf', delivered_at: '2026-07-05 09:00:00', available: false },
+    { id: 'doc-old', name: 'kept.pdf', delivered_at: '2026-07-01 09:00:00', available: true },
+  ]);
+
+  assert.equal((await fetch(`${base}/api/sessions/${id}/documents`, { headers: { cookie: operatorCookie } })).status, 404);
+  assert.equal((await fetch(`${base}/api/sessions/${id}/documents`)).status, 401);
+});
+
+test('a document downloads, and only for its own session and inside projectDir', async () => {
+  const inside = join(projectDir, 'pack.pdf');
+  writeFileSync(inside, 'pack-bytes');
+  const mk = async jd => {
+    const r = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: ownerCookie },
+      body: JSON.stringify({ jd }),
+    });
+    return (await r.json()).id;
+  };
+  const idA = await mk('Doc download role A');
+  const idB = await mk('Doc download role B');
+  const ins = getDb().prepare('insert into documents (id, session_id, path) values (?, ?, ?)');
+  ins.run('dl-ok', idA, inside);
+  ins.run('dl-evil', idA, '/etc/passwd');
+  ins.run('dl-other', idB, inside);
+
+  const ok = await fetch(`${base}/api/sessions/${idA}/documents/dl-ok`, { headers: { cookie: ownerCookie } });
+  assert.equal(ok.status, 200);
+  assert.equal(await ok.text(), 'pack-bytes');
+
+  // outside the project directory
+  assert.equal((await fetch(`${base}/api/sessions/${idA}/documents/dl-evil`, { headers: { cookie: ownerCookie } })).status, 404);
+  // a document id belonging to a different session
+  assert.equal((await fetch(`${base}/api/sessions/${idA}/documents/dl-other`, { headers: { cookie: ownerCookie } })).status, 404);
+  // an unknown document id
+  assert.equal((await fetch(`${base}/api/sessions/${idA}/documents/nope`, { headers: { cookie: ownerCookie } })).status, 404);
+  // another user
+  assert.equal((await fetch(`${base}/api/sessions/${idA}/documents/dl-ok`, { headers: { cookie: operatorCookie } })).status, 404);
+});
+
+test('permanent delete removes the session documents rows', async () => {
+  const id = await createArchivedSession('Doc cascade role');
+  getDb().prepare('insert into documents (id, session_id, path) values (?, ?, ?)')
+    .run('cascade-doc', id, join(projectDir, 'whatever.pdf'));
+  const d = await fetch(`${base}/api/sessions/${id}`, { method: 'DELETE', headers: { cookie: ownerCookie } });
+  assert.equal(d.status, 200);
+  assert.equal(getDb().prepare('select count(*) c from documents where session_id = ?').get(id).c, 0);
+});
+
+test('documents delivered in the same second keep insertion order', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Same-second documents role' }),
+  });
+  const { id } = await r.json();
+  const ins = getDb().prepare('insert into documents (id, session_id, path, delivered_at) values (?, ?, ?, ?)');
+  ins.run('same-sec-cv', id, join(projectDir, 'cv.pdf'), '2026-07-21 09:00:00');
+  ins.run('same-sec-cover', id, join(projectDir, 'cover-letter.pdf'), '2026-07-21 09:00:00');
+
+  const docs = await (await fetch(`${base}/api/sessions/${id}/documents`, { headers: { cookie: ownerCookie } })).json();
+  assert.deepStrictEqual(docs.map(d => d.id), ['same-sec-cv', 'same-sec-cover']);
+});
+
 test.after(() => server.close());
