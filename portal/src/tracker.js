@@ -34,13 +34,13 @@ export function parseCsv(text) {
    without being rewritten, and so a hand-typed row still lands somewhere
    sensible. Anything unrecognised deliberately yields no pill: a wrong stage
    is worse than none. */
-const STAGES = {
+const STAGES = Object.assign(Object.create(null), {
   sourced: 'researching', researching: 'researching',
   drafting: 'applying', applied: 'applying', applying: 'applying',
   interviewing: 'interviewing', offer: 'interviewing',
   hired: 'hired',
   rejected: 'turned_down', withdrawn: 'turned_down', 'turned down': 'turned_down',
-};
+});
 
 export function readTracker(projectDir) {
   if (!projectDir) return [];
@@ -63,7 +63,8 @@ export function stageFor(title, rows) {
   const org = t.slice(at + 4).trim().toLowerCase();
   if (!role || !org) return null;
   let match = null;
-  for (const r of rows) {
+  for (const r of rows || []) {
+    if (!r) continue;
     if ((r.Role || '').trim().toLowerCase() !== role) continue;
     const o = (r.Org || '').trim().toLowerCase();
     if (!o) continue;
