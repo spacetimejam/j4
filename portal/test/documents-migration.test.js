@@ -55,12 +55,16 @@ test('sessions with no files or a null files column are skipped', () => {
 
 test('backfill does not rerun and does not resurrect deleted rows', async () => {
   const db = getDb();
-  db.prepare("delete from documents where path = '/tmp/cv.pdf'").run();
+  db.prepare('delete from documents').run();
   db.close();
   // The module caches its handle in a private variable, so the only way to make
   // getDb() open the file again is to evaluate a second copy of the module. The
   // query string is what defeats Node's module cache.
   const again = await import(`../src/db.js?rerun=${Date.now()}`);
   const rows = again.getDb().prepare('select path from documents').all();
-  assert.deepEqual(rows.map(r => r.path), ['/tmp/letter.pdf']);
+  // The table being empty is exactly the state a "count(*) === 0" guard cannot
+  // tell apart from "never backfilled", so this is the case that distinguishes
+  // it from a durable marker: a real backfill-never-ran table would have rows
+  // again after reopening; this one must stay empty.
+  assert.deepEqual(rows, []);
 });

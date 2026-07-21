@@ -47,6 +47,10 @@ create table if not exists documents (
 );
 create unique index if not exists documents_session_path
   on documents (session_id, path);
+create table if not exists meta (
+  key text primary key,
+  value text
+);
 `;
 
 export function getDb() {
@@ -66,9 +70,14 @@ export function getDb() {
     // files column holds only the most recent delivery, so this is the whole
     // history we can recover. updated_at is the closest available date, being
     // last activity rather than delivery, and is only ever shown as a caption.
-    if (db.prepare('select count(*) c from documents').get().c === 0) {
+    // Guarded by a marker row in meta rather than "documents is empty", because
+    // an empty table is also what the table looks like after every row has been
+    // deleted on purpose; re-running the scan in that case would resurrect them.
+    const done = db.prepare("select 1 from meta where key = 'documents_backfill_done'").get();
+    if (!done) {
       const rows = db.prepare("select id, files, updated_at from sessions where files is not null and files != ''").all();
       const insert = db.prepare('insert or ignore into documents (id, session_id, path, delivered_at) values (?, ?, ?, ?)');
+      const markDone = db.prepare("insert or ignore into meta (key, value) values ('documents_backfill_done', datetime('now'))");
       const backfill = db.transaction(() => {
         for (const row of rows) {
           let paths;
@@ -82,6 +91,10 @@ export function getDb() {
             if (typeof p === 'string' && p) insert.run(newId(), row.id, p, row.updated_at);
           }
         }
+        // Written inside the same transaction as the inserts above, so a crash
+        // mid-backfill cannot leave the marker set without the data it promises,
+        // or the data inserted without the marker to stop it happening again.
+        markDone.run();
       });
       backfill();
     }
