@@ -306,6 +306,45 @@ a.back:hover { color: var(--accent); }
 @keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
 
+/* Documents panel: slides in from the right, over the thread. */
+.doc-wrap {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 10;
+}
+.doc-panel {
+  width: min(360px, 88vw);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+  padding-right: calc(18px + env(safe-area-inset-right));
+  animation: doc-in 0.18s ease-out;
+}
+.doc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.doc-close { font-size: 1.4rem; line-height: 1; }
+.doc-row {
+  display: block;
+  padding: 12px 0;
+  border-top: 1px solid var(--hairline);
+  text-decoration: none;
+  color: inherit;
+}
+.doc-row .doc-name { display: block; overflow-wrap: anywhere; }
+.doc-row:not(.unavailable):hover .doc-name { color: var(--accent); }
+.doc-row.unavailable .doc-name { color: var(--ink-soft); }
+@keyframes doc-in { from { transform: translateX(24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .doc-panel { animation: none; } }
+
 /* Archived page action row */
 .row { display: flex; gap: 10px; }
 .row button { width: auto; flex: 1; }

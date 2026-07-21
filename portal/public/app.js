@@ -48,6 +48,53 @@ function openSheet(actions) {
   wrap.querySelector('.sheet-item')?.focus();
 }
 
+/* The documents panel is mounted on document.body rather than inside #app.
+   That is load-bearing: while a session is working, renderSession reruns every
+   ten seconds and rewrites app.innerHTML, which would tear an open panel out
+   from under the reader mid-scroll. renderSession refreshes it in place
+   instead. */
+let docPanel = null;
+
+function docRows(sessionId, docs) {
+  if (!docs.length) return '<p class="muted">No documents yet.</p>';
+  return docs.map(d => d.available
+    ? `<a class="doc-row" href="/api/sessions/${sessionId}/documents/${d.id}" download>
+         <span class="doc-name">${esc(d.name)}</span>
+         <span class="muted">${formatLondon(d.delivered_at)}</span></a>`
+    : `<div class="doc-row unavailable">
+         <span class="doc-name">${esc(d.name)}</span>
+         <span class="muted">no longer available</span></div>`).join('');
+}
+
+function refreshDocPanel(sessionId, docs) {
+  if (!docPanel) return;
+  docPanel.querySelector('.doc-list').innerHTML = docRows(sessionId, docs);
+}
+
+function openDocPanel(sessionId, docs) {
+  const opener = document.activeElement;
+  const wrap = document.createElement('div');
+  wrap.className = 'doc-wrap';
+  wrap.innerHTML = `<div class="doc-panel" role="dialog" aria-modal="true" aria-label="Documents">
+    <div class="doc-head"><strong>Documents</strong>
+      <button class="doc-close icon-btn" aria-label="Close">&times;</button></div>
+    <div class="doc-list">${docRows(sessionId, docs)}</div></div>`;
+  const close = () => {
+    if (!docPanel) return;
+    docPanel.remove();
+    docPanel = null;
+    document.removeEventListener('keydown', onKey);
+    if (opener?.isConnected) opener.focus();
+  };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  wrap.onclick = e => { if (e.target === wrap) close(); };
+  wrap.querySelector('.doc-close').onclick = close;
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(wrap);
+  docPanel = wrap;
+  wrap.querySelector('.doc-close').focus();
+}
+
 /* Point a textarea and its button at the same submit, so the chord and a click
    do the same thing. The in-flight flag means a fast second chord cannot fire a
    second POST while the first is still going, which also covers double-clicks. */
@@ -158,6 +205,8 @@ async function renderSession(id) {
     await api(`/sessions/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
     renderSession(id);
   });
+  document.getElementById('doc-btn')?.addEventListener('click', () => openDocPanel(id, docs));
+  refreshDocPanel(id, docs);
   if (s.status === 'working') pollTimer = setInterval(() => location.hash.slice(1) === id && renderSession(id), 10000);
 }
 
