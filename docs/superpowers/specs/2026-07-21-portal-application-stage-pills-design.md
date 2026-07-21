@@ -214,7 +214,10 @@ tidiness rather than a prerequisite, and it must preserve the CSV's quoting.
 - An `applying` session with `updated_at` 29 days old reports `inactive`; at 27
   days it still reports `applying`.
 - A session with no tracker match reports `stage: null`.
-- One request for a list of several sessions reads the CSV once.
+
+Reading the CSV once per request rather than once per session is a property of
+where the `readTracker` call sits, not something a test can assert without
+mocking `fs`, so it is left to review rather than covered by a test.
 
 The list card and chat bar are DOM code and are not unit-tested, following the
 precedent set for `bindSubmit` and the documents panel.
