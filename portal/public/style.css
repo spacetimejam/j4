@@ -331,7 +331,7 @@ a.back:hover { color: var(--accent); }
   justify-content: space-between;
   margin-bottom: 12px;
 }
-.doc-close { font-size: 1.4rem; line-height: 1; }
+.doc-close { font-size: 1.4rem; line-height: 1; min-width: 44px; min-height: 44px; }
 .doc-row {
   display: block;
   padding: 12px 0;

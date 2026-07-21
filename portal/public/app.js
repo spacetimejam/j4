@@ -74,7 +74,13 @@ function docRows(sessionId, docs) {
 
 function refreshDocPanel(sessionId, docs) {
   if (!docPanel) return;
-  docPanel.querySelector('.doc-list').innerHTML = docRows(sessionId, docs);
+  /* docRows is deterministic, so only touch the DOM when the markup actually
+     changed. The ten-second poll calls this every tick while a session is
+     working, and an unconditional innerHTML rewrite would drop keyboard focus
+     and any text selection inside the list even when nothing changed. */
+  const next = docRows(sessionId, docs);
+  const list = docPanel.querySelector('.doc-list');
+  if (list.innerHTML !== next) list.innerHTML = next;
 }
 
 function openDocPanel(sessionId, docs) {
@@ -98,7 +104,11 @@ function openDocPanel(sessionId, docs) {
     if (docPanel === wrap) docPanel = null;
     if (closeDocPanel === close) closeDocPanel = null;
     document.removeEventListener('keydown', onKey);
-    if (opener?.isConnected) opener.focus();
+    /* The captured opener is #doc-btn at the moment the panel opened. While a
+       session is working, the ten-second poll rewrites app.innerHTML and
+       detaches it, so fall back to whichever #doc-btn is current rather than
+       leaving focus stranded on <body>. */
+    (opener?.isConnected ? opener : document.getElementById('doc-btn'))?.focus();
   };
   const onKey = e => { if (e.key === 'Escape') close(); };
   wrap.onclick = e => { if (e.target === wrap) close(); };
