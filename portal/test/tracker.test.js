@@ -108,9 +108,12 @@ test('parseCsv fills missing trailing columns with empty strings rather than thr
 });
 
 test('stageFor is defensive against a non-array or sparse rows argument', () => {
-  assert.equal(stageFor('Designer at Acme', undefined), null);
-  assert.equal(stageFor('Designer at Acme', null), null);
-  assert.equal(stageFor('Designer at Acme', [null, { Role: 'Designer', Org: 'Acme', Status: 'Applied' }]), 'applying');
+  // truthy non-arrays matter as much as falsy ones: `rows || []` would let
+  // these through to the for..of and throw into the request handler
+  for (const bad of [undefined, null, {}, 5, true, 'rows']) {
+    assert.equal(stageFor('Designer at Acme', bad), null, String(bad));
+  }
+  assert.equal(stageFor('Designer at Acme', [null, undefined, {}, { Role: 'Designer', Org: 'Acme', Status: 'Applied' }]), 'applying');
 });
 
 test('stageFor treats a Status of "constructor" or "__proto__" as unrecognised', () => {

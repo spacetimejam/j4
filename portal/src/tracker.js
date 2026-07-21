@@ -63,7 +63,7 @@ export function stageFor(title, rows) {
   const org = t.slice(at + 4).trim().toLowerCase();
   if (!role || !org) return null;
   let match = null;
-  for (const r of rows || []) {
+  for (const r of Array.isArray(rows) ? rows : []) {
     if (!r) continue;
     if ((r.Role || '').trim().toLowerCase() !== role) continue;
     const o = (r.Org || '').trim().toLowerCase();
