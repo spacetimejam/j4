@@ -5,7 +5,17 @@ import { formatLondon } from './time.js';
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const LABELS = { working: 'Claude is working', awaiting_reply: 'Your turn', done: 'Sent to your inbox, reply here with any notes', needs_attention: 'Needs attention', active: 'New' };
+/* The pill shows where the application stands, from the tracker, except while
+   Claude is mid-turn. Whether the chat wants a reply is a separate axis and
+   shows as the red corner badge instead, so the two stop competing for one
+   element. An unknown stage renders no pill at all. */
+const STAGES = {
+  working: 'Jawbs is working', researching: 'Researching', applying: 'Applying',
+  interviewing: 'Interviewing', hired: 'Hired', turned_down: 'Turned down',
+  inactive: 'Inactive',
+};
+const NEEDS_REPLY = new Set(['awaiting_reply', 'needs_attention']);
+const pill = s => (STAGES[s.stage] ? `<span class="pill ${s.stage}">${STAGES[s.stage]}</span>` : '');
 
 /* navigator.platform is deprecated but still populated everywhere current; the
    userAgent fallback covers its removal. Getting this wrong only mislabels a
@@ -173,8 +183,9 @@ async function renderList() {
       <textarea id="jd" placeholder="Paste the job description, or just a link to it"></textarea>
       <button id="submit" title="Send to Claude (${SUBMIT_HINT})">Send to Claude</button></div>
     <div id="list">${sessions.map(s => `
-      <a class="card has-menu" href="#${s.id}"><span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
-      <strong>${esc(s.title)}</strong><div class="muted">${formatLondon(s.updated_at)}</div>
+      <a class="card has-menu" href="#${s.id}"><strong>${esc(s.title)}</strong>
+      <div class="meta"><span class="muted">${formatLondon(s.updated_at)}</span>${pill(s)}</div>
+      ${NEEDS_REPLY.has(s.status) ? `<span class="badge-reply" aria-label="${esc(s.title)}: waiting for your reply">Reply</span>` : ''}
       <button class="dots" data-id="${s.id}" aria-label="Options for ${esc(s.title)}">&#8942;</button></a>`).join('')}</div>`;
   bindSubmit(document.getElementById('jd'), document.getElementById('submit'), async () => {
     const jd = document.getElementById('jd').value;
@@ -228,7 +239,7 @@ async function renderSession(id) {
   app.innerHTML = `<div class="chat-bar">
       <a class="back" href="#" aria-label="All applications">&larr;</a>
       <h1 class="chat-title" title="${esc(s.title)}">${esc(s.title)}</h1>
-      <span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
+      ${pill(s)}
       ${docs.length ? `<button id="doc-btn" class="icon-btn" title="Documents" aria-label="Documents (${docs.length})"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="doc-count">${docs.length}</span></button>` : ''}
     </div>
     ${s.messages.map(m => m.role === 'claude'

@@ -97,12 +97,12 @@ a.card:hover {
 }
 .card div { margin-top: 8px; }
 
-/* Status: a coloured dot and a quiet lowercase label */
+/* Application stage: a coloured dot and a quiet label. The float is gone
+   deliberately: it made the card title wrap around the pill and split words
+   mid-word. The pill now sits on the timestamp line instead. */
 .pill {
   font-size: 0.8rem;
   color: var(--ink-soft);
-  float: right;
-  margin-left: 12px;
   white-space: nowrap;
 }
 .pill::before {
@@ -116,14 +116,40 @@ a.card:hover {
   background: var(--ink-soft);
 }
 .pill.working::before { background: var(--amber); animation: breathe 2.4s ease-in-out infinite; }
-.pill.awaiting_reply::before { background: var(--accent); }
-.pill.done::before { background: var(--green); }
-.pill.needs_attention::before { background: var(--red); }
+.pill.applying::before { background: var(--accent); }
+.pill.interviewing::before { background: var(--amber); }
+.pill.hired::before { background: var(--green); }
+.pill.turned_down::before { background: var(--red); }
+/* researching and inactive keep the default --ink-soft dot */
 
 @keyframes breathe { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) {
   .pill.working::before { animation: none; }
   a.card { transition: none; }
+}
+
+/* Timestamp on the left, stage pill on the right, on one line */
+.card .meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* "Reply" flag over the card's top-right corner. The card is already
+   position: relative for its overflow menu. */
+.badge-reply {
+  position: absolute;
+  top: -6px;
+  right: 12px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* Conversation thread */
@@ -238,14 +264,21 @@ a.back:hover { color: var(--accent); }
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 0.93rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.chat-bar .pill { float: none; margin: 0; flex: none; }
+/* Shrinkable rather than flex: none, so no future label can widen the page
+   past the viewport the way the old prose ones did. */
+.chat-bar .pill {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 #doc-btn {
   flex: none;
   position: relative;
@@ -368,5 +401,9 @@ button.danger:hover { background: var(--red); filter: brightness(0.9); }
 .new-app textarea { background: var(--card); }
 
 /* Long unbroken titles (URLs) wrap inside the card instead of running past its
-   edge or under the dots strip; the h1 in the session view has the same risk. */
-.card strong, h1 { overflow-wrap: anywhere; }
+   edge or under the dots strip. anywhere stays on h1, which includes the chat
+   bar's single truncated line and still has to cope with a pasted URL. The
+   card title is a wrapping block and only needs to break at word boundaries
+   now that no float sits beside it. */
+.card strong { overflow-wrap: break-word; }
+h1 { overflow-wrap: anywhere; }
