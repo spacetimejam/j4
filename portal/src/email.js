@@ -12,13 +12,8 @@ async function sendViaBrevo({ to, subject, text, attachments }, { fetchImpl }) {
     to: [{ email: to }],
     subject,
     textContent: text,
-    attachment: attachments.map(a => {
-      let name = a.filename;
-      // Brevo rejects .md attachment filenames ("Unsupported file format: md");
-      // send the same content under a .txt filename instead.
-      if (name.toLowerCase().endsWith('.md')) name = name.slice(0, -3) + '.txt';
-      return { name, content: a.contentBase64 };
-    }),
+    // Filenames arrive already normalised, from normaliseAttachments below.
+    attachment: attachments.map(a => ({ name: a.filename, content: a.contentBase64 })),
   };
   if (body.attachment.length === 0) delete body.attachment;
   const res = await fetchImpl('https://api.brevo.com/v3/smtp/email', {
@@ -58,6 +53,21 @@ async function sendViaWebhook({ to, subject, text, attachments }, { fetchImpl })
 
 const PROVIDERS = { brevo: sendViaBrevo, smtp: sendViaSmtp, webhook: sendViaWebhook };
 
+// Brevo rejects .md attachment filenames ("Unsupported file format: md") and
+// 400s the whole send, which loses interview prep and the plain-text CV
+// fallback. Every delivery path here ends at Brevo, either directly or through
+// the n8n webhook, so normalise once for all providers rather than per
+// provider: the bug this fixes was a rename that existed only in sendViaBrevo
+// while production ran the webhook. The n8n "Build Email Payload" node applies
+// the same rule for anything reaching it by another route.
+function normaliseAttachments(attachments) {
+  return attachments.map(a => {
+    const name = String(a.filename || 'attachment');
+    if (!name.toLowerCase().endsWith('.md')) return a;
+    return { ...a, filename: `${name.slice(0, -3)}.txt` };
+  });
+}
+
 export async function sendEmail({ to, subject, text, attachments = [] }, opts = {}) {
   const fetchImpl = opts.fetchImpl || fetch;
   const retryDelayMs = opts.retryDelayMs ?? 2000;
@@ -66,10 +76,11 @@ export async function sendEmail({ to, subject, text, attachments = [] }, opts = 
   }
   const provider = PROVIDERS[config.emailProvider];
   if (!provider) throw new Error(`unknown email provider: ${config.emailProvider}`);
+  const safeAttachments = normaliseAttachments(attachments);
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await provider({ to, subject, text, attachments }, { fetchImpl, transport: opts.transport });
+      await provider({ to, subject, text, attachments: safeAttachments }, { fetchImpl, transport: opts.transport });
       return;
     } catch (err) {
       lastErr = err;
