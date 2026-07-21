@@ -49,6 +49,26 @@ test('brevo provider posts the Brevo shape and renames .md attachments to .txt',
   assert.equal(Buffer.from(seen.body.attachment[0].content, 'base64').toString(), 'cv');
 });
 
+// The live portal runs EMAIL_PROVIDER=webhook, so this is the path that
+// actually delivers. It reaches Brevo via n8n, which rejects .md the same way.
+test('webhook provider renames .md attachments to .txt', async () => {
+  config.emailProvider = 'webhook';
+  let seen;
+  const fetchImpl = async (url, opts) => { seen = JSON.parse(opts.body); return { ok: true }; };
+  await sendEmail({
+    to: 'owner@test.com',
+    subject: 'Hi',
+    text: 'Body',
+    attachments: [
+      { filename: 'interview-3-prep.md', contentBase64: Buffer.from('prep').toString('base64') },
+      { filename: 'cv.pdf', contentBase64: Buffer.from('pdf').toString('base64') },
+    ],
+  }, { fetchImpl });
+  assert.equal(seen.attachments[0].filename, 'interview-3-prep.txt');
+  assert.equal(seen.attachments[1].filename, 'cv.pdf');
+  assert.equal(Buffer.from(seen.attachments[0].contentBase64, 'base64').toString(), 'prep');
+});
+
 test('smtp provider sends via the injected transport with Buffer attachments', async () => {
   config.emailProvider = 'smtp';
   let seen;
