@@ -72,6 +72,13 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     if (email) {
       db.prepare('update sessions set files = ? where id = ?')
         .run(JSON.stringify(email.attachments), job.session_id);
+      // documents accumulates across the whole session; files above is only
+      // ever the latest delivery. Redelivery of a revised file is idempotent:
+      // there is one file on disk, so one row, with its date moved forward.
+      const recordDoc = db.prepare(`insert into documents (id, session_id, path)
+        values (?, ?, ?)
+        on conflict (session_id, path) do update set delivered_at = datetime('now')`);
+      for (const p of email.attachments) recordDoc.run(newId(), job.session_id, p);
       const attachments = email.attachments.map(p => ({
         filename: basename(p),
         contentBase64: readFileSync(p).toString('base64'),

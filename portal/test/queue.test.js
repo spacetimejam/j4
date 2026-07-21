@@ -242,3 +242,72 @@ test('failed fresh turn is not retried', async () => {
   assert.equal(count, 1);
   assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
 });
+
+test('each delivery adds documents rows while files keeps only the latest', async () => {
+  const sid = mkSession();
+  const first = join(tmpdir(), `cv-${newId()}.pdf`);
+  const second = join(tmpdir(), `letter-${newId()}.pdf`);
+  writeFileSync(first, 'one');
+  writeFileSync(second, 'two');
+
+  enqueue({ sessionId: sid, prompt: 'first' });
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-d1',
+      text: `Done.\n\`\`\`email-to-user\n${JSON.stringify({ subject: 'S', body: 'B', attachments: [first] })}\n\`\`\``,
+    }),
+    send: async () => {},
+  });
+
+  enqueue({ sessionId: sid, prompt: 'second' });
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-d2',
+      text: `Done.\n\`\`\`email-to-user\n${JSON.stringify({ subject: 'S', body: 'B', attachments: [second] })}\n\`\`\``,
+    }),
+    send: async () => {},
+  });
+
+  const paths = getDb().prepare('select path from documents where session_id = ? order by path').all(sid).map(r => r.path);
+  assert.deepEqual(paths.sort(), [first, second].sort());
+  // files still holds the latest delivery only, which deriveApplicationFolder relies on
+  assert.deepEqual(JSON.parse(getDb().prepare('select files from sessions where id = ?').get(sid).files), [second]);
+});
+
+test('redelivering the same path keeps one row and moves its date forward', async () => {
+  const sid = mkSession();
+  const p = join(tmpdir(), `cv-${newId()}.pdf`);
+  writeFileSync(p, 'v1');
+  const directive = JSON.stringify({ subject: 'S', body: 'B', attachments: [p] });
+  const runTurn = async () => ({ sessionId: 'c-re', text: `Done.\n\`\`\`email-to-user\n${directive}\n\`\`\`` });
+
+  enqueue({ sessionId: sid, prompt: 'first' });
+  await processOneJob({ runTurn, send: async () => {} });
+  const before = getDb().prepare('select delivered_at from documents where session_id = ?').get(sid).delivered_at;
+
+  // rewind the stored date so the update is observable without waiting a second
+  getDb().prepare("update documents set delivered_at = '2020-01-01 00:00:00' where session_id = ?").run(sid);
+
+  enqueue({ sessionId: sid, prompt: 'again' });
+  await processOneJob({ runTurn, send: async () => {} });
+
+  const rows = getDb().prepare('select * from documents where session_id = ?').all(sid);
+  assert.equal(rows.length, 1);
+  assert.notEqual(rows[0].delivered_at, '2020-01-01 00:00:00');
+  assert.ok(rows[0].delivered_at >= before);
+});
+
+test('a failed email send still records the documents', async () => {
+  const sid = mkSession();
+  const p = join(tmpdir(), `cv-${newId()}.pdf`);
+  writeFileSync(p, 'x');
+  enqueue({ sessionId: sid, prompt: 'x' });
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-fail',
+      text: `Done.\n\`\`\`email-to-user\n${JSON.stringify({ subject: 'S', body: 'B', attachments: [p] })}\n\`\`\``,
+    }),
+    send: async () => { throw new Error('provider down'); },
+  });
+  assert.equal(getDb().prepare('select count(*) c from documents where session_id = ?').get(sid).c, 1);
+});
