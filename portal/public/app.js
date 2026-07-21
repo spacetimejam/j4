@@ -28,6 +28,7 @@ async function main() {
 }
 
 function route() {
+  closeDocPanel?.();
   const id = location.hash.slice(1);
   if (id === 'archived') return renderArchived();
   id ? renderSession(id) : renderList();
@@ -54,6 +55,11 @@ function openSheet(actions) {
    from under the reader mid-scroll. renderSession refreshes it in place
    instead. */
 let docPanel = null;
+/* Closes the currently open panel, or does nothing if none is open. Kept at
+   module scope, alongside docPanel, so route() can reach it on every
+   navigation (see below): a hash change must not leave the panel showing
+   over an unrelated screen. */
+let closeDocPanel = null;
 
 function docRows(sessionId, docs) {
   if (!docs.length) return '<p class="muted">No documents yet.</p>';
@@ -72,6 +78,7 @@ function refreshDocPanel(sessionId, docs) {
 }
 
 function openDocPanel(sessionId, docs) {
+  if (docPanel) return; // one panel at a time; a double-click on the opener must not orphan a second wrap
   const opener = document.activeElement;
   const wrap = document.createElement('div');
   wrap.className = 'doc-wrap';
@@ -79,10 +86,17 @@ function openDocPanel(sessionId, docs) {
     <div class="doc-head"><strong>Documents</strong>
       <button class="doc-close icon-btn" aria-label="Close">&times;</button></div>
     <div class="doc-list">${docRows(sessionId, docs)}</div></div>`;
+  /* Operates on the wrap it closed over, not on the shared module variable,
+     so it can always remove itself and is safe to call more than once
+     (route(), Escape, a backdrop click and the close button can all reach
+     it). The module variables are cleared only if they still point at this
+     panel, so a second panel closing cannot clobber state for a different,
+     still-open one. */
   const close = () => {
-    if (!docPanel) return;
-    docPanel.remove();
-    docPanel = null;
+    if (!wrap.isConnected) return;
+    wrap.remove();
+    if (docPanel === wrap) docPanel = null;
+    if (closeDocPanel === close) closeDocPanel = null;
     document.removeEventListener('keydown', onKey);
     if (opener?.isConnected) opener.focus();
   };
@@ -92,6 +106,7 @@ function openDocPanel(sessionId, docs) {
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
   docPanel = wrap;
+  closeDocPanel = close;
   wrap.querySelector('.doc-close').focus();
 }
 
