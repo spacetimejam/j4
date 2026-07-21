@@ -12,7 +12,7 @@ process.env.PORTAL_USERS_FILE = '/nonexistent-portal-users.json';
 process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
 process.env.COOKIE_SECRET = 'testsecret';
 process.env.PORTAL_TITLE = 'Test Portal';
-const { createApp } = await import('../src/server.js');
+const { createApp, INACTIVE_DAYS } = await import('../src/server.js');
 const { makeCookie } = await import('../src/auth.js');
 const { getDb } = await import('../src/db.js');
 
@@ -310,6 +310,74 @@ test('documents delivered in the same second keep insertion order', async () => 
 
   const docs = await (await fetch(`${base}/api/sessions/${id}/documents`, { headers: { cookie: ownerCookie } })).json();
   assert.deepStrictEqual(docs.map(d => d.id), ['same-sec-cv', 'same-sec-cover']);
+});
+
+test('sessions carry a stage read from the tracker', async () => {
+  mkdirSync(join(projectDir, 'tracker'), { recursive: true });
+  writeFileSync(join(projectDir, 'tracker', 'applications.csv'),
+    'Role,Org,Status\n'
+    + 'Content Lead,Wellcome Trust,Applied\n'
+    + 'Social Strategy Director,M+C Saatchi UK,Interviewing\n'
+    + 'Campaigns Lead,Economic Change Unit,Withdrawn\n');
+  const mk = async jd => {
+    const r = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: ownerCookie },
+      body: JSON.stringify({ jd }),
+    });
+    return (await r.json()).id;
+  };
+  const applying = await mk('Content Lead at Wellcome Trust');
+  const interviewing = await mk('Social Strategy Director at M+C Saatchi');
+  const unmatched = await mk('Some Role at Nowhere Ltd');
+  // sessions are created 'working', which overrides the tracker stage
+  const working = await (await fetch(`${base}/api/sessions/${applying}`, { headers: { cookie: ownerCookie } })).json();
+  assert.equal(working.stage, 'working');
+
+  const db = getDb();
+  db.prepare("update sessions set status = 'awaiting_reply' where id in (?, ?, ?)")
+    .run(applying, interviewing, unmatched);
+
+  const detail = await (await fetch(`${base}/api/sessions/${applying}`, { headers: { cookie: ownerCookie } })).json();
+  assert.equal(detail.stage, 'applying');
+
+  const list = await (await fetch(`${base}/api/sessions`, { headers: { cookie: ownerCookie } })).json();
+  const byId = Object.fromEntries(list.map(s => [s.id, s.stage]));
+  assert.equal(byId[applying], 'applying');
+  assert.equal(byId[interviewing], 'interviewing');
+  assert.equal(byId[unmatched], null);
+  // status is still present, because the reply badge needs it
+  assert.equal(list.find(s => s.id === applying).status, 'awaiting_reply');
+});
+
+test('an applying session goes inactive after the quiet period', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Content Lead at Wellcome Trust' }),
+  });
+  const { id } = await r.json();
+  const db = getDb();
+  const stageAfter = async days => {
+    db.prepare("update sessions set status = 'awaiting_reply', updated_at = datetime('now', ?) where id = ?")
+      .run(`-${days} days`, id);
+    const s = await (await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).json();
+    return s.stage;
+  };
+  assert.equal(await stageAfter(INACTIVE_DAYS - 1), 'applying');
+  assert.equal(await stageAfter(INACTIVE_DAYS + 1), 'inactive');
+});
+
+test('only an applying stage can go inactive', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Social Strategy Director at M+C Saatchi' }),
+  });
+  const { id } = await r.json();
+  getDb().prepare("update sessions set status = 'awaiting_reply', updated_at = datetime('now', '-400 days') where id = ?").run(id);
+  const s = await (await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).json();
+  assert.equal(s.stage, 'interviewing');
 });
 
 test.after(() => server.close());

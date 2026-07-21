@@ -8,6 +8,7 @@ import { sendEmail } from './email.js';
 import { enqueue, startWorker } from './queue.js';
 import { getUser } from './users.js';
 import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } from './deletion.js';
+import { readTracker, stageFor } from './tracker.js';
 
 // Look up a session only if it belongs to the requesting user. Missing and
 // forbidden are deliberately the same answer (404) so the API never confirms
@@ -31,6 +32,23 @@ function resolveOwnedFile(path, user) {
   }
   if (real !== root && !real.startsWith(root + sep)) return null;
   return real;
+}
+
+export const INACTIVE_DAYS = 28;
+
+/* The pill shows where the application stands, from the tracker, except while a
+   turn is running. Inactive is derived here rather than stored: nothing has to
+   maintain it and it clears itself on the next reply. */
+function withStage(session, rows) {
+  if (session.status === 'working') return { ...session, stage: 'working' };
+  const stage = stageFor(session.title, rows);
+  if (stage !== 'applying') return { ...session, stage };
+  /* SQLite's YYYY-MM-DD HH:MM:SS carries no zone marker and Date reads that
+     shape as local time, so the Z is what makes this UTC, as in formatLondon.
+     A malformed timestamp gives NaN, which fails the comparison and leaves the
+     session on applying, which is the safer answer. */
+  const age = Date.now() - Date.parse(`${String(session.updated_at).replace(' ', 'T')}Z`);
+  return { ...session, stage: age > INACTIVE_DAYS * 86400000 ? 'inactive' : 'applying' };
 }
 
 export function createApp({ send = sendEmail } = {}) {
@@ -71,7 +89,8 @@ export function createApp({ send = sendEmail } = {}) {
     const rows = getDb()
       .prepare('select * from sessions where user_email = ? and archived = ? order by updated_at desc')
       .all(req.userEmail, archived);
-    res.json(rows);
+    const tracker = readTracker(getUser(req.userEmail)?.projectDir);
+    res.json(rows.map(s => withStage(s, tracker)));
   });
 
   function setArchived(req, res, value) {
@@ -142,7 +161,8 @@ export function createApp({ send = sendEmail } = {}) {
     if (!session) return res.status(404).json({ error: 'not found' });
     const messages = db.prepare('select * from messages where session_id = ? order by created_at').all(session.id);
     const files = (JSON.parse(session.files || '[]')).map((p, idx) => ({ idx, name: basename(p) }));
-    res.json({ ...session, messages, files });
+    const tracker = readTracker(getUser(req.userEmail)?.projectDir);
+    res.json({ ...withStage(session, tracker), messages, files });
   });
 
   app.get('/api/sessions/:id/files/:idx', requireAuth, (req, res) => {

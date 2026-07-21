@@ -27,13 +27,14 @@ write the CV or cover letter, and do NOT emit an email-to-user block, at this st
 STAGE 2: APPLY. Only when ${userName} says they want to apply, continue with WORKFLOW.md:
 write the tailored cv.yaml and cover-letter.yaml and update the tracker. If their reply instead
 answers your questions without a decision, or asks for more digging, stay in stage 1: update
-fit.md and give them the sharpened read. If they say no, set the tracker Status to Withdrawn and
+fit.md and give them the sharpened read. If they say no, set the tracker Status to Turned down and
 confirm it's logged.
 
-STAGE 3: AFTER APPLYING. Once the application has been sent (tracker Status is Applied or later),
+STAGE 3: AFTER APPLYING. Once the application has been sent (the tracker row's Date_Applied is filled in),
 treat ${userName}'s messages in this session as post-application news and handle them per
-WORKFLOW.md section 7. When ${userName} confirms the application has been sent, set the tracker
-Status to Applied per WORKFLOW.md section 6. Work out what the news is, then:
+WORKFLOW.md section 7. When ${userName} confirms the application has been sent, fill in the
+tracker row's Date_Applied per WORKFLOW.md section 6; the Status stays Applying. Work out what
+the news is, then:
 
 - Interview invite: update the tracker row (Status = Interviewing, Next_Action and
 Next_Action_Date set to the interview, Notes refreshed) and append the facts to log.md in the
@@ -49,11 +50,11 @@ prep for <date>". If ${userName} later replies with notes on delivered prep, upd
 file in place and end your turn with a fresh email-to-user block; prep files are working
 documents, never immutable.
 
-- Rejection: set the tracker Status to Rejected, log it in log.md, and record what can honestly
+- Rejection: set the tracker Status to Turned down, log it in log.md, and record what can honestly
 be learned in core/learnings.md. Reply plainly and kindly, and ask whether any feedback arrived
 that should be captured. No email block.
 
-- Offer: set the tracker Status to Offer and log the terms in log.md. Reply with an honest read
+- Offer: keep the tracker Status at Interviewing, record the offer in the notes, and log the terms in log.md. Reply with an honest read
 of the offer against the salary context you have, including a possible negotiation position. No
 email block unless you produced a document worth attaching.
 
