@@ -1,5 +1,6 @@
 import { renderMarkdown } from './markdown.js';
 import { isSubmitChord } from './keys.js';
+import { formatLondon } from './time.js';
 
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
@@ -87,7 +88,7 @@ async function renderList() {
       <button id="submit" title="Send to Claude (${SUBMIT_HINT})">Send to Claude</button></div>
     <div id="list">${sessions.map(s => `
       <a class="card has-menu" href="#${s.id}"><span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
-      <strong>${esc(s.title)}</strong><div class="muted">${s.updated_at}</div>
+      <strong>${esc(s.title)}</strong><div class="muted">${formatLondon(s.updated_at)}</div>
       <button class="dots" data-id="${s.id}" aria-label="Options for ${esc(s.title)}">&#8942;</button></a>`).join('')}</div>`;
   bindSubmit(document.getElementById('jd'), document.getElementById('submit'), async () => {
     const jd = document.getElementById('jd').value;
@@ -116,7 +117,7 @@ async function renderArchived() {
     <h1>Archived applications</h1>
     ${sessions.length ? '' : '<p class="muted">Nothing is archived.</p>'}
     <div id="list">${sessions.map(s => `
-      <div class="card"><strong>${esc(s.title)}</strong><div class="muted">${s.updated_at}</div>
+      <div class="card"><strong>${esc(s.title)}</strong><div class="muted">${formatLondon(s.updated_at)}</div>
       <div class="row">
         <button class="restore secondary" data-id="${s.id}">Restore</button>
         <button class="delete danger" data-id="${s.id}" data-title="${esc(s.title)}">Delete permanently</button>
