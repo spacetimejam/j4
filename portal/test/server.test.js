@@ -247,7 +247,7 @@ test('documents list is newest first, owner-scoped, and flags missing files', as
   ins.run('doc-new', id, gone, '2026-07-05 09:00:00');
 
   const docs = await (await fetch(`${base}/api/sessions/${id}/documents`, { headers: { cookie: ownerCookie } })).json();
-  assert.deepEqual(docs, [
+  assert.deepStrictEqual(docs, [
     { id: 'doc-new', name: 'gone.pdf', delivered_at: '2026-07-05 09:00:00', available: false },
     { id: 'doc-old', name: 'kept.pdf', delivered_at: '2026-07-01 09:00:00', available: true },
   ]);
@@ -295,6 +295,21 @@ test('permanent delete removes the session documents rows', async () => {
   const d = await fetch(`${base}/api/sessions/${id}`, { method: 'DELETE', headers: { cookie: ownerCookie } });
   assert.equal(d.status, 200);
   assert.equal(getDb().prepare('select count(*) c from documents where session_id = ?').get(id).c, 0);
+});
+
+test('documents delivered in the same second keep insertion order', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Same-second documents role' }),
+  });
+  const { id } = await r.json();
+  const ins = getDb().prepare('insert into documents (id, session_id, path, delivered_at) values (?, ?, ?, ?)');
+  ins.run('same-sec-cv', id, join(projectDir, 'cv.pdf'), '2026-07-21 09:00:00');
+  ins.run('same-sec-cover', id, join(projectDir, 'cover-letter.pdf'), '2026-07-21 09:00:00');
+
+  const docs = await (await fetch(`${base}/api/sessions/${id}/documents`, { headers: { cookie: ownerCookie } })).json();
+  assert.deepStrictEqual(docs.map(d => d.id), ['same-sec-cv', 'same-sec-cover']);
 });
 
 test.after(() => server.close());

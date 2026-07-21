@@ -227,7 +227,7 @@ async function renderSession(id) {
   const docs = dRes.ok ? await dRes.json() : [];
   app.innerHTML = `<div class="chat-bar">
       <a class="back" href="#" aria-label="All applications">&larr;</a>
-      <span class="chat-title" title="${esc(s.title)}">${esc(s.title)}</span>
+      <h1 class="chat-title" title="${esc(s.title)}">${esc(s.title)}</h1>
       <span class="pill ${s.status}">${LABELS[s.status] || s.status}</span>
       ${docs.length ? `<button id="doc-btn" class="icon-btn" title="Documents" aria-label="Documents (${docs.length})"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="doc-count">${docs.length}</span></button>` : ''}
     </div>

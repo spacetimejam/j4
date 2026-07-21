@@ -225,10 +225,20 @@ a.back:hover { color: var(--accent); }
   background: var(--bg);
   border-bottom: 1px solid var(--hairline);
 }
-.chat-bar .back { margin: 0; font-size: 1.1rem; flex: none; }
+.chat-bar .back {
+  margin: 0;
+  font-size: 1.1rem;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
 .chat-title {
   flex: 1;
   min-width: 0;
+  margin: 0;
+  font-size: 1.05rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;

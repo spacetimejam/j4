@@ -163,7 +163,7 @@ export function createApp({ send = sendEmail } = {}) {
     const session = getOwnSession(db, req.params.id, req.userEmail);
     if (!session) return res.status(404).json({ error: 'not found' });
     const user = getUser(req.userEmail);
-    const rows = db.prepare('select * from documents where session_id = ? order by delivered_at desc, rowid desc')
+    const rows = db.prepare('select * from documents where session_id = ? order by delivered_at desc, rowid asc')
       .all(session.id);
     res.json(rows.map(r => ({
       id: r.id,

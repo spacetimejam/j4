@@ -156,10 +156,18 @@ inside it mid-scroll. `renderSession` instead calls a refresh on an open panel
 with the documents it has just fetched, so the list stays current while Claude
 works.
 
+A module-level `closeDocPanel` holds the currently open panel's close function
+(or `null`). `route()` calls it, if set, at the top of every navigation, before
+deciding what to render. That is what stops the panel outliving the chat it
+belongs to: without it, pressing the browser Back button out of a session
+would leave the panel floating over the list or archived view, since neither
+of those screens ever closes it themselves.
+
 Behaviour:
 
 - Slides in from the right, `min(360px, 88vw)` wide, over a dimmed backdrop.
-- Dismissed by clicking the backdrop, by the close button, or by Escape.
+- Dismissed by clicking the backdrop, by the close button, by Escape, or by a
+  hash change via `closeDocPanel`.
 - `role="dialog"`, `aria-modal="true"`, `aria-label="Documents"`. Focus moves to
   the close button on open and returns to the file button on close.
 - Each row: filename, then the delivery date through `formatLondon`, wrapped in
@@ -173,6 +181,17 @@ Behaviour:
 Filenames are escaped with the existing `esc`, as everywhere else outside
 Claude's own messages.
 
+`refreshDocPanel`, called on every `renderSession` (including the ten-second
+poll), compares the markup it is about to write against `docPanelHtml`, a
+module-level string of what the list was last rendered with, rather than
+against `list.innerHTML` read back from the DOM. A read-back comparison would
+never match: the panel's download links carry a bare `download` attribute, and
+the browser re-serialises that as `download=""` when `innerHTML` is read, so
+the two strings would differ on every single poll even when nothing changed.
+That would rewrite the list every ten seconds while a session is `working`,
+dropping keyboard focus and any text selection inside it. Remembering what was
+last written sidesteps the browser's serialisation entirely.
+
 ### 6. `portal/public/style.css`
 
 - `.chat-bar`: `position: sticky; top: 0`, opaque `--bg`, hairline
@@ -181,7 +200,7 @@ Claude's own messages.
   cancel `#app`'s `40px 20px` padding so the bar spans the full column width and
   meets the top of the viewport, rather than leaving content visible in the
   gutters as it scrolls under.
-- `.doc-panel-wrap` and `.doc-panel`: fixed, right-anchored, `--card`
+- `.doc-wrap` and `.doc-panel`: fixed, right-anchored, `--card`
   background, `padding-right` and `padding-bottom` respecting
   `env(safe-area-inset-*)`. Slide-in keyframes, disabled under
   `prefers-reduced-motion`, matching the `.sheet` treatment.
