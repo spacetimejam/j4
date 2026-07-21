@@ -75,8 +75,12 @@ on disk, so a second row would offer a download of the revised content under the
 older date.
 
 Backfill runs once, inside the same `getDb()` migration block that adds the
-`files` and `archived` columns, guarded by `select count(*) from documents`
-being zero. For every session with a non-empty `files` array it inserts one row
+`files` and `archived` columns, guarded by a `documents_backfill_done` marker
+row in a small new `meta` table, written inside the same transaction as the
+backfill itself. The marker rather than a row count is what makes "once" mean
+once: an empty `documents` table is not evidence the backfill never ran, so a
+count-based guard would re-derive rows from `files` after a deletion emptied
+it. For every session with a non-empty `files` array it inserts one row
 per path, with `delivered_at` set to the session's `updated_at`. That date is
 approximate for older sessions, being the last activity rather than the delivery
 itself, which is the best available and is only ever shown as a caption. Without
