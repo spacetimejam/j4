@@ -123,7 +123,7 @@ test('cli runner rejects on a non-zero exit code', async () => {
 test('prompt includes a post-application stage 3', () => {
   const p = portalPrompt('Test');
   assert.match(p, /STAGE 3: AFTER APPLYING/);
-  assert.match(p, /Status is Applied or later/);
+  assert.match(p, /Date_Applied is filled in/);
 });
 
 test('stage 3 handles interviews: tracker, log, numbered prep files, email delivery', () => {
@@ -142,14 +142,14 @@ test('stage 3 asks for missing interview essentials instead of guessing', () => 
 
 test('stage 3 routes rejections to learnings without an email block', () => {
   const p = portalPrompt('Test');
-  assert.match(p, /Status to Rejected/);
+  assert.match(p, /Status to Turned down/);
   assert.match(p, /core\/learnings\.md/);
-  assert.match(p, /Rejected[\s\S]*?No email block/);
+  assert.match(p, /Rejection:[\s\S]*?No email block/);
 });
 
 test('stage 3 covers offers and general correspondence', () => {
   const p = portalPrompt('Test');
-  assert.match(p, /Status to Offer/);
+  assert.match(p, /Status to Interviewing and record the offer in the notes/);
   assert.match(p, /Next_Action and Next_Action_Date current/);
 });
 

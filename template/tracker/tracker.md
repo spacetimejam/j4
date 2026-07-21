@@ -10,7 +10,7 @@ The tracker is stored in `applications.csv` with the following columns. Read thi
 |---|---|---|
 | Role | Text | |
 | Org | Text | |
-| Status | Choice | Sourced / Researching / Drafting / Applied / Interviewing / Offer / Rejected / Withdrawn / On hold |
+| Status | Choice | Researching / Applying / Interviewing / Hired / Turned down |
 | Date_Applied | Date | |
 | Link | Text | posting URL |
 | CV_Version | Text | the sent file, e.g. `applications/<slug>/cv.yaml` |

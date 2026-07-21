@@ -16,7 +16,7 @@ Confirmation checkpoints are marked **[STOP]**. Work one component at a time; st
 ## 1. Capture the role
 - Create `applications/<role-slug>/` (kebab-case).
 - Save the job description verbatim to `spec.md`.
-- Log to the tracker: Role, Org, Source, `Status = Sourced` (or `Researching`).
+- Log to the tracker: Role, Org, Source, `Status = Researching`.
 
 ## 2. Appraise fit, both directions  →  `fit.md`
 - Map the job description against `profile.md`, `master-cv.md`, `stories.md`, with `industry-brief.md` as the market lens. If the brief's researched date is more than twelve months old, renew the research first.
@@ -51,7 +51,7 @@ Decide, for this role, letting the brief steer emphasis (what leads, how much sp
 
 ## 6. Freeze and log
 - Once sent, the CV and letter files are the immutable record. Re-tailoring makes new files.
-- Tracker: `Status → Applied`, `Date_Applied`, `CV_Version`, `Letter_Version`, and set `Next_Action` + `Next_Action_Date`.
+- Tracker: `Status → Applying`, `Date_Applied`, `CV_Version`, `Letter_Version`, and set `Next_Action` + `Next_Action_Date`.
 
 ## 7. Follow up and interview
 - Keep `Next_Action` / `Next_Action_Date` populated while the application is live.
