@@ -8,12 +8,14 @@ const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&
 /* The pill shows where the application stands, from the tracker, except while
    Claude is mid-turn. Whether the chat wants a reply is a separate axis and
    shows as the red corner badge instead, so the two stop competing for one
-   element. An unknown stage renders no pill at all. */
-const STAGES = {
+   element. An unknown stage renders no pill at all. A null-prototype object so a
+   stage of 'constructor' or 'toString' misses rather than hitting the chain,
+   matching the STAGES map in tracker.js. */
+const STAGES = Object.assign(Object.create(null), {
   working: 'Jawbs is working', researching: 'Researching', applying: 'Applying',
   interviewing: 'Interviewing', hired: 'Hired', turned_down: 'Turned down',
   inactive: 'Inactive',
-};
+});
 const NEEDS_REPLY = new Set(['awaiting_reply', 'needs_attention']);
 const pill = s => (STAGES[s.stage] ? `<span class="pill ${s.stage}">${STAGES[s.stage]}</span>` : '');
 
@@ -247,7 +249,7 @@ async function renderSession(id) {
       : `<div class="msg ${m.role}">${esc(m.body)}</div>`).join('')}
     ${s.files?.length ? `<div class="card"><strong>Your documents</strong>${s.files.map(f =>
       `<div><a href="/api/sessions/${id}/files/${f.idx}" download>${esc(f.name)}</a></div>`).join('')}</div>` : ''}
-    ${s.status === 'working' ? '<p class="muted">Claude is working on this. You can close the page; it will be here when you come back.</p>' : ''}
+    ${s.status === 'working' ? '<p class="muted">Jawbs is working on this. You can close the page; it will be here when you come back.</p>' : ''}
     <textarea id="reply" placeholder="Your reply"></textarea><button id="send" title="Send (${SUBMIT_HINT})">Send</button>`;
   bindSubmit(document.getElementById('reply'), document.getElementById('send'), async () => {
     const body = document.getElementById('reply').value;

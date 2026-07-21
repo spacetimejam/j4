@@ -401,9 +401,9 @@ button.danger:hover { background: var(--red); filter: brightness(0.9); }
 .new-app textarea { background: var(--card); }
 
 /* Long unbroken titles (URLs) wrap inside the card instead of running past its
-   edge or under the dots strip. anywhere stays on h1, which includes the chat
-   bar's single truncated line and still has to cope with a pasted URL. The
-   card title is a wrapping block and only needs to break at word boundaries
+   edge or under the dots strip. The value anywhere stays on h1, which includes
+   the chat bar's single truncated line and still has to cope with a pasted URL.
+   The card title is a wrapping block and only needs to break at word boundaries
    now that no float sits beside it. */
 .card strong { overflow-wrap: break-word; }
 h1 { overflow-wrap: anywhere; }
