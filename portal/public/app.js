@@ -60,6 +60,14 @@ let docPanel = null;
    navigation (see below): a hash change must not leave the panel showing
    over an unrelated screen. */
 let closeDocPanel = null;
+/* The markup .doc-list was last rendered with. refreshDocPanel compares
+   against this, not against list.innerHTML: a bare boolean attribute like
+   `download` round-trips through innerHTML as `download=""`, and esc()'s
+   `&quot;` in a document name only gets re-escaped for `&`, `<` and `>` on
+   read-back, so an innerHTML comparison never matches even when nothing
+   changed. Remembering what we rendered sidesteps the browser's
+   serialisation entirely. */
+let docPanelHtml = '';
 
 function docRows(sessionId, docs) {
   if (!docs.length) return '<p class="muted">No documents yet.</p>';
@@ -77,10 +85,13 @@ function refreshDocPanel(sessionId, docs) {
   /* docRows is deterministic, so only touch the DOM when the markup actually
      changed. The ten-second poll calls this every tick while a session is
      working, and an unconditional innerHTML rewrite would drop keyboard focus
-     and any text selection inside the list even when nothing changed. */
+     and any text selection inside the list even when nothing changed. Compare
+     against docPanelHtml, the string we last wrote, rather than reading
+     list.innerHTML back: see the comment on docPanelHtml for why. */
   const next = docRows(sessionId, docs);
-  const list = docPanel.querySelector('.doc-list');
-  if (list.innerHTML !== next) list.innerHTML = next;
+  if (next === docPanelHtml) return;
+  docPanelHtml = next;
+  docPanel.querySelector('.doc-list').innerHTML = next;
 }
 
 function openDocPanel(sessionId, docs) {
@@ -88,10 +99,11 @@ function openDocPanel(sessionId, docs) {
   const opener = document.activeElement;
   const wrap = document.createElement('div');
   wrap.className = 'doc-wrap';
+  docPanelHtml = docRows(sessionId, docs);
   wrap.innerHTML = `<div class="doc-panel" role="dialog" aria-modal="true" aria-label="Documents">
     <div class="doc-head"><strong>Documents</strong>
       <button class="doc-close icon-btn" aria-label="Close">&times;</button></div>
-    <div class="doc-list">${docRows(sessionId, docs)}</div></div>`;
+    <div class="doc-list">${docPanelHtml}</div></div>`;
   /* Operates on the wrap it closed over, not on the shared module variable,
      so it can always remove itself and is safe to call more than once
      (route(), Escape, a backdrop click and the close button can all reach
@@ -101,8 +113,10 @@ function openDocPanel(sessionId, docs) {
   const close = () => {
     if (!wrap.isConnected) return;
     wrap.remove();
-    if (docPanel === wrap) docPanel = null;
+    const owned = docPanel === wrap;
+    if (owned) docPanel = null;
     if (closeDocPanel === close) closeDocPanel = null;
+    if (owned) docPanelHtml = ''; // so a reopened panel can't compare against a previous one's markup
     document.removeEventListener('keydown', onKey);
     /* The captured opener is #doc-btn at the moment the panel opened. While a
        session is working, the ten-second poll rewrites app.innerHTML and
