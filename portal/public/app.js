@@ -43,7 +43,7 @@ function route() {
   closeDocPanel?.();
   const id = location.hash.slice(1);
   if (id === 'archived') return renderArchived();
-  id ? renderSession(id) : renderList();
+  id ? renderSession(id, true) : renderList();
 }
 
 /* A minimal bottom sheet: dimmed backdrop, panel sliding up, tap the backdrop
@@ -233,7 +233,13 @@ async function renderArchived() {
 }
 
 let pollTimer;
-async function renderSession(id) {
+/* scrollToLatest is set when the reader has just arrived at the chat or has
+   just sent a reply, so the newest message and the reply box are in view rather
+   than the top of a long thread. The ten-second working poll passes it falsy on
+   purpose: re-rendering must not yank the page down while the reader has
+   scrolled up to reread. Replacing innerHTML keeps the window scroll offset, so
+   a background refresh leaves them where they were. */
+async function renderSession(id, scrollToLatest = false) {
   clearInterval(pollTimer);
   const [sRes, dRes] = await Promise.all([api('/sessions/' + id), api(`/sessions/${id}/documents`)]);
   const s = await sRes.json();
@@ -255,10 +261,14 @@ async function renderSession(id) {
     const body = document.getElementById('reply').value;
     if (!body.trim()) return;
     await api(`/sessions/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
-    renderSession(id);
+    renderSession(id, true);
   });
   document.getElementById('doc-btn')?.addEventListener('click', () => openDocPanel(id, docs));
   refreshDocPanel(id, docs);
+  // Thread content is text rendered synchronously above, so the full height is
+  // known now; jump straight to the bottom with no animation so the page simply
+  // appears already scrolled rather than racing through the whole conversation.
+  if (scrollToLatest) window.scrollTo(0, document.body.scrollHeight);
   if (s.status === 'working') pollTimer = setInterval(() => location.hash.slice(1) === id && renderSession(id), 10000);
 }
 
