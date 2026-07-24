@@ -69,6 +69,29 @@ screenshots is slow and inaccurate.
 
 - **One page.** Each document must fit a single A4 page. If content overflows,
   cut or tighten the content; do not shrink the type or margins to force a fit.
+- **Cover letters fill the page.** As rendered, a letter must end at least three
+  quarters of the way down the page; below 66% of the page it must not ship. Enforce
+  this in your vendored `cover-letter.typ` by emitting a `<letter-end>` marker
+  after the sign-off and panicking below 66%:
+
+  ```typst
+  #context [
+    #metadata((
+      page: here().position().page,
+      fill-pct: calc.round(here().position().y / 297mm * 100, digits: 1),
+    )) <letter-end>
+  ]
+  #context {
+    let pos = locate(<letter-end>).position()
+    if pos.page == 1 and pos.y < 297mm * 0.66 {
+      panic("cover letter too short: it must reach at least 66% of the page (aim for 75%).")
+    }
+  }
+  ```
+
+  `render.sh` reads the marker back after each render, prints the page-fill
+  percentage and warns below the 75% target (it skips the check, with a note,
+  if the template has no marker).
 - **Nothing invented.** Every line in a yaml must trace back to the owner's
   real material (master CV, stories bank, their own words). The skeleton
   content in `templates/*.yaml` is obviously fictional filler for layout

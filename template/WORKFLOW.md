@@ -45,7 +45,7 @@ Decide, for this role, letting the brief steer emphasis (what leads, how much sp
 - **[STOP]** The user confirms the content; they own the craft.
 
 ## 5. Draft the cover letter  →  `cover-letter.yaml`
-- Shape per `templates/cover-letters/README.md`: most of a page, four or five paragraphs, why-them before what-they-bring, real evidence.
+- Shape per `templates/cover-letters/README.md`: most of a page (75%+ as rendered), five paragraphs covering benefit in both directions, why-them before what-they-bring, real evidence.
 - The user's voice (`voice.md`): prose-led, warm, direct, economical.
 - **[STOP]** The user confirms.
 

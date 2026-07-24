@@ -49,6 +49,27 @@ render_one() {
     --input config="/applications/$SLUG/$(basename "$cfg")" \
     "$HERE/templates/$tmpl" "$out"
   echo "rendered: $out"
+
+  # Cover letters must fill the page: at least three quarters down as rendered.
+  # If the vendored template emits the <letter-end> marker (see render/README.md),
+  # report the page fill and warn below the 75% target.
+  if [ "$doctype" = "Cover Letter" ]; then
+    local fill
+    fill="$(typst query --font-path "$HERE/fonts" --root "$ROOT" \
+      --input config="/applications/$SLUG/$(basename "$cfg")" \
+      "$HERE/templates/$tmpl" '<letter-end>' --field value --one 2>/dev/null \
+      | python3 -c 'import json,sys
+try: v=json.load(sys.stdin); print(v["fill-pct"] if v["page"]==1 else 100)
+except Exception: pass' )"
+    if [ -n "$fill" ]; then
+      echo "cover letter fills ${fill}% of the page"
+      if python3 -c "import sys; sys.exit(0 if float('$fill') < 75 else 1)"; then
+        echo "warning: below the 75% page-fill target. Extend the letter (see templates/cover-letters/README.md)." >&2
+      fi
+    else
+      echo "note: template has no <letter-end> marker; page-fill check skipped (see render/README.md)."
+    fi
+  fi
 }
 
 render_one "$APPDIR/cv.yaml"           main.typ         "CV"
