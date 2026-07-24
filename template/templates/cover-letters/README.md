@@ -2,7 +2,10 @@
 
 Guidance for drafting `cover-letter.yaml` in each application folder.
 
-- **Length:** most of a page, not more. Five paragraphs. As rendered,
+- **Length:** most of a page, not more. The paragraph count is agreed with
+  the user at intake (see `core/intake.md`): ask explicitly, never assume, and
+  record the answer here in this file. Until it is set, default to a minimum
+  of three paragraphs. As rendered,
   the letter must end at least three quarters of the way down the page; the
   template hard-fails below 66%, and `render/render.sh` prints the page-fill
   percentage and warns below 75%. A warning means extend the letter before it

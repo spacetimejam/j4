@@ -29,6 +29,7 @@ Run this as a conversation, one question at a time, not a form to fill in silent
 8. **Notice period.** Current notice period, if employed.
 9. **Existing CV.** Where does their current CV live? Use it to seed `master-cv.md`.
 10. **Links.** Portfolio, LinkedIn, work samples, or any other public profile worth referencing.
+11. **Cover-letter shape.** How many paragraphs should letters run: a fixed count, or a minimum (and if so, what)? Explain the page-fill constraint (letters must fill at least three quarters of the rendered page, so fewer paragraphs means fuller ones). Record the answer in `templates/cover-letters/README.md`.
 
 ## After the interview
 
