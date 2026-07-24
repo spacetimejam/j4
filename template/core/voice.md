@@ -18,3 +18,7 @@ Never use these in application copy; to a trained eye they read as AI-written:
 - "genuinely"
 
 Say the thing plainly instead: name what fits and why, and let sincerity come from specifics rather than an intensifier.
+
+## Paragraph length (kit-wide rule, 2026-07-24)
+
+In application copy, no paragraph runs longer than six lines, ever, and most should sit well below that. Long paragraphs read as unedited; if one is pushing the limit, split it or cut it rather than reflowing it.
