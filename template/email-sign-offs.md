@@ -1,0 +1,118 @@
+# Email sign-offs
+
+Emails sent from this project are signed off with one of these, chosen at random, with **no name after it**. Never sign with a name. Where the send supports an HTML body, the sign-off goes in **italics** (`<p><em>...</em></p>`). If the phrase might not read immediately as an obvious sign-off, append ` xo` after it, inside the italics. Pick one per email:
+
+```bash
+grep '^- ' email-sign-offs.md | sed 's/^- //' | shuf -n1
+```
+
+- Circling back into the void
+- Per my last existential crisis
+- Bandwidth permitting
+- Sent from my burnout
+- Actioning this emotionally
+- Yours, pending approval
+- Warmest regulatory compliance
+- Touching base, spiritually
+- Ok bye
+- Godspeed
+- Onward, I suppose
+- That's the email
+- More soon, probably
+- Thanks I guess
+- With reservations
+- Stay moisturised, stay unbothered
+- Yours in mild peril
+- Committed to the bit
+- Best wishes and minor grievances
+- Do not perceive me
+- Sincerely, a guy
+- Yours nautically
+- May your wifi hold
+- Off to touch grass
+- As foretold
+- Yours until the kettle boils
+- In lieu of flowers, reply promptly
+- Kind regards from an undisclosed location
+- Filed under: whatever
+- Signing off before I say something honest
+- Respectfully, and yet
+- Yours in triplicate
+- Awaiting the inevitable
+- Back to the mines
+- With the enthusiasm the situation deserves
+- Warmly, but within reason
+- Yours until further notice
+- Best, whatever that means
+- End of transmission
+- Carry on regardless
+- Yours in administrative limbo
+- Mind the gap
+- To be continued, regrettably
+- Sent between meetings that could have been emails
+- Yours, structurally sound for now
+- With cautious optimism and low expectations
+- All the best, statistically speaking
+- With feelings, unspecified
+- Onwards, sideways, whatever works
+- Yours in due course
+- Consider this actioned
+- Every good wish, rationed accordingly
+- With minimal fanfare
+- Sincerely, in the loosest sense
+- Off to stare at the middle distance
+- Yours in weather-appropriate layers
+- Signed under mild duress
+- Regards, both kinds
+- Keep your receipts
+- With sincere indifference to the outcome
+- Escalating this to no one
+- May your inbox stay shallow
+- Yours from beyond the to-do list
+- Wishing you a tolerable week
+- Fondly, at a distance
+- Yours in low-level dread
+- Nothing further at this time
+- With one eye on the door
+- Regards, pending a better idea
+- Sent while pretending to take notes
+- Yours in fair-to-middling spirits
+- Cheerio, or thereabouts
+- Closing this tab with dignity
+- Yours in the fullness of time
+- With all due whatever
+- Standing by, reluctantly
+- Yours, per the attached
+- Warm regards, room temperature at best
+- Signing off before the vibes shift
+- Let the record show I emailed
+- Best endeavours, minimal results
+- Yours until the wifi drops
+- Powering down emotionally
+- With compliments, none specific
+- May your tea steep exactly right
+- No further questions
+- Hoping you never forghetti your spaghetti
+- No thoughts, head empty, email sent
+- It is what it is, and frankly it shouldn't be
+- Anyway, so basically
+- This email sparks nothing
+- Sent in this economy
+- Vibes only, no notes
+- Logging off before the lore gets worse
+- New email just dropped
+- The lore deepens, unfortunately
+- This will make sense in a later season
+- Adding this to my villain origin story
+- Canonically, I did send this
+- The prophecy said nothing about follow-ups
+- Retreating to my mysterious backstory
+- Do not check my search history
+- My character arc continues against my will
+- Consider this foreshadowing
+- Establishing plot threads I refuse to resolve
+- This email is canon now
+- Future historians, I'm sorry
+- Unreliable narrator, signing off
+- Lore accurate and proud
+- Yours, in this timeline at least
