@@ -10,7 +10,7 @@ export const config = {
   usersFile: process.env.PORTAL_USERS_FILE || new URL('../data/users.json', import.meta.url).pathname,
   portalTitle: process.env.PORTAL_TITLE || 'Job Search Portal',
   userName: process.env.USER_NAME || 'the owner',
-  agentModel: process.env.AGENT_MODEL || 'claude-opus-4-8',
+  agentModel: process.env.AGENT_MODEL || 'claude-opus-5',
   agentRunner: process.env.AGENT_RUNNER || 'claude-sdk',
   agentCmd: process.env.AGENT_CMD || '',
   agentCmdResume: process.env.AGENT_CMD_RESUME || '',
