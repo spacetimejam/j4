@@ -10,7 +10,7 @@ process.env.PORTAL_USERS_FILE = '/nonexistent-portal-users.json';
 process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
 process.env.PROJECT_DIR = process.env.PROJECT_DIR || '/tmp/queue-test-project';
 const { getDb, newId } = await import('../src/db.js');
-const { enqueue, processOneJob, buildRecoveryPrompt } = await import('../src/queue.js');
+const { enqueue, processOneJob, buildRecoveryPrompt, sessionStatus } = await import('../src/queue.js');
 
 function mkSession() {
   const id = newId();
@@ -310,4 +310,28 @@ test('a failed email send still records the documents', async () => {
     send: async () => { throw new Error('provider down'); },
   });
   assert.equal(getDb().prepare('select count(*) c from documents where session_id = ?').get(sid).c, 1);
+});
+
+test('sessionStatus only awaits a reply when the agent left a question open', () => {
+  assert.equal(sessionStatus({ email: false, awaitingUser: true }), 'awaiting_reply');
+  assert.equal(sessionStatus({ email: false, awaitingUser: false }), 'active');
+  assert.equal(sessionStatus({ email: true, awaitingUser: false }), 'done');
+  // a question asked alongside a delivery still wants an answer
+  assert.equal(sessionStatus({ email: true, awaitingUser: true }), 'awaiting_reply');
+  // no declaration: keep the old behaviour rather than hide a real question
+  assert.equal(sessionStatus({ email: false, awaitingUser: null }), 'awaiting_reply');
+  assert.equal(sessionStatus({ email: true, awaitingUser: null }), 'done');
+});
+
+test('a turn that says nothing is outstanding does not ask for a reply', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'thanks' });
+  const runTurn = async () => ({
+    sessionId: 'c1',
+    text: 'Nothing needed from you, we are waiting on them.\n```session-title\n{"title": "D at A", "awaiting_user": false}\n```',
+  });
+  await processOneJob({ runTurn, send: async () => {} });
+  const s = getDb().prepare('select * from sessions where id = ?').get(sid);
+  assert.equal(s.status, 'active');
+  assert.equal(s.title, 'D at A');
 });

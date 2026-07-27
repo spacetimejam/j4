@@ -183,6 +183,31 @@ test('parseTitleDirective extracts the title when the agent appends a Sources se
   assert.equal(clean, 'Would you like to apply anyway, or shall I log it as Withdrawn?\n\nSources: [Goodstuff salaries](https://example.com/salaries)');
 });
 
+test('parseTitleDirective reads awaiting_user, and null when it is absent or not a boolean', () => {
+  const asked = parseTitleDirective('Text.\n```session-title\n{"title": "D at A", "awaiting_user": true}\n```');
+  assert.equal(asked.awaitingUser, true);
+  assert.equal(asked.title, 'D at A');
+  const settled = parseTitleDirective('Text.\n```session-title\n{"title": "D at A", "awaiting_user": false}\n```');
+  assert.equal(settled.awaitingUser, false);
+  assert.equal(parseTitleDirective('Text.\n```session-title\n{"title": "D at A"}\n```').awaitingUser, null);
+  assert.equal(parseTitleDirective('Text.\n```session-title\n{"awaiting_user": "yes"}\n```').awaitingUser, null);
+  assert.equal(parseTitleDirective('Just text.').awaitingUser, null);
+});
+
+test('parseTitleDirective keeps awaiting_user when the title is missing', () => {
+  const r = parseTitleDirective('Fetching the JD.\n```session-title\n{"awaiting_user": false}\n```');
+  assert.equal(r.title, null);
+  assert.equal(r.awaitingUser, false);
+  assert.equal(r.clean, 'Fetching the JD.');
+});
+
+test('portal prompt explains when awaiting_user is true', () => {
+  const p = portalPrompt('Sam');
+  assert.match(p, /awaiting_user/);
+  assert.match(p, /outstanding/);
+  assert.match(p, /waiting on an employer/);
+});
+
 test('portal prompt instructs the session-title block', () => {
   assert.match(portalPrompt('Sam'), /session-title/);
 });

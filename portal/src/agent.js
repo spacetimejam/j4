@@ -90,12 +90,18 @@ In every reply where you know the role and company (true from the stage 1 assess
 end your reply with exactly this fenced block so the portal can name the session properly:
 
 \`\`\`session-title
-{"title": "<role> at <company>"}
+{"title": "<role> at <company>", "awaiting_user": false}
 \`\`\`
 
 Keep the title short and plain, like "Design Director at Acme". If an email-to-user block is
 also present, put the session-title block immediately before it; otherwise it is the last thing
 in your reply.
+
+Set "awaiting_user" to true only when you have asked ${userName} something that is still
+outstanding, so the portal can show a Reply badge on the session. If you have finished the
+exchange, or the next move is waiting on an employer rather than on ${userName}, set it to
+false. Include the block with "awaiting_user" in every reply, even before you know the role and
+company, leaving "title" out until you do.
 
 Never invent facts about ${userName}. Never apply to anything. Never email anyone except via the block above.
 `;
@@ -129,15 +135,20 @@ export function parseEmailDirective(text) {
   }
 }
 
+// awaitingUser says whether the agent has left a question outstanding for the
+// user; null means it did not say, and the caller keeps its previous behaviour
+// rather than guessing. A missing title no longer discards the rest of the
+// block: the agent sends awaiting_user before it knows the role and company.
 export function parseTitleDirective(text) {
   const { clean, raw } = extractLastFenced(text, 'session-title');
-  if (raw === null) return { clean: text, title: null };
+  if (raw === null) return { clean: text, title: null, awaitingUser: null };
   try {
     const parsed = JSON.parse(raw);
-    if (typeof parsed.title !== 'string') return { clean, title: null };
-    return { clean, title: parsed.title };
+    const title = typeof parsed.title === 'string' ? parsed.title : null;
+    const awaitingUser = typeof parsed.awaiting_user === 'boolean' ? parsed.awaiting_user : null;
+    return { clean, title, awaitingUser };
   } catch {
-    return { clean, title: null };
+    return { clean, title: null, awaitingUser: null };
   }
 }
 

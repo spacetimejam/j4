@@ -27,6 +27,16 @@ export function buildRecoveryPrompt(session, messages, prompt) {
     + prompt;
 }
 
+/* The Reply badge follows awaiting_reply, so the status has to mean "Claude
+   asked you something that is still open", not merely "Claude stopped talking".
+   The agent says which in its session-title block; when it says nothing we keep
+   the old behaviour, because a silently missing badge hides a real question. */
+export function sessionStatus({ email, awaitingUser }) {
+  if (awaitingUser === true) return 'awaiting_reply';
+  if (email) return 'done';
+  return awaitingUser === false ? 'active' : 'awaiting_reply';
+}
+
 export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail } = {}) {
   const db = getDb();
   const job = db.prepare("select * from jobs where status = 'queued' order by created_at limit 1").get();
@@ -58,7 +68,7 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     }
     const { sessionId: claudeId, text } = turn;
     const { clean: afterEmail, email } = parseEmailDirective(text);
-    const { clean, title } = parseTitleDirective(afterEmail);
+    const { clean, title, awaitingUser } = parseTitleDirective(afterEmail);
     // Persist the turn immediately: if the email send fails below, the session
     // must still be resumable and its deliverables downloadable from the UI.
     db.prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
@@ -86,7 +96,7 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
       await send({ to: session.user_email, subject: email.subject, text: email.body, attachments });
     }
     db.prepare("update sessions set status = ?, updated_at = datetime('now') where id = ?")
-      .run(email ? 'done' : 'awaiting_reply', job.session_id);
+      .run(sessionStatus({ email: Boolean(email), awaitingUser }), job.session_id);
     db.prepare("update jobs set status = 'done' where id = ?").run(job.id);
   } catch (err) {
     db.prepare("update jobs set status = 'failed', error = ? where id = ?").run(String(err), job.id);
