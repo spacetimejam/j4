@@ -72,8 +72,40 @@ if [ -z "${TARGET_DIR:-}" ]; then
   # Each project folder serves one person and lives beside the kit, named
   # after their initials; suggest_target_dir handles initials clashes.
   DEFAULT_TARGET="$(suggest_target_dir "$KIT_DIR" "${USER_NAME:-}")"
-  ask TARGET_DIR "Where should the project live?" "$DEFAULT_TARGET"
+  # This asks for a folder name, not a yes/no. It is the last question and it used to
+  # read like a confirmation ("Where should the project live? [.../jj]"), so an
+  # answer of "yes" created a folder called "yes". Spell out the Enter-to-accept
+  # behaviour and reject the answers that mean "use the suggestion".
+  echo
+  echo "The project folder will be created at:"
+  echo "  $DEFAULT_TARGET"
+  while :; do
+    ask TARGET_DIR "Press Enter to accept, or type a different folder name" "$DEFAULT_TARGET"
+    case "$TARGET_DIR" in
+      y|Y|yes|Yes|YES|n|N|no|No|NO|ok|OK|Ok)
+        echo "That looks like a yes/no answer, but this question wants a folder name." >&2
+        echo "Press Enter on its own to accept $DEFAULT_TARGET." >&2
+        continue ;;
+      *" "*)
+        echo "Folder names with spaces cause trouble later. Try one without spaces." >&2
+        continue ;;
+    esac
+    break
+  done
+  # A bare name (no slash) is a folder beside the kit, so the question can ask
+  # for a name rather than a path.
+  case "$TARGET_DIR" in
+    */*) ;;
+    *) TARGET_DIR="$KIT_DIR/$TARGET_DIR" ;;
+  esac
 fi
+
+# Normalise the creative answer like PORTAL below.
+CREATIVE="${CREATIVE:-no}"
+case "$CREATIVE" in
+  y|Y|yes|Yes|YES) CREATIVE="yes" ;;
+  n|N|no|No|NO) CREATIVE="no" ;;
+esac
 
 # Normalise the creative answer like PORTAL below.
 CREATIVE="${CREATIVE:-no}"
