@@ -71,6 +71,25 @@ test('unrecognised EXPOSURE is an error', () => {
   assert.match(errors(issues)[0].message, /EXPOSURE/);
 });
 
+test('unrecognised EXPOSURE also applies the stricter public secret bar', () => {
+  // "funnel" is the Tailscale subcommand name, so it is the typo a user is
+  // most likely to type where "public" belongs. A typo must never silently
+  // lower the security bar: a 32-63 character secret clears the private
+  // floor but not the public one, so this must fail both checks.
+  //
+  // Asserted by position rather than a per-message filter: the COOKIE_SECRET
+  // message itself names "EXPOSURE=public" as the reason for the stricter
+  // bar, so a naive /EXPOSURE/ filter over both messages double-counts.
+  // checkConfig runs the exposure check before the secret check, so the
+  // order below is deterministic.
+  const issues = checkConfig(
+    valid({ exposure: 'funnel', cookieSecret: OK_PRIVATE_SECRET }), { exists: alwaysExists });
+  const issueErrors = errors(issues);
+  assert.equal(issueErrors.length, 2);
+  assert.match(issueErrors[0].message, /EXPOSURE/);
+  assert.match(issueErrors[1].message, /COOKIE_SECRET/);
+});
+
 test('http BASE_URL on a non-local host is an error naming the Secure cookie', () => {
   const issues = checkConfig(
     valid({ baseUrl: 'http://192.168.1.10:8710' }), { exists: alwaysExists });
