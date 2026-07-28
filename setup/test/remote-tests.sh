@@ -58,18 +58,22 @@ check "install says tailscale is already present" \
   grep -qi "already" "$RWORK2/install.out"
 
 # With no tailscale on PATH, check must still exit 0 and say what is missing.
-# Build the PATH from every /usr/bin entry EXCEPT tailscale (symlinked into
-# EMPTY_BIN), rather than appending /usr/bin:/bin directly: a host that
-# already has tailscale installed system-wide (as this one does) would
-# otherwise still find and invoke the real binary via that fallback, which
-# is exactly what must never happen in this test suite.
+# Build the PATH from every /usr/bin AND /bin entry EXCEPT tailscale
+# (symlinked into EMPTY_BIN), rather than appending /usr/bin:/bin directly: a
+# host that already has tailscale installed system-wide (as this one does)
+# would otherwise still find and invoke the real binary via that fallback,
+# which is exactly what must never happen in this test suite. Both
+# directories are covered, not just /usr/bin: on stock macOS /bin and
+# /usr/bin are separate, non-overlapping directories and bash lives only in
+# /bin/bash, which the script's `#!/usr/bin/env bash` shebang needs env to
+# find via PATH. On a merged-/usr Linux box (as here, where /bin is a
+# symlink to /usr/bin) the two globs mostly collide; -f makes that collision
+# a silent overwrite instead of an error. The single ln invocation with
+# glob-expanded arguments avoids forking ln/basename once per entry.
 EMPTY_BIN="$RWORK2/empty"
 mkdir -p "$EMPTY_BIN"
-for real_bin in /usr/bin/*; do
-  bin_name="$(basename "$real_bin")"
-  [ "$bin_name" = "tailscale" ] && continue
-  ln -sf "$real_bin" "$EMPTY_BIN/$bin_name" 2>/dev/null
-done
+ln -sf /usr/bin/* /bin/* "$EMPTY_BIN/" 2>/dev/null
+rm -f "$EMPTY_BIN/tailscale"
 if PATH="$EMPTY_BIN" "$REMOTE_SH" check >"$RWORK2/check2.out" 2>&1; then
   pass
 else
