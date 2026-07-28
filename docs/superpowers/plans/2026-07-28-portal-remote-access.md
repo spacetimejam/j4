@@ -1165,7 +1165,11 @@ chmod +x "$SWORK/setup-remote.sh"
 export TS_LOG="$SWORK/ts.log"
 : > "$TS_LOG"
 
-printf 'PORT=8710\nBASE_URL=https://box.tail1234.ts.net\nEXPOSURE=private\n' > "$SWORK/.env"
+# Port 59717, not the portal's usual 8710: a real portal may be running on
+# this host (the kit's own live install listens on 8710), and verify's first
+# check curls loopback. Using the default port would make these tests pass or
+# fail depending on whether the developer's portal happens to be up.
+printf 'PORT=59717\nBASE_URL=https://box.tail1234.ts.net\nEXPOSURE=private\n' > "$SWORK/.env"
 
 # service writes a unit without enabling anything, so it is safe under test.
 if PATH="$SWORK/bin:$PATH" XDG_CONFIG_HOME="$SWORK/config" \
@@ -1189,10 +1193,10 @@ esac
 check "verify exits non-zero when the portal is not running" \
   sh -c "! PATH=$SWORK/bin:\$PATH '$SWORK/setup-remote.sh' verify >'$SWORK/ver.out' 2>&1"
 check "verify names the loopback check that failed" \
-  grep -qi "127.0.0.1\|loopback" "$SWORK/ver.out"
+  grep -qi "127.0.0.1:59717\|loopback" "$SWORK/ver.out"
 
 # verify fails when BASE_URL disagrees with the live tailnet hostname.
-printf 'PORT=8710\nBASE_URL=https://stale.tail1234.ts.net\nEXPOSURE=private\n' > "$SWORK/.env"
+printf 'PORT=59717\nBASE_URL=https://stale.tail1234.ts.net\nEXPOSURE=private\n' > "$SWORK/.env"
 PATH="$SWORK/bin:$PATH" "$SWORK/setup-remote.sh" verify >"$SWORK/ver2.out" 2>&1
 check "verify flags a stale BASE_URL" \
   grep -qi "box.tail1234.ts.net" "$SWORK/ver2.out"
