@@ -367,6 +367,25 @@ else
   echo "SKIP: portal unit tests (node or portal/node_modules not available)"
 fi
 
+# --- Wizard portal messaging ------------------------------------------------
+
+PWORK="$(mktemp -d)"
+PORTAL_REGISTRY="$PWORK/users.json" \
+  bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-portal.env" \
+  --target "$PWORK/proj" --skip-deps >"$PWORK/out.txt" 2>&1
+
+check "wizard says the portal itself is not set up yet" \
+  grep -qi "not set up yet" "$PWORK/out.txt"
+# Assert the runbook by name. Grepping for "assistant" alone would pass without
+# any change, because the wizard's closing message already says "AI assistant".
+check "wizard points at the remote-access runbook" \
+  grep -q "portal-remote-access.md" "$PWORK/out.txt"
+check "SETUP.md portal task keeps the required phrase" \
+  grep -q "If you chose the portal" "$PWORK/proj/SETUP.md"
+check "SETUP.md portal task points at the runbook" \
+  grep -q "portal-remote-access.md" "$PWORK/proj/SETUP.md"
+rm -rf "$PWORK"
+
 # --- portal/setup-remote.sh -------------------------------------------------
 
 # shellcheck source=remote-tests.sh
