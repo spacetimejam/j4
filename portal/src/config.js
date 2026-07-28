@@ -2,6 +2,13 @@ import 'dotenv/config';
 
 export const config = {
   port: Number(process.env.PORT || 8710),
+  // Loopback is right for Tailscale but wrong for a reverse proxy on another
+  // host (the live install reaches the portal from Caddy in Docker), so the
+  // default stays open and setup-remote.sh narrows it for Tailscale setups.
+  bindHost: process.env.BIND_HOST || '0.0.0.0',
+  // Reachability, not tooling: `public` means the login page is on the
+  // internet, whether via Tailscale Funnel or a reverse proxy.
+  exposure: process.env.EXPOSURE || '',
   baseUrl: process.env.BASE_URL || 'http://localhost:8710',
   cookieSecret: process.env.COOKIE_SECRET || 'dev-secret',
   allowedEmails: (process.env.ALLOWED_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
@@ -15,6 +22,8 @@ export const config = {
   agentCmd: process.env.AGENT_CMD || '',
   agentCmdResume: process.env.AGENT_CMD_RESUME || '',
   emailProvider: process.env.EMAIL_PROVIDER || 'webhook',
+  // Whether the fallback above is in play, which preflight warns about.
+  emailProviderExplicit: Boolean(process.env.EMAIL_PROVIDER),
   brevoApiKey: process.env.BREVO_API_KEY || '',
   emailFrom: process.env.EMAIL_FROM || '',
   smtpUrl: process.env.SMTP_URL || '',

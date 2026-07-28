@@ -156,3 +156,12 @@ test('a non-loopback BIND_HOST warns but does not error', () => {
   assert.deepEqual(errors(issues), []);
   assert.equal(warns(issues).filter(w => /BIND_HOST/.test(w.message)).length, 1);
 });
+
+test('config exposes bindHost, exposure and emailProviderExplicit', async () => {
+  const { config } = await import('../src/config.js');
+  assert.equal(typeof config.bindHost, 'string');
+  assert.equal(typeof config.exposure, 'string');
+  assert.equal(typeof config.emailProviderExplicit, 'boolean');
+  // The default must stay 0.0.0.0 so the Caddy-in-Docker install keeps working.
+  assert.equal(config.bindHost, '0.0.0.0');
+});

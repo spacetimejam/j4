@@ -3,6 +3,7 @@ import { basename, sep } from 'node:path';
 import { realpathSync } from 'node:fs';
 import { getDb, newId } from './db.js';
 import { config } from './config.js';
+import { checkConfig } from './preflight.js';
 import { issueToken, redeemToken, makeCookie, requireAuth } from './auth.js';
 import { sendEmail } from './email.js';
 import { enqueue, startWorker } from './queue.js';
@@ -225,6 +226,17 @@ export function createApp({ send = sendEmail } = {}) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  createApp().listen(config.port, () => console.log(`${config.portalTitle} on :${config.port}`));
+  const issues = checkConfig(config);
+  for (const issue of issues) {
+    const prefix = issue.level === 'error' ? 'ERROR' : 'WARNING';
+    console[issue.level === 'error' ? 'error' : 'warn'](`${prefix}: ${issue.message}`);
+  }
+  if (issues.some(issue => issue.level === 'error')) {
+    console.error('\nThe portal did not start. Fix the errors above and try again.');
+    console.error('Setup guidance: docs/portal.md and docs/portal-remote-access.md');
+    process.exit(1);
+  }
+  createApp().listen(config.port, config.bindHost, () =>
+    console.log(`${config.portalTitle} on ${config.bindHost}:${config.port}`));
   startWorker();
 }
