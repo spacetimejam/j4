@@ -16,6 +16,7 @@ function valid(overrides = {}) {
     emailProvider: 'smtp',
     emailProviderExplicit: true,
     smtpUrl: 'smtps://u%40e.com:pw@smtp.e.com:465',
+    emailFrom: 'Job Search Portal <portal@example.com>',
     brevoApiKey: '',
     webhookUrl: '',
     usersFile: '/portal/data/users.json',
@@ -120,6 +121,25 @@ test('the log provider needs no credential', () => {
   const issues = checkConfig(
     valid({ emailProvider: 'log', smtpUrl: '' }), { exists: alwaysExists });
   assert.deepEqual(errors(issues), []);
+});
+
+test('a blank EMAIL_FROM is an error for smtp and brevo, but not webhook or log', () => {
+  const cases = [
+    { emailProvider: 'smtp', smtpUrl: 'smtps://u%40e.com:pw@smtp.e.com:465', needsFrom: true },
+    { emailProvider: 'brevo', brevoApiKey: 'key', needsFrom: true },
+    { emailProvider: 'webhook', webhookUrl: 'http://h/x', needsFrom: false },
+    { emailProvider: 'log', needsFrom: false },
+  ];
+  for (const { needsFrom, ...override } of cases) {
+    const issues = checkConfig(valid({ ...override, emailFrom: '' }), { exists: alwaysExists });
+    if (needsFrom) {
+      assert.equal(errors(issues).filter(e => /EMAIL_FROM/.test(e.message)).length, 1,
+        `expected an EMAIL_FROM error for ${override.emailProvider}`);
+    } else {
+      assert.equal(errors(issues).filter(e => /EMAIL_FROM/.test(e.message)).length, 0,
+        `expected no EMAIL_FROM error for ${override.emailProvider}`);
+    }
+  }
 });
 
 test('an unknown provider is an error', () => {

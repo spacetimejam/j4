@@ -26,6 +26,9 @@ up front so nothing feels sprung on them:
    portal, and it is the user's to make, not the assistant's.
 2. **Approving `tailscale up` in a browser.** Logging the machine into the
    user's Tailscale account opens a browser window and needs a human click.
+   On Linux and WSL this also needs root, so the human runs `sudo tailscale
+   up` themselves rather than the assistant running it; see gate 2 in "The
+   sequence" below.
 3. **Creating the email account, or generating a Gmail app password.** The
    assistant cannot do this on the user's behalf.
 4. **Confirming the machine will stay awake.** Only the user knows whether
@@ -44,9 +47,9 @@ them this table:
 | TLS terminates | on the user's machine | on the user's machine |
 | Exposure written to `.env` | `EXPOSURE=private` | `EXPOSURE=public` |
 
-Recommend `serve`. It is the default: the portal is reachable only from
-devices already signed in to the user's own tailnet, nothing is publicly
-reachable, and there is no downstream cost to weigh.
+Recommend `serve`. It is the safer default choice: the portal is reachable
+only from devices already signed in to the user's own tailnet, nothing is
+publicly reachable, and there is no downstream cost to weigh.
 
 State Funnel's cost plainly, because the user needs to choose with their
 eyes open, not have it softened: with Funnel, the portal's login page sits
@@ -59,6 +62,9 @@ signed login cookie. That is why `configure funnel` demands a 64-character
 secret through even if the user says yes. Offer Funnel only to a user who
 wants to submit from a borrowed device or does not want to install an app
 on every phone; otherwise `serve` is the right answer.
+
+Wait for the user's actual answer before running `configure` in step 4 below;
+do not treat presenting the table as a cue to continue on your own.
 
 ## The sequence
 
@@ -74,12 +80,21 @@ Run these from `portal/`, in order.
 
    Installs Tailscale: Homebrew on macOS, the official install script on
    Linux and WSL. If Tailscale is already present it says so and does
-   nothing further.
+   nothing further. On macOS, Homebrew installs the CLI only; it does not
+   start the Tailscale daemon. The user needs `sudo brew services start
+   tailscale` after installing, or should use the Mac App Store version
+   instead, which starts and logs in via its own GUI.
 
-3. **Gate: `tailscale up`.** Run `tailscale up` and tell the user a browser
-   window is about to open asking them to sign in to (or create) a
-   Tailscale account. The assistant cannot click through this; wait for the
-   human to confirm they are signed in before moving on.
+3. **Gate: `tailscale up`.** On Linux and WSL this needs root, so ask the
+   human to run `sudo tailscale up` themselves in their own terminal, rather
+   than running it for them; the assistant cannot supply sudo. Tell them a
+   browser window is about to open asking them to sign in to (or create) a
+   Tailscale account. The assistant cannot click through this either; wait
+   for the human to confirm they are signed in before moving on. Once
+   signed in, suggest they also run `sudo tailscale set --operator=$USER`
+   once, which authorises their own account to run `tailscale up`, `serve`
+   and `funnel` without sudo from then on, so step 4 below does not stall on
+   a permissions prompt.
 
 4. `./setup-remote.sh configure serve` or `./setup-remote.sh configure
    funnel`, matching whichever the user chose in step "Presenting the
@@ -106,6 +121,29 @@ Run these from `portal/`, in order.
 
    Proves the whole path works end to end. See "Reading verify output"
    below for what each line means.
+
+## Going back to private
+
+Running `configure serve` after the portal was published with `configure
+funnel` writes `EXPOSURE=private` into `.env` and drops the required
+`COOKIE_SECRET` length from 64 to 32, but it does not itself stop Funnel
+from publishing the portal to the internet: Funnel is a separate, standing
+piece of Tailscale state, and only Tailscale can turn it off. Believing
+`configure serve` alone has taken the portal back to private, while Funnel
+is still running, would leave it publicly reachable behind a secret that is
+no longer held to the public bar.
+
+To actually un-publish, the user (not the assistant, per gate 2's sudo
+point on Linux/WSL) needs to turn off whichever of Funnel or Serve was
+running. The commands are shaped like `tailscale funnel --bg off` and
+`tailscale serve --bg off`; this has deliberately not been verified against
+a live install while writing this doc (running `tailscale` here would
+change the state of a real, in-use daemon), so confirm the exact flags with
+`tailscale funnel --help` and `tailscale serve --help` before relying on
+them. `tailscale funnel status` and `tailscale serve status` show whether
+anything is still being published. Do this before, or immediately after,
+running `configure serve` to walk back from funnel; do not treat the
+`EXPOSURE=private` write as proof that Funnel is off.
 
 ## Email
 

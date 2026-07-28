@@ -136,7 +136,7 @@ ask_menu() {
 # register_portal_user <registry_file> <email> <name> <project_dir> <admin yes|no>
 # Upserts one entry in the shared portal registry (portal/data/users.json).
 # The registry is edited with node so JSON escaping is always correct; the
-# portal itself needs Node 20+, so node being present is the normal case.
+# portal itself needs Node 18+, so node being present is the normal case.
 # Without node, print the entry to add by hand and succeed anyway: portal
 # registration must never break project setup.
 register_portal_user() {

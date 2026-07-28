@@ -17,8 +17,9 @@ The kit handles:
 
 - macOS (10.15+), Linux, or Windows Subsystem for Linux
 - A terminal and git
-- An AI coding assistant such as Claude Code, Claude, or equivalent. A paid
-  Claude plan (Pro or Max) is required.
+- An AI coding assistant such as Claude Code, Claude, or equivalent. This
+  costs money to run: either a paid Claude plan (Pro or Max), or API access
+  billed by usage (an `ANTHROPIC_API_KEY`, see `docs/portal.md`).
 - Node.js 18+, only if you want the optional submission portal (see `portal/`
   below)
 - Approximately 30 minutes for initial setup

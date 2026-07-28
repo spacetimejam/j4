@@ -142,7 +142,21 @@ cmd_install() {
   esac
   command -v tailscale >/dev/null 2>&1 \
     || die "tailscale still not on PATH after installing; open a new terminal and retry"
-  echo "Installed. Next: log in with 'tailscale up' (this opens a browser)."
+  echo "Installed."
+  case "$(uname)" in
+    Linux)
+      echo "Next: log in with 'sudo tailscale up' (this opens a browser). On Linux,"
+      echo "tailscale up and the 'configure' subcommand below both need root unless"
+      echo "your account is authorised as the tailnet operator. Once logged in, run"
+      echo "'sudo tailscale set --operator=$USER' once so later commands need no sudo." ;;
+    Darwin)
+      echo "Next: log in with 'tailscale up' (this opens a browser)."
+      echo "Installed via Homebrew, the Tailscale daemon is not started automatically;"
+      echo "start it with 'sudo brew services start tailscale', or install the"
+      echo "Mac App Store version instead, which starts and logs in via the GUI." ;;
+    *)
+      echo "Next: log in with 'tailscale up' (this opens a browser)." ;;
+  esac
   return 0
 }
 
@@ -227,18 +241,22 @@ cmd_configure() {
   cc_port="$(portal_port)"
   echo "Publishing port $cc_port with 'tailscale $cc_mode'..."
   tailscale "$cc_mode" --bg "$cc_port" \
-    || die "tailscale $cc_mode failed. Logged in? Try: tailscale up. For funnel, check that it is enabled in your tailnet's access controls."
+    || die "tailscale $cc_mode failed. Likely causes: not logged in (try: tailscale up), or a permissions error on Linux/WSL (try: sudo tailscale set --operator=$USER, then retry without sudo). For funnel, also check that it is enabled in your tailnet's access controls."
 
   cc_host="$(tailnet_hostname)"
   [ -n "$cc_host" ] \
     || die "Could not read this machine's tailnet name from 'tailscale status'. Are you logged in?"
 
-  set_env_value BASE_URL "https://$cc_host" "$ENV_FILE"
-  set_env_value BIND_HOST "127.0.0.1" "$ENV_FILE"
+  set_env_value BASE_URL "https://$cc_host" "$ENV_FILE" \
+    || die "Could not write BASE_URL to $ENV_FILE. Not treating this as configured; fix the write (disk full? read-only?) and retry."
+  set_env_value BIND_HOST "127.0.0.1" "$ENV_FILE" \
+    || die "Could not write BIND_HOST to $ENV_FILE. Not treating this as configured; fix the write (disk full? read-only?) and retry."
   if [ "$cc_mode" = "funnel" ]; then
-    set_env_value EXPOSURE "public" "$ENV_FILE"
+    set_env_value EXPOSURE "public" "$ENV_FILE" \
+      || die "Could not write EXPOSURE=public to $ENV_FILE. Refusing to report success: a later start would read the old value and could apply the weaker private secret bar even though the portal is actually published over Funnel."
   else
-    set_env_value EXPOSURE "private" "$ENV_FILE"
+    set_env_value EXPOSURE "private" "$ENV_FILE" \
+      || die "Could not write EXPOSURE=private to $ENV_FILE. Fix the write (disk full? read-only?) and retry."
   fi
 
   echo
@@ -247,6 +265,10 @@ cmd_configure() {
   if [ "$cc_mode" = "serve" ]; then
     echo "Reachable only from devices signed in to your tailnet."
     echo "Install the Tailscale app on your phone and sign in with the same account."
+    echo "If this portal was previously published with 'configure funnel', confirm"
+    echo "funnel is actually off (tailscale funnel status). Switching to serve does"
+    echo "not stop it from publishing publicly; see 'Going back to private' in"
+    echo "docs/portal-remote-access.md."
   else
     echo "Reachable from any browser on the internet. Keep the allowlist short."
   fi

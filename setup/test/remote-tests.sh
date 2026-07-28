@@ -182,6 +182,29 @@ chmod 755 "$UWORK"
 check "COOKIE_SECRET is left unchanged when the write fails" \
   grep -q "^COOKIE_SECRET=${WEAK}\$" "$UENV"
 
+# BASE_URL/BIND_HOST/EXPOSURE writes, after tailscale has already published,
+# must also be checked: a silently unwritten EXPOSURE=public would leave a
+# later start reading the old (private) value and applying the weaker
+# 32-character secret bar to a portal that is actually public. Forced the
+# same way as above, with a directory made read-only after the starting
+# .env is in place.
+EWORK="$CWORK/unwritable-post"
+mkdir -p "$EWORK"
+cp "$REMOTE_SH" "$EWORK/setup-remote.sh"
+chmod +x "$EWORK/setup-remote.sh"
+EENV="$EWORK/.env"
+printf 'PORT=8710\nCOOKIE_SECRET=%s\nALLOWED_EMAILS=test@example.com\nEXPOSURE=private\n' "$STRONG" > "$EENV"
+export TS_LOG="$CWORK/ts.log"
+: > "$TS_LOG"
+chmod 555 "$EWORK"
+check "configure serve fails when the post-publish .env write cannot complete" \
+  sh -c "! PATH=$CWORK/bin:\$PATH '$EWORK/setup-remote.sh' configure serve >/dev/null 2>&1"
+check "configure serve still calls tailscale before the write fails" \
+  grep -q '^serve' "$TS_LOG"
+chmod 755 "$EWORK"
+check "EXPOSURE is left unchanged when the post-publish write fails" \
+  grep -q '^EXPOSURE=private$' "$EENV"
+
 rm -rf "$CWORK"
 
 # --- service and verify -----------------------------------------------------

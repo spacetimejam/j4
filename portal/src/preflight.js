@@ -22,6 +22,14 @@ const PROVIDER_CREDENTIALS = {
   log: null,
 };
 
+// Which providers need EMAIL_FROM. smtp and brevo send real mail themselves
+// (email.js puts EMAIL_FROM straight into the message as the sender), so a
+// blank value means every send goes out with an empty From and fails or
+// bounces, including login links. webhook hands the message to an external
+// system that may set its own sender, and log sends nothing at all, so
+// neither needs a value here.
+const PROVIDERS_NEEDING_FROM = new Set(['smtp', 'brevo']);
+
 // Validate configuration before the server binds. Errors are conditions that
 // cannot work and so abort startup; warnings are conditions that merely
 // deserve saying out loud. `exists` is injected so tests need no filesystem.
@@ -76,6 +84,9 @@ export function checkConfig(cfg, { exists = existsSync } = {}) {
     const credential = PROVIDER_CREDENTIALS[cfg.emailProvider];
     if (credential && !cfg[credential[0]]) {
       err(`EMAIL_PROVIDER is "${cfg.emailProvider}" but ${credential[1]} is empty, so no email can be sent, including login links.`);
+    }
+    if (PROVIDERS_NEEDING_FROM.has(cfg.emailProvider) && !cfg.emailFrom) {
+      err(`EMAIL_PROVIDER is "${cfg.emailProvider}" but EMAIL_FROM is empty, so every message would be sent with no sender and fail, including login links. Set EMAIL_FROM in .env.`);
     }
   }
 
