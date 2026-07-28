@@ -60,11 +60,12 @@ Then edit `.env`, field by field:
   `public`. Leave it unset (or `private`) for Tailscale `serve`, a VPN, or
   localhost only. `setup-remote.sh configure` sets this for you when using
   Tailscale.
-- `BIND_HOST`: the address the portal listens on. Defaults to loopback
-  (`127.0.0.1`), which is correct for Tailscale setups. A reverse proxy
-  running on another host, or in a container such as Docker, needs the
-  portal to listen on `0.0.0.0` (or the specific interface the proxy can
-  reach) since it cannot reach loopback.
+- `BIND_HOST`: the address the portal listens on. Defaults to `0.0.0.0`, all
+  interfaces, which is what a reverse proxy on another host or in a
+  container such as Docker generally needs, since it cannot reach loopback.
+  `setup-remote.sh configure` narrows this to `127.0.0.1` for Tailscale
+  setups, where Tailscale itself connects locally, so only it needs to reach
+  the portal.
 - **Users**: who can log in, and what project each of them works in, is
   configured in `data/users.json` (gitignored), one entry per login email:
 
@@ -387,13 +388,14 @@ dynamic DNS name --> port forward on your router --> Caddy (TLS) --> portal
    `COOKIE_SECRET` bar, for the same reason: the login cookie is the only
    thing between a stranger and an agent running with `bypassPermissions`
    inside your project.
-5. **Set `BIND_HOST` to an address the proxy can actually reach.** The
-   portal defaults to loopback (`127.0.0.1`), which is correct for
-   Tailscale but wrong here whenever the proxy is not on the exact same
-   network namespace as the portal. A Caddy instance running in Docker
-   cannot reach the host's loopback address at all: set `BIND_HOST=0.0.0.0`
-   (or the specific interface the container's network can reach) so the
-   portal is listening somewhere the proxy can connect to.
+5. **Leave `BIND_HOST` at its default, or set it to an address the proxy can
+   actually reach.** The portal's built-in default is already `0.0.0.0`, all
+   interfaces, which is what this setup generally needs: a Caddy instance
+   running in Docker cannot reach the host's loopback address at all, so
+   narrowing `BIND_HOST` to `127.0.0.1` (the value Tailscale setups use,
+   where Tailscale itself connects locally) would break it here. Only set
+   `BIND_HOST` explicitly if you need to restrict the portal to a specific
+   interface the proxy can reach.
 6. **`BASE_URL` is your public hostname over https**, for example
    `https://yourname.duckdns.org`. As with any setup, plain http will not
    work past localhost, because the session cookie is `Secure`.
