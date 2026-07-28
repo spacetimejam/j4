@@ -374,6 +374,7 @@ cmd_verify() {
       echo "  ok    the login route accepts requests"
     else
       echo "  FAIL  the login route did not respond"
+      echo "        HTTPS itself is fine (check 3 passed); check the portal's own output or service log, and restart it if .env has changed since it last started."
       cv_fails=$((cv_fails + 1))
     fi
   fi

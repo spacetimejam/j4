@@ -222,6 +222,8 @@ check "verify exits non-zero when the portal is not running" \
   sh -c "! PATH=$SWORK/bin:\$PATH '$SWORK/setup-remote.sh' verify >'$SWORK/ver.out' 2>&1"
 check "verify names the loopback check that failed" \
   grep -qi "127.0.0.1:59717\|loopback" "$SWORK/ver.out"
+check "verify's login-route failure suggests checking the portal's log and restarting it" \
+  sh -c "grep -qi 'service log' '$SWORK/ver.out' && grep -qi 'restart' '$SWORK/ver.out'"
 
 # verify fails when BASE_URL disagrees with the live tailnet hostname.
 printf 'PORT=59717\nBASE_URL=https://stale.tail1234.ts.net\nEXPOSURE=private\n' > "$SWORK/.env"
