@@ -18,9 +18,9 @@ rest of the kit works without it.
 
 ## Requirements
 
-- **Node 18 or newer** (20+ recommended; every dependency, including the
-  Claude Agent SDK, requires only 18, and the full test suite passes on it).
-  Check with `node --version`.
+- **Node 18 or newer.** Every dependency, including the Claude Agent SDK,
+  requires only 18, and the full test suite passes on it. Check with
+  `node --version`.
 - **API access for your AI tool.** By default the portal drives Claude via
   the Claude Agent SDK, which needs either a logged-in Claude Code install or
   an `ANTHROPIC_API_KEY`. Other tools can be wired in; see "Using a different
@@ -43,9 +43,28 @@ Then edit `.env`, field by field:
 - `PORT`: the port the portal listens on. Any free port is fine.
 - `BASE_URL`: the URL you will open the portal at. Login links are built from
   this, so it must be reachable from the device you will use (for example
-  your phone on a VPN or tunnel).
+  your phone on a VPN or tunnel). It must be `https` unless it is
+  `localhost`: the session cookie is set `Secure`, and browsers discard
+  `Secure` cookies sent over plain http, so the login link will appear to
+  work and then silently return you to the login screen. Startup refuses to
+  run rather than let you hit this.
 - `COOKIE_SECRET`: a long random string used to sign login cookies. Generate
-  one with `openssl rand -hex 32` and never reuse it elsewhere.
+  one with `openssl rand -hex 32` and never reuse it elsewhere. At least 32
+  characters are required for a private portal; a portal with
+  `EXPOSURE=public` is held to a stronger bar of at least 64, because the
+  session cookie is the only thing between a stranger on the internet and an
+  agent running with `bypassPermissions` inside your project.
+- `EXPOSURE`: `private` or `public`, describing whether the portal is
+  reachable from the public internet, not which tool you used to publish it.
+  A Tailscale Funnel install and a reverse-proxied public domain are both
+  `public`. Leave it unset (or `private`) for Tailscale `serve`, a VPN, or
+  localhost only. `setup-remote.sh configure` sets this for you when using
+  Tailscale.
+- `BIND_HOST`: the address the portal listens on. Defaults to loopback
+  (`127.0.0.1`), which is correct for Tailscale setups. A reverse proxy
+  running on another host, or in a container such as Docker, needs the
+  portal to listen on `0.0.0.0` (or the specific interface the proxy can
+  reach) since it cannot reach loopback.
 - **Users**: who can log in, and what project each of them works in, is
   configured in `data/users.json` (gitignored), one entry per login email:
 
@@ -105,14 +124,19 @@ Set `EMAIL_PROVIDER` to one of:
   `WEBHOOK_URL`, and delivery is your problem. Attachments are included as
   base64. Use this to hand delivery to an automation tool such as n8n, or
   for local testing with a dummy listener.
+- `log`: sends nothing. Every message, including login links, is printed to
+  the portal's own terminal or log instead of being delivered anywhere. No
+  account and no credentials are needed. This is the way to prove the rest
+  of the portal works, end to end, before you have set up any mail account:
+  request a login link, copy it out of the log, and open it.
 
 One wrinkle to know about: **the code's built-in default is `webhook`, not
 `smtp`.** If `EMAIL_PROVIDER` is unset, the portal behaves as if you chose
-`webhook`; and if `WEBHOOK_URL` is also unset, login links and deliverable
-emails are not sent anywhere, they are only written to the portal's log.
-That bare-env mode is handy for a first smoke test (you can copy the login
-link out of the log), but it means a half-filled `.env` fails quietly rather
-than loudly. For real use, always set `EMAIL_PROVIDER` explicitly.
+`webhook`, and if `WEBHOOK_URL` is also unset, every send fails. Startup now
+warns about this explicitly if you leave `EMAIL_PROVIDER` unset, but the
+warning does not stop the portal starting. For real use, always set
+`EMAIL_PROVIDER` explicitly, and use `log` rather than leaving it unset if
+you just want to smoke-test the portal.
 
 ### Setting up SMTP, step by step
 
@@ -171,7 +195,15 @@ node src/server.js
 ```
 
 Open `BASE_URL` in a browser, enter an allowlisted email address, and click
-the login link that arrives (or copy it from the log in webhook/bare mode).
+the login link that arrives (or, with `EMAIL_PROVIDER=log`, copy it out of
+the terminal).
+
+To reach the portal from your phone or another device, see
+`docs/portal-remote-access.md`, which is the recommended path: it walks
+through publishing the portal over Tailscale, with a script that checks,
+configures and verifies each step. The rest of this section covers keeping
+the portal running as a background service once it is reachable, whichever
+way you chose to publish it.
 
 To keep it running, use your platform's service manager.
 
@@ -307,3 +339,66 @@ scope for this kit.
 `users.json` and the SQLite database), and `node_modules/`. Never commit
 real emails, names, or project paths; that is why only
 `users.example.json` is tracked, not `users.json` itself.
+
+## Appendix: reverse proxy on a public domain (advanced, existing installs)
+
+Tailscale (`docs/portal-remote-access.md`) is the recommended way to reach
+the portal remotely, and is the right choice for almost everyone. This
+appendix documents a different topology: a public domain name, port
+forwarding, and a reverse proxy terminating TLS, which is how the
+maintainer's own live instance runs. It is here for people who already have
+this kind of setup for other services and want to add the portal to it, not
+as a recommendation to build one from scratch. It assumes comfort with a
+router's admin page, DNS, and running a proxy as a service or in Docker.
+
+The shape of it:
+
+```
+dynamic DNS name --> port forward on your router --> Caddy (TLS) --> portal
+```
+
+1. **A stable public name.** If you do not own a domain, a free dynamic DNS
+   service (DuckDNS is a common choice) gives you a hostname such as
+   `yourname.duckdns.org` that always resolves to your current public IP,
+   updated by a small client you run on the host. A domain you own with an
+   A record pointed at your public IP works the same way, and does not need
+   the updater unless your IP changes.
+2. **Port forwarding.** On your router, forward ports 80 and 443 to the
+   internal address of the host running Caddy. Port 80 is needed briefly for
+   Let's Encrypt's HTTP challenge even if you only ever use 443 afterwards.
+3. **Caddy as the reverse proxy.** Caddy gets you a valid TLS certificate
+   automatically and renews it without further attention. A minimal
+   Caddyfile:
+
+   ```
+   yourname.duckdns.org {
+       reverse_proxy 172.18.0.1:8710
+   }
+   ```
+
+   Replace the address with whatever the portal actually listens on: the
+   host's own address if Caddy runs on the same machine, or the Docker
+   bridge gateway (as above) if Caddy runs in a container and the portal
+   runs on the host.
+4. **Set `EXPOSURE=public` in the portal's `.env`.** This is not optional.
+   `EXPOSURE` describes reachability, not which tool did the publishing: a
+   proxied public domain is exactly as reachable from the internet as a
+   Tailscale Funnel install, so it is held to the same 64-character
+   `COOKIE_SECRET` bar, for the same reason: the login cookie is the only
+   thing between a stranger and an agent running with `bypassPermissions`
+   inside your project.
+5. **Set `BIND_HOST` to an address the proxy can actually reach.** The
+   portal defaults to loopback (`127.0.0.1`), which is correct for
+   Tailscale but wrong here whenever the proxy is not on the exact same
+   network namespace as the portal. A Caddy instance running in Docker
+   cannot reach the host's loopback address at all: set `BIND_HOST=0.0.0.0`
+   (or the specific interface the container's network can reach) so the
+   portal is listening somewhere the proxy can connect to.
+6. **`BASE_URL` is your public hostname over https**, for example
+   `https://yourname.duckdns.org`. As with any setup, plain http will not
+   work past localhost, because the session cookie is `Secure`.
+
+Keep the router, the dynamic DNS updater, and Caddy itself patched and
+running: unlike Tailscale, nothing here has its own authentication layer in
+front of the portal's login page, so the login cookie really is the only
+defence, exactly as it is for Funnel.
