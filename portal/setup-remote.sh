@@ -31,18 +31,22 @@ env_value() {
 }
 
 # set_env_value <key> <value> <file>: upsert KEY=value. No `sed -i`, which is
-# not portable between GNU and BSD.
+# not portable between GNU and BSD. Returns non-zero if the write did not
+# complete, so callers that publish on the strength of a value just written
+# (the rotated COOKIE_SECRET, chiefly) can refuse instead of proceeding on a
+# file that was never actually updated.
 set_env_value() {
   sv_key="$1"
   sv_value="$2"
   sv_file="$3"
   sv_tmp="$sv_file.tmp.$$"
-  : > "$sv_tmp"
+  : 2>/dev/null > "$sv_tmp" || return 1
   if [ -f "$sv_file" ]; then
     grep -v "^${sv_key}=" "$sv_file" >> "$sv_tmp"
   fi
-  printf '%s=%s\n' "$sv_key" "$sv_value" >> "$sv_tmp"
-  mv "$sv_tmp" "$sv_file"
+  printf '%s=%s\n' "$sv_key" "$sv_value" 2>/dev/null >> "$sv_tmp" || { rm -f "$sv_tmp" 2>/dev/null; return 1; }
+  mv "$sv_tmp" "$sv_file" 2>/dev/null || { rm -f "$sv_tmp" 2>/dev/null; return 1; }
+  return 0
 }
 
 portal_port() {
@@ -56,9 +60,17 @@ portal_port() {
 
 # The tailnet hostname, read back from Tailscale rather than constructed, so a
 # renamed machine or a custom tailnet name still yields a correct URL.
+#
+# `--peers=false` drops the Peer map from the JSON, leaving exactly one
+# DNSName field (Self's) rather than one-per-peer. Without it, `head -1`
+# picking "the first DNSName" only works because Go's ipnstate.Status struct
+# happens to serialise Self before Peer; that ordering is implicit and
+# undocumented, and `tailscale status --help` itself warns the JSON format
+# is subject to change between releases. With peers excluded there is no
+# ordering to depend on.
 tailnet_hostname() {
   command -v tailscale >/dev/null 2>&1 || return 1
-  tailscale status --json 2>/dev/null \
+  tailscale status --json --peers=false 2>/dev/null \
     | grep -o '"DNSName" *: *"[^"]*"' \
     | head -1 \
     | cut -d'"' -f4 \
@@ -169,7 +181,8 @@ require_strong_secret() {
 
   command -v openssl >/dev/null 2>&1 || die "openssl not found; cannot generate a secret"
   rs_new="$(openssl rand -hex 32)"
-  set_env_value COOKIE_SECRET "$rs_new" "$ENV_FILE"
+  set_env_value COOKIE_SECRET "$rs_new" "$ENV_FILE" \
+    || die "Could not write the new COOKIE_SECRET to $ENV_FILE. Not publishing."
   echo "Wrote a new 64-character COOKIE_SECRET. Everyone must log in again."
   return 0
 }

@@ -157,4 +157,29 @@ check "configure with no mode exits non-zero" \
 check "configure with a bad mode exits non-zero" \
   sh -c "! PATH=$CWORK/bin:\$PATH '$CWORK/setup-remote.sh' configure sideways >/dev/null 2>&1"
 
+# funnel --generate-secret whose write cannot complete: set_env_value must
+# report the failure (not silently succeed) and require_strong_secret must
+# not treat the file as updated. The whole point is that this is caught
+# before anything is published. Forced by copying the script into its own
+# directory and chmod'ing that directory read-only (no write bit) once the
+# starting .env is in place: creating set_env_value's temp file, or the
+# final mv, then fails with EACCES, which is exactly the class of failure
+# (disk full, read-only filesystem, permissions) a real install could hit.
+UWORK="$CWORK/unwritable"
+mkdir -p "$UWORK"
+cp "$REMOTE_SH" "$UWORK/setup-remote.sh"
+chmod +x "$UWORK/setup-remote.sh"
+UENV="$UWORK/.env"
+printf 'PORT=8710\nCOOKIE_SECRET=%s\nALLOWED_EMAILS=test@example.com\n' "$WEAK" > "$UENV"
+export TS_LOG="$CWORK/ts.log"
+: > "$TS_LOG"
+chmod 555 "$UWORK"
+check "configure funnel --generate-secret refuses when the secret write fails" \
+  sh -c "! PATH=$CWORK/bin:\$PATH '$UWORK/setup-remote.sh' configure funnel --generate-secret </dev/null >/dev/null 2>&1"
+check "configure funnel does not publish when the secret write fails" \
+  sh -c "! grep -q '^funnel' '$TS_LOG'"
+chmod 755 "$UWORK"
+check "COOKIE_SECRET is left unchanged when the write fails" \
+  grep -q "^COOKIE_SECRET=${WEAK}\$" "$UENV"
+
 rm -rf "$CWORK"
