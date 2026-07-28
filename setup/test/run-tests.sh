@@ -367,6 +367,11 @@ else
   echo "SKIP: portal unit tests (node or portal/node_modules not available)"
 fi
 
+# --- portal/setup-remote.sh -------------------------------------------------
+
+# shellcheck source=remote-tests.sh
+. "$TEST_DIR/remote-tests.sh"
+
 # --- Summary ----------------------------------------------------------------
 
 rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"
