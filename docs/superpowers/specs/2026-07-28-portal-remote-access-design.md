@@ -95,9 +95,24 @@ phone.
 Option B's cost is stated plainly in the docs rather than softened: behind that
 public login page are agent sessions running with `bypassPermissions` inside
 the user's project. Under Funnel, the magic-link auth and the `users.json`
-allowlist are the only barrier, so `COOKIE_SECRET` strength and allowlist
-hygiene matter more than under Option A. Funnel listens only on ports 443,
-8443 and 10000; the portal keeps its own port and Funnel maps 443 to it.
+allowlist are the only barrier. Funnel listens only on ports 443, 8443 and
+10000; the portal keeps its own port and Funnel maps 443 to it.
+
+Because that barrier is thinner, Funnel is **gated on a strong
+`COOKIE_SECRET`, enforced at runtime rather than only at setup**. The
+mechanism is a recorded exposure mode: `EXPOSURE=private|public` in `.env`,
+written by `configure`, with preflight raising the `COOKIE_SECRET` bar when
+the value is `public`. A secret that was adequate for a private tailnet
+therefore cannot be carried into public exposure, and someone who later
+weakens the secret is caught on the next start rather than never.
+
+`EXPOSURE` deliberately describes **reachability, not tooling**. `configure
+serve` writes `private`, `configure funnel` writes `public`, and the Caddy
+appendix instructs existing public installs to declare `public` too. Keying
+the bar on the word "funnel" would have been the obvious implementation and
+the wrong one: it would leave a publicly reachable Caddy install held to a
+lower standard than a Funnel install with identical exposure. The thresholds
+are in component 2.
 
 ### Division of labour
 
@@ -136,7 +151,22 @@ setup-remote.sh verify                   end-to-end proof
   <port>`, then reads the resulting hostname back from `tailscale status
   --json` and prints the `BASE_URL` line the agent writes into `.env`. The
   hostname is read back rather than constructed, so a renamed machine or a
-  tailnet with a custom name still produces a correct URL.
+  tailnet with a custom name still produces a correct URL. It also writes
+  `BIND_HOST=127.0.0.1`, and `EXPOSURE=private` for serve or `EXPOSURE=public`
+  for funnel.
+- `configure funnel` is gated. Before publishing anything it checks
+  `COOKIE_SECRET` against the funnel threshold in component 2. If the secret is
+  too weak it stops, explains that Funnel puts the login page on the public
+  internet, and offers to generate a replacement with `openssl rand -hex 32`,
+  writing it to `.env` on confirmation. Rotating the secret invalidates
+  existing login cookies, which the script says out loud; at setup time that
+  costs nothing, and `docs/portal.md` already recommends rotation as the way to
+  evict a removed user. The gate is a stop, not a warning: it will not publish
+  a Funnel with a weak secret even if the user insists, because the failure
+  mode is a stranger driving an agent with `bypassPermissions` on their
+  machine. `configure funnel` also refuses when no user is registered, and
+  reports how many addresses are on the allowlist, since each is now an
+  internet-reachable login.
 - `service` writes the unit or plist for the portal itself, reusing the
   existing examples in `docs/portal.md`, and enables lingering on Linux.
 - `verify` is the reason this is a script and not prose. It asserts, in order:
@@ -155,7 +185,13 @@ before listening: warnings print, any error prints and exits non-zero.
 Errors:
 
 - `COOKIE_SECRET` is unset, still the `.env.example` placeholder, or shorter
-  than 32 characters.
+  than 32 characters. When `EXPOSURE=public` the threshold rises to 64
+  characters, matching `openssl rand -hex 32`, which `docs/portal.md` already
+  recommends and which is therefore a bright line rather than an arbitrary
+  one. The error message names the exposure mode as the reason, so the user
+  understands why a secret that worked yesterday is refused today, and gives
+  both remedies: rotate the secret, or stop exposing the portal publicly.
+- `EXPOSURE` is set to anything other than `private` or `public`.
 - `BASE_URL` uses `http:` and its host is not `localhost` or `127.0.0.1`. This
   configuration cannot work, because the `Secure` cookie set at
   `server.js:81` will be discarded by the browser. Failing to start is
@@ -176,6 +212,10 @@ Warnings:
 - `BIND_HOST` is not loopback, noting the portal is reachable on the local
   network. This is a warning rather than an error because the Caddy topology
   legitimately needs a non-loopback bind (see component 4).
+- `EXPOSURE` is unset, noting that it is being treated as `private` and that a
+  publicly reachable install should declare `public`. Unset defaults to
+  `private` so existing installs keep starting; the warning is what moves them
+  to declare their real exposure, and the Caddy appendix says to do so.
 
 ### 3. `portal/src/email.js`: a real `log` provider
 
@@ -214,7 +254,9 @@ migration step anyone could forget.
 `EMAIL_FROM` becomes empty, matching `SMTP_URL`. It currently ships
 `Job Search Portal <portal@example.com>`, which looks filled in, so a
 half-edited file leaves a sender address Gmail rejects outright. Add commented
-`BIND_HOST` and `EMAIL_PROVIDER=log` lines with one-line explanations.
+`BIND_HOST` and `EMAIL_PROVIDER=log` lines with one-line explanations, and an
+`EXPOSURE=private` line noting that `public` requires a 64-character
+`COOKIE_SECRET` and that `setup-remote.sh configure` sets this for you.
 
 ### 6. `setup/setup.sh`: honest portal messaging
 
@@ -247,7 +289,12 @@ it).
 - State that `BASE_URL` must be HTTPS unless it is localhost, with the reason.
 - Point at the new runbook from "Running it", keep the systemd and launchd
   examples, and add the Caddy, dynamic DNS and port-forwarding topology as an
-  appendix marked as advanced and for existing installs.
+  appendix marked as advanced and for existing installs. That appendix must
+  tell such installs to set `EXPOSURE=public`, since they are publicly
+  reachable and the raised `COOKIE_SECRET` bar should apply to them for the
+  same reason it applies to Funnel.
+- Document `EXPOSURE` and the two `COOKIE_SECRET` thresholds in the field-by-
+  field walkthrough, alongside the existing `openssl rand -hex 32` advice.
 - Reconcile the Node version, stated as `>=18` in `package.json`, "18 or newer
   (20+ recommended)" here, "Node 20+" in `CLAUDE.md` and "20 or newer" in
   `guide.typ`. Settle on the `package.json` floor and say it once.
@@ -274,6 +321,16 @@ records its arguments and emits canned `status --json`:
 - `configure serve` and `configure funnel` each invoke the right subcommand.
 - `configure` derives `BASE_URL` from `status --json`, not from the machine
   name, proving the read-back.
+- `configure serve` writes `EXPOSURE=private`; `configure funnel` writes
+  `EXPOSURE=public`; both write `BIND_HOST=127.0.0.1`.
+- `configure funnel` with a weak `COOKIE_SECRET` exits non-zero and, crucially,
+  never invokes `tailscale funnel`. The stub asserts it was not called, so the
+  gate is proven to stop before publishing rather than after.
+- `configure funnel` with a weak secret and confirmation writes a 64-character
+  secret to `.env`, then proceeds.
+- `configure funnel` with an empty allowlist exits non-zero.
+- `configure serve` with a 32-character secret succeeds, proving the raised bar
+  is scoped to public exposure.
 - `configure` with a bad argument exits non-zero.
 - The wizard's portal message includes the not-yet-set-up line.
 - The existing "If you chose the portal" grep still passes.
@@ -284,6 +341,10 @@ records its arguments and emits canned `status --json`:
   valid config.
 - `http:` plus a non-localhost host is an error; `http://localhost` is not.
 - A short or placeholder `COOKIE_SECRET` is an error.
+- A 32-character `COOKIE_SECRET` passes under `EXPOSURE=private` and fails
+  under `EXPOSURE=public`; a 64-character one passes under both.
+- Unset `EXPOSURE` behaves as `private` and warns.
+- An unrecognised `EXPOSURE` value is an error.
 - Unset `EMAIL_PROVIDER` warns rather than errors.
 - The `log` provider resolves and writes the recipient, subject and attachment
   filenames.
@@ -305,9 +366,16 @@ reaches the portal at `172.18.0.1:8710`. Three consequences:
 - `EMAIL_PROVIDER=webhook` with a populated `WEBHOOK_URL` (the local n8n
   workflow) passes the credentials check.
 
-The one pre-deploy action is to confirm that instance's `COOKIE_SECRET` is at
-least 32 characters, because preflight will now refuse to start otherwise.
-Check it before restarting, not after.
+The pre-deploy actions, both to be done before restarting rather than after:
+
+1. That instance is publicly reachable, so set `EXPOSURE=public` in its `.env`.
+   Left unset it would start and merely warn, but it would then be held to the
+   32-character bar despite being exactly the exposure the 64-character bar
+   exists for.
+2. Consequently, confirm its `COOKIE_SECRET` is at least 64 characters, and
+   rotate it with `openssl rand -hex 32` if not. Preflight will refuse to start
+   otherwise. Rotation logs everyone out, so warn the portal's registered users
+   before the restart rather than after.
 
 That host runs Node 18, which is why the Node floor in component 8 settles on
 `package.json`'s `>=18` rather than the 20+ quoted elsewhere in the docs.
@@ -325,6 +393,9 @@ run by Sam.
   `setup-remote.sh verify` passes for Option A and then Option B.
 - Manual: set `BASE_URL=http://192.168.1.10:8710` and confirm the portal
   refuses to start with a message naming the cause.
+- Manual: with `EXPOSURE=public` and a 32-character `COOKIE_SECRET`, confirm
+  the portal refuses to start, and that `setup-remote.sh configure funnel`
+  refuses to publish and offers to generate a replacement.
 - Manual: with `EMAIL_PROVIDER=log` and no mail account, request a login link
   and complete a login from the link printed to the terminal.
 
