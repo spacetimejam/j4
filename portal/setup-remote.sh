@@ -255,6 +255,138 @@ cmd_configure() {
   return 0
 }
 
+cmd_service() {
+  cs_write_only="no"
+  [ "${1:-}" = "--write-only" ] && cs_write_only="yes"
+  cs_node="$(command -v node)"
+  [ -n "$cs_node" ] || die "node not found; install Node 18 or newer first"
+
+  case "$(uname)" in
+    Linux)
+      cs_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+      mkdir -p "$cs_dir"
+      cs_unit="$cs_dir/job-search-portal.service"
+      cat > "$cs_unit" <<EOF
+[Unit]
+Description=Job search submission portal
+
+[Service]
+WorkingDirectory=$PORTAL_DIR
+ExecStart=$cs_node src/server.js
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+EOF
+      echo "Wrote $cs_unit"
+      if [ "$cs_write_only" = "yes" ]; then
+        echo "Not enabling it (--write-only)."
+        return 0
+      fi
+      systemctl --user daemon-reload || die "systemctl --user daemon-reload failed"
+      systemctl --user enable --now job-search-portal \
+        || die "could not enable job-search-portal; check: systemctl --user status job-search-portal"
+      loginctl enable-linger "$USER" >/dev/null 2>&1 \
+        || echo "Note: could not enable lingering; the portal will stop when you log out."
+      echo "Enabled and started." ;;
+    Darwin)
+      cs_dir="${XDG_CONFIG_HOME:-$HOME/Library}/LaunchAgents"
+      mkdir -p "$cs_dir"
+      cs_plist="$cs_dir/com.job-search.portal.plist"
+      cat > "$cs_plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.job-search.portal</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$cs_node</string>
+    <string>src/server.js</string>
+  </array>
+  <key>WorkingDirectory</key><string>$PORTAL_DIR</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>
+EOF
+      echo "Wrote $cs_plist"
+      if [ "$cs_write_only" = "yes" ]; then
+        echo "Not loading it (--write-only)."
+        return 0
+      fi
+      launchctl load "$cs_plist" || die "launchctl load failed"
+      echo "Loaded." ;;
+    *)
+      die "Unsupported platform $(uname); see docs/portal.md for a manual service unit" ;;
+  esac
+  return 0
+}
+
+cmd_verify() {
+  cv_fails=0
+  cv_port="$(portal_port)"
+  cv_base="$(env_value BASE_URL "$ENV_FILE")"
+
+  echo "Verifying the portal"
+  echo "===================="
+
+  # 1. The portal answers locally.
+  if curl -fsS --max-time 10 "http://127.0.0.1:$cv_port/api/meta" >/dev/null 2>&1; then
+    echo "  ok    portal responds on 127.0.0.1:$cv_port"
+  else
+    echo "  FAIL  portal does not respond on loopback at 127.0.0.1:$cv_port"
+    echo "        Is it running? Start it with: npm start"
+    cv_fails=$((cv_fails + 1))
+  fi
+
+  # 2. BASE_URL matches the live tailnet name. A machine rename silently
+  #    breaks login links, and this is the only place that would catch it.
+  cv_host="$(tailnet_hostname)"
+  if [ -z "$cv_host" ]; then
+    echo "  FAIL  could not read the tailnet name; run: tailscale up"
+    cv_fails=$((cv_fails + 1))
+  elif [ "$cv_base" = "https://$cv_host" ]; then
+    echo "  ok    BASE_URL matches this machine's tailnet name"
+  else
+    echo "  FAIL  BASE_URL is $cv_base but this machine is https://$cv_host"
+    echo "        Fix with: ./setup-remote.sh configure serve   (or funnel)"
+    cv_fails=$((cv_fails + 1))
+  fi
+
+  # 3. The public URL serves valid HTTPS. curl without -k, so an invalid
+  #    certificate is a failure rather than a warning.
+  if [ -n "$cv_base" ]; then
+    if curl -fsS --max-time 20 "$cv_base/api/meta" >/dev/null 2>&1; then
+      echo "  ok    $cv_base responds over HTTPS with a valid certificate"
+    else
+      echo "  FAIL  $cv_base did not respond over HTTPS with a valid certificate"
+      echo "        Check: tailscale $( [ "$(env_value EXPOSURE "$ENV_FILE")" = "public" ] && echo funnel || echo serve ) status"
+      cv_fails=$((cv_fails + 1))
+    fi
+
+    # 4. Login round-trips. Always 200 by design (no allowlist oracle), so
+    #    this proves the route is reachable, not that mail was delivered.
+    if curl -fsS --max-time 20 -X POST "$cv_base/api/login" \
+         -H 'content-type: application/json' -d '{"email":"verify@example.invalid"}' \
+         >/dev/null 2>&1; then
+      echo "  ok    the login route accepts requests"
+    else
+      echo "  FAIL  the login route did not respond"
+      cv_fails=$((cv_fails + 1))
+    fi
+  fi
+
+  echo
+  if [ "$cv_fails" -eq 0 ]; then
+    echo "All checks passed. Open $cv_base and request a login link."
+    return 0
+  fi
+  echo "$cv_fails check(s) failed. Fix them before relying on the portal from a phone."
+  return 1
+}
+
 usage() {
   echo "Usage: setup-remote.sh check|install|configure <serve|funnel>|service|verify" >&2
 }
@@ -263,5 +395,7 @@ case "${1:-}" in
   check)     cmd_check ;;
   install)   cmd_install ;;
   configure) shift; cmd_configure "$@" ;;
+  service)   shift; cmd_service "$@" ;;
+  verify)    cmd_verify ;;
   *)         usage; exit 1 ;;
 esac

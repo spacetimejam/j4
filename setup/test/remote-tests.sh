@@ -183,3 +183,50 @@ check "COOKIE_SECRET is left unchanged when the write fails" \
   grep -q "^COOKIE_SECRET=${WEAK}\$" "$UENV"
 
 rm -rf "$CWORK"
+
+# --- service and verify -----------------------------------------------------
+
+SWORK="$(mktemp -d)"
+make_tailscale_stub "$SWORK/bin"
+cp "$REMOTE_SH" "$SWORK/setup-remote.sh"
+chmod +x "$SWORK/setup-remote.sh"
+export TS_LOG="$SWORK/ts.log"
+: > "$TS_LOG"
+
+# Port 59717, not the portal's usual 8710: a real portal may be running on
+# this host (the kit's own live install listens on 8710), and verify's first
+# check curls loopback. Using the default port would make these tests pass or
+# fail depending on whether the developer's portal happens to be up.
+printf 'PORT=59717\nBASE_URL=https://box.tail1234.ts.net\nEXPOSURE=private\n' > "$SWORK/.env"
+
+# service writes a unit without enabling anything, so it is safe under test.
+if PATH="$SWORK/bin:$PATH" XDG_CONFIG_HOME="$SWORK/config" \
+   "$SWORK/setup-remote.sh" service --write-only >"$SWORK/svc.out" 2>&1; then
+  pass
+else
+  fail "service --write-only should exit 0"
+fi
+case "$(uname)" in
+  Linux)
+    check "service writes a systemd user unit" \
+      test -f "$SWORK/config/systemd/user/job-search-portal.service"
+    check "the unit runs the portal from its own folder" \
+      grep -q "WorkingDirectory=$SWORK" "$SWORK/config/systemd/user/job-search-portal.service" ;;
+  Darwin)
+    check "service writes a launchd plist" \
+      test -f "$SWORK/config/LaunchAgents/com.job-search.portal.plist" ;;
+esac
+
+# verify fails cleanly when the portal is not running, and says which check failed.
+check "verify exits non-zero when the portal is not running" \
+  sh -c "! PATH=$SWORK/bin:\$PATH '$SWORK/setup-remote.sh' verify >'$SWORK/ver.out' 2>&1"
+check "verify names the loopback check that failed" \
+  grep -qi "127.0.0.1:59717\|loopback" "$SWORK/ver.out"
+
+# verify fails when BASE_URL disagrees with the live tailnet hostname.
+printf 'PORT=59717\nBASE_URL=https://stale.tail1234.ts.net\nEXPOSURE=private\n' > "$SWORK/.env"
+PATH="$SWORK/bin:$PATH" "$SWORK/setup-remote.sh" verify >"$SWORK/ver2.out" 2>&1
+check "verify flags a stale BASE_URL" \
+  grep -qi "box.tail1234.ts.net" "$SWORK/ver2.out"
+
+rm -rf "$SWORK"
