@@ -83,3 +83,78 @@ check "check reports tailscale as missing" \
   grep -qi "not installed" "$RWORK2/check2.out"
 
 rm -rf "$RWORK2"
+
+# --- configure --------------------------------------------------------------
+
+CWORK="$(mktemp -d)"
+make_tailscale_stub "$CWORK/bin"
+cp "$REMOTE_SH" "$CWORK/setup-remote.sh"
+chmod +x "$CWORK/setup-remote.sh"
+CENV="$CWORK/.env"
+
+STRONG="$(printf 'a%.0s' $(seq 1 64))"
+WEAK="$(printf 'b%.0s' $(seq 1 32))"
+
+reset_env() {
+  # $1 = COOKIE_SECRET to seed
+  # ALLOWED_EMAILS is seeded so require_registered_users' allowlist check
+  # (a separate gate from the COOKIE_SECRET one under test here) does not
+  # block these scenarios: there is no data/users.json in this scratch
+  # PORTAL_DIR, so require_registered_users falls back to ALLOWED_EMAILS.
+  printf 'PORT=8710\nCOOKIE_SECRET=%s\nALLOWED_EMAILS=test@example.com\n' "$1" > "$CENV"
+  export TS_LOG="$CWORK/ts.log"
+  : > "$TS_LOG"
+}
+
+# serve: writes private exposure and a loopback bind, and does not demand 64.
+reset_env "$WEAK"
+if PATH="$CWORK/bin:$PATH" "$CWORK/setup-remote.sh" configure serve >/dev/null 2>&1; then
+  pass
+else
+  fail "configure serve should succeed with a 32-character secret"
+fi
+check "configure serve calls tailscale serve" grep -q '^serve' "$TS_LOG"
+check "configure serve writes EXPOSURE=private" grep -q '^EXPOSURE=private$' "$CENV"
+check "configure serve writes a loopback BIND_HOST" grep -q '^BIND_HOST=127.0.0.1$' "$CENV"
+check "configure serve derives BASE_URL from tailscale status" \
+  grep -q '^BASE_URL=https://box.tail1234.ts.net$' "$CENV"
+
+# funnel with a weak secret: refuses, and crucially never publishes.
+reset_env "$WEAK"
+check "configure funnel refuses a weak secret" \
+  sh -c "! PATH=$CWORK/bin:\$PATH '$CWORK/setup-remote.sh' configure funnel </dev/null >/dev/null 2>&1"
+check "configure funnel does not publish when it refuses" \
+  sh -c "! grep -q '^funnel' '$TS_LOG'"
+check "configure funnel leaves EXPOSURE unchanged when it refuses" \
+  sh -c "! grep -q '^EXPOSURE=public$' '$CENV'"
+
+# funnel with a strong secret: publishes and records public exposure.
+reset_env "$STRONG"
+if PATH="$CWORK/bin:$PATH" "$CWORK/setup-remote.sh" configure funnel </dev/null >/dev/null 2>&1; then
+  pass
+else
+  fail "configure funnel should succeed with a 64-character secret"
+fi
+check "configure funnel calls tailscale funnel" grep -q '^funnel' "$TS_LOG"
+check "configure funnel writes EXPOSURE=public" grep -q '^EXPOSURE=public$' "$CENV"
+
+# funnel with a weak secret and --generate-secret: rotates, then publishes.
+reset_env "$WEAK"
+if PATH="$CWORK/bin:$PATH" "$CWORK/setup-remote.sh" configure funnel --generate-secret \
+    >/dev/null 2>&1; then
+  pass
+else
+  fail "configure funnel --generate-secret should succeed"
+fi
+check "generated secret is at least 64 characters" \
+  sh -c "test \$(grep '^COOKIE_SECRET=' '$CENV' | cut -d= -f2- | tr -d '\n' | wc -c) -ge 64"
+check "configure funnel publishes after generating" grep -q '^funnel' "$TS_LOG"
+
+# Bad arguments.
+reset_env "$STRONG"
+check "configure with no mode exits non-zero" \
+  sh -c "! PATH=$CWORK/bin:\$PATH '$CWORK/setup-remote.sh' configure >/dev/null 2>&1"
+check "configure with a bad mode exits non-zero" \
+  sh -c "! PATH=$CWORK/bin:\$PATH '$CWORK/setup-remote.sh' configure sideways >/dev/null 2>&1"
+
+rm -rf "$CWORK"
