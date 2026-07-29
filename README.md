@@ -86,4 +86,14 @@ Licensed under MIT. Contributions welcome. Built as a personal tool, generalised
 
 See the `CLAUDE.md` (or `AGENTS.md`) inside your generated project for operating conventions, `WORKFLOW.md` for the day-to-day process, and the docs in `docs/` for deeper guidance.
 
+The kit checkout itself carries a root `AGENTS.md`, which is a symlink to
+`CLAUDE.md`, so Codex, Gemini CLI and Cursor can work on the kit as well as
+Claude Code. One caveat: a Windows checkout made without symlink support
+(git's default when it is not running elevated and Developer Mode is off)
+turns that symlink into a one-line text file containing the words
+`CLAUDE.md`. It is inert rather than harmful, and the kit's documented
+Windows path is WSL, where symlinks behave normally. Gemini CLI needs one
+extra setting before it reads `AGENTS.md` at all; see the "Using a different
+AI assistant" section of the getting-started guide.
+
 Happy hunting.

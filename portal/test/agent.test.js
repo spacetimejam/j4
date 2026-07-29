@@ -69,7 +69,7 @@ function fakeSpawn({ stdout = '', code = 0 } = {}) {
   const spawnImpl = (bin, args, opts) => {
     const handlers = {};
     const child = {
-      stdout: { on: (ev, fn) => { if (ev === 'data') child._out = fn; } },
+      stdout: { on: (ev, fn) => { if (ev === 'data') child._out = fn; }, setEncoding: () => {} },
       stderr: { on: () => {} },
       on: (ev, fn) => { handlers[ev] = fn; },
       stdin: {
@@ -210,4 +210,15 @@ test('portal prompt explains when awaiting_user is true', () => {
 
 test('portal prompt instructs the session-title block', () => {
   assert.match(portalPrompt('Sam'), /session-title/);
+});
+
+test('codex is a registered runner', async () => {
+  const { RUNNER_NAMES } = await import('../src/agent.js');
+  assert.ok(RUNNER_NAMES.includes('codex'), `expected codex in ${RUNNER_NAMES.join(', ')}`);
+});
+
+test('the preflight runner vocabulary matches the runners that actually exist', async () => {
+  const { RUNNER_NAMES } = await import('../src/agent.js');
+  const { AGENT_RUNNERS } = await import('../src/preflight.js');
+  assert.deepEqual([...AGENT_RUNNERS].sort(), [...RUNNER_NAMES].sort());
 });
