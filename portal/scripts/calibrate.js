@@ -28,9 +28,13 @@ function heading(text) {
 
 // Run codex with the given argv, collecting raw stdout and feeding the runner's
 // own sink, so calibration and the runner can never disagree about parsing.
-function runCodex(args, cwd) {
+function runCodexProbe(args, cwd) {
   return new Promise(resolve => {
     const child = spawn('codex', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    // Decode at the stream level, not per chunk: a multi-byte character (a
+    // pound sign, an accented name) split across a pipe boundary would
+    // otherwise decode as a replacement character on each side independently.
+    child.stdout.setEncoding('utf8');
     const sink = createCodexEventSink();
     let raw = '';
     let partial = '';
@@ -69,6 +73,16 @@ async function calibrateCodex() {
   }
 
   heading('Step 3: one real turn in a throwaway directory');
+  // Same guard preflight.js applies at startup. Without it, a user who copies
+  // .env.example, sets AGENT_RUNNER=codex and leaves an explicit Claude
+  // AGENT_MODEL in place gets a spawn that fails for a reason that has
+  // nothing to do with buildCodexArgs, and the verdict below would point them
+  // at the wrong function.
+  if (config.agentModelExplicit && /^claude-/.test(config.agentModel || '')) {
+    record('AGENT_MODEL is compatible with codex', false,
+      `AGENT_MODEL is "${config.agentModel}", which is a Claude model id. Leave AGENT_MODEL unset to let codex choose its own default, or set a codex model.`);
+    return 1;
+  }
   const scratch = mkdtempSync(join(tmpdir(), 'portal-calibrate-'));
   console.log(`Working directory: ${scratch}`);
   const newArgs = buildCodexArgs({
@@ -78,7 +92,7 @@ async function calibrateCodex() {
     fullPrompt: `Reply with exactly this token and nothing else: ${SENTINEL}`,
   });
   console.log(`argv: codex ${newArgs.slice(0, -1).join(' ')} <prompt>`);
-  const first = await runCodex(newArgs, scratch);
+  const first = await runCodexProbe(newArgs, scratch);
 
   mkdirSync(DATA_DIR, { recursive: true });
   const stamp = new Date().toISOString().slice(0, 10);
@@ -100,7 +114,7 @@ async function calibrateCodex() {
     first.text ? first.text.slice(0, 120) : 'no reply');
 
   if (!first.threadId) {
-    console.log('\nNo thread id, so the resume path cannot be tested. Fix parseCodexEvents');
+    console.log('\nNo thread id, so the resume path cannot be tested. Fix createCodexEventSink');
     console.log('first: compare the thread.started line in the saved stream against the');
     console.log('field names it reads.');
     return 1;
@@ -114,7 +128,13 @@ async function calibrateCodex() {
     fullPrompt: 'What was the exact token I asked you to reply with in my previous message? Reply with just that token.',
   });
   console.log(`argv: codex ${resumeArgs.slice(0, -1).join(' ')} <prompt>`);
-  const second = await runCodex(resumeArgs, scratch);
+  const second = await runCodexProbe(resumeArgs, scratch);
+  // A resumed turn can be accepted (exit 0, no spawn error) yet emit its own
+  // fresh thread.started because the argv was silently ignored. That is
+  // direct evidence for the "accepted but the thread did not remember" row of
+  // the failure table below, so it is worth surfacing even when the sentinel
+  // check also fails for the same underlying reason.
+  const threadIdChanged = Boolean(second.threadId) && second.threadId !== first.threadId;
 
   // Two separate questions, deliberately reported separately: whether the
   // command line was accepted at all, and whether the thread remembered.
@@ -122,7 +142,11 @@ async function calibrateCodex() {
     second.spawnError ? second.spawnError.message
       : second.code === 0 ? 'exit 0' : `exit ${second.code}: ${second.errOut.trim()}`);
   record('the resumed thread remembered turn 1', Boolean(second.text?.includes(SENTINEL)),
-    second.text ? second.text.slice(0, 120) : 'no reply');
+    second.text
+      ? threadIdChanged
+        ? `${second.text.slice(0, 120)} (resume emitted a new thread id "${second.threadId}", different from turn 1's "${first.threadId}": resume was accepted but silently ignored, not carried)`
+        : second.text.slice(0, 120)
+      : 'no reply');
 
   heading('Verdict');
   const failed = verdicts.filter(v => !v.ok);
