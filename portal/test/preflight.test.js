@@ -22,6 +22,9 @@ function valid(overrides = {}) {
     usersFile: '/portal/data/users.json',
     allowedEmails: [],
     projectDir: '/home/u/job-search',
+    agentRunner: 'claude-sdk',
+    agentModel: 'claude-opus-5',
+    agentModelExplicit: false,
     ...overrides,
   };
 }
@@ -208,4 +211,66 @@ test('config exposes bindHost, exposure and emailProviderExplicit', async () => 
 test('config exposes agentModelExplicit', async () => {
   const { config } = await import('../src/config.js');
   assert.equal(typeof config.agentModelExplicit, 'boolean');
+});
+
+const binPresent = () => true;
+const binAbsent = () => false;
+
+test('an unknown AGENT_RUNNER is an error naming the valid values', () => {
+  const issues = checkConfig(valid({ agentRunner: 'gemini' }), { exists: alwaysExists });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /AGENT_RUNNER/);
+  assert.match(errors(issues)[0].message, /claude-sdk, cli, codex/);
+});
+
+test('an empty AGENT_RUNNER is an error', () => {
+  const issues = checkConfig(valid({ agentRunner: '' }), { exists: alwaysExists });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /AGENT_RUNNER/);
+});
+
+test('each valid AGENT_RUNNER passes', () => {
+  for (const agentRunner of ['claude-sdk', 'cli', 'codex']) {
+    const issues = checkConfig(
+      valid({ agentRunner }), { exists: alwaysExists, lookupBin: binPresent });
+    assert.deepEqual(errors(issues), [], `expected no errors for ${agentRunner}`);
+  }
+});
+
+test('AGENT_RUNNER=codex with no codex on PATH is an error', () => {
+  const issues = checkConfig(
+    valid({ agentRunner: 'codex' }), { exists: alwaysExists, lookupBin: binAbsent });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /codex/);
+  assert.match(errors(issues)[0].message, /PATH/);
+});
+
+test('the PATH check applies only to the codex runner', () => {
+  for (const agentRunner of ['claude-sdk', 'cli']) {
+    const issues = checkConfig(
+      valid({ agentRunner }), { exists: alwaysExists, lookupBin: binAbsent });
+    assert.deepEqual(errors(issues), [], `expected no errors for ${agentRunner}`);
+  }
+});
+
+test('AGENT_RUNNER=codex with an explicit Claude AGENT_MODEL is an error', () => {
+  const issues = checkConfig(
+    valid({ agentRunner: 'codex', agentModel: 'claude-opus-5', agentModelExplicit: true }),
+    { exists: alwaysExists, lookupBin: binPresent });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /AGENT_MODEL/);
+});
+
+test('AGENT_RUNNER=codex with an unset AGENT_MODEL is fine, even though the default is a Claude id', () => {
+  const issues = checkConfig(
+    valid({ agentRunner: 'codex', agentModel: 'claude-opus-5', agentModelExplicit: false }),
+    { exists: alwaysExists, lookupBin: binPresent });
+  assert.deepEqual(errors(issues), []);
+});
+
+test('AGENT_RUNNER=codex with an explicit codex model is fine', () => {
+  const issues = checkConfig(
+    valid({ agentRunner: 'codex', agentModel: 'gpt-5-codex', agentModelExplicit: true }),
+    { exists: alwaysExists, lookupBin: binPresent });
+  assert.deepEqual(errors(issues), []);
 });

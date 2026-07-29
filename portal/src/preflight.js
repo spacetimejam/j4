@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
 
 // The value shipped in .env.example. Treated as absent, because a user who
 // copied the example and never edited it has no secret at all.
@@ -30,10 +31,27 @@ const PROVIDER_CREDENTIALS = {
 // neither needs a value here.
 const PROVIDERS_NEEDING_FROM = new Set(['smtp', 'brevo']);
 
+// Every value agent.js's RUNNERS map accepts. Kept here so a bad AGENT_RUNNER
+// fails at startup rather than at the first job, where it currently surfaces
+// to the user as a failed session rather than a configuration problem. Not
+// imported from agent.js, because that would pull the Claude SDK into a
+// module whose whole point is to run cheaply before anything else loads;
+// agent.test.js pins the two lists together instead.
+export const AGENT_RUNNERS = ['claude-sdk', 'cli', 'codex'];
+
+// Is `bin` executable somewhere on PATH? A plain scan rather than a
+// subprocess, so preflight stays synchronous and cheap. Injected as
+// `lookupBin` so tests need no real binary.
+function onPath(bin) {
+  return (process.env.PATH || '')
+    .split(delimiter)
+    .some(dir => dir && existsSync(join(dir, bin)));
+}
+
 // Validate configuration before the server binds. Errors are conditions that
 // cannot work and so abort startup; warnings are conditions that merely
 // deserve saying out loud. `exists` is injected so tests need no filesystem.
-export function checkConfig(cfg, { exists = existsSync } = {}) {
+export function checkConfig(cfg, { exists = existsSync, lookupBin = onPath } = {}) {
   const issues = [];
   const err = message => issues.push({ level: 'error', message });
   const warn = message => issues.push({ level: 'warn', message });
@@ -103,6 +121,21 @@ export function checkConfig(cfg, { exists = existsSync } = {}) {
   // user carries their own projectDir, and config's default rarely exists.
   if (hasAllowlist && !exists(cfg.projectDir)) {
     err(`PROJECT_DIR does not exist: ${cfg.projectDir}`);
+  }
+
+  // --- Agent runner --------------------------------------------------------
+  const runner = cfg.agentRunner || '';
+  if (!AGENT_RUNNERS.includes(runner)) {
+    err(`AGENT_RUNNER is "${runner}", which is not one of: ${AGENT_RUNNERS.join(', ')}.`);
+  } else if (runner === 'codex') {
+    if (!lookupBin('codex')) {
+      err('AGENT_RUNNER is "codex" but no codex binary is on PATH. Install the Codex CLI, or set AGENT_RUNNER=claude-sdk in .env.');
+    }
+    // AGENT_MODEL defaults to a Claude id, so only an explicit setting is a
+    // mistake. Left unset, the codex runner omits --model and codex chooses.
+    if (cfg.agentModelExplicit && /^claude-/.test(cfg.agentModel || '')) {
+      err(`AGENT_RUNNER is "codex" but AGENT_MODEL is "${cfg.agentModel}", which is a Claude model id. Leave AGENT_MODEL unset to let codex choose its own default, or set a codex model.`);
+    }
   }
 
   // --- Bind ----------------------------------------------------------------

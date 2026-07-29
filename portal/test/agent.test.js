@@ -216,3 +216,9 @@ test('codex is a registered runner', async () => {
   const { RUNNER_NAMES } = await import('../src/agent.js');
   assert.ok(RUNNER_NAMES.includes('codex'), `expected codex in ${RUNNER_NAMES.join(', ')}`);
 });
+
+test('the preflight runner vocabulary matches the runners that actually exist', async () => {
+  const { RUNNER_NAMES } = await import('../src/agent.js');
+  const { AGENT_RUNNERS } = await import('../src/preflight.js');
+  assert.deepEqual([...AGENT_RUNNERS].sort(), [...RUNNER_NAMES].sort());
+});
