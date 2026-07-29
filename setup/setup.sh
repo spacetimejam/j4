@@ -186,6 +186,16 @@ if [ "$SKIP_DEPS" = "no" ]; then
     esac
   fi
 
+  case "$PORTAL" in
+    y|Y|yes|Yes|YES)
+      if command -v node >/dev/null 2>&1; then
+        echo "  node: found ($(node --version)); needed by the portal"
+      else
+        echo "  node: NOT found. The portal needs Node 18 or newer."
+        echo "        macOS: brew install node   Linux/WSL: sudo apt install -y nodejs npm"
+      fi ;;
+  esac
+
   echo "  Detected AI CLIs (none will be installed):"
   found_cli="no"
   for cli in claude codex cursor gemini; do
@@ -271,6 +281,9 @@ if [ "$PORTAL" = "yes" ]; then
   else
     echo "Portal: registered (no failure alerts), project $ABS_TARGET."
   fi
+  echo "        This records who you are. The portal itself is not set up yet, and"
+  echo "        is not running. Your AI assistant will set it up with you in a"
+  echo "        later session, following docs/portal-remote-access.md."
 fi
 
 # --- SETUP.md ----------------------------------------------------------------
@@ -304,10 +317,11 @@ if [ "$PORTAL" = "yes" ]; then
     /^[0-9]+\. Delete this file/ {
       split($0, parts, ".")
       n = parts[1] + 0
-      print n ". If you chose the portal: this person is already registered with the"
-      print "   shared portal in the kit checkout. If that portal has never been set up,"
-      print "   configure it per the kit'"'"'s docs/portal.md (its .env and npm install in"
-      print "   the kit'"'"'s portal/ folder), then test a submission end to end with the user."
+      print n ". If you chose the portal: this person is registered with the shared"
+      print "   portal in the kit checkout, but the portal may not be running yet. Follow"
+      print "   the kit'"'"'s docs/portal-remote-access.md to install it, publish it with"
+      print "   Tailscale, and run ./setup-remote.sh verify, then test a submission end"
+      print "   to end with the user."
       sub(/^[0-9]+\./, (n + 1) ".", $0)
       print
       next

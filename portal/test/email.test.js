@@ -99,3 +99,32 @@ test('unknown provider throws without retrying', async () => {
   await assert.rejects(sendEmail({ to: 'owner@test.com', subject: 'x', text: 'x' }), /unknown email provider/);
   config.emailProvider = 'webhook';
 });
+
+test('log provider writes the message to stdout and resolves', async () => {
+  config.emailProvider = 'log';
+  const written = [];
+  const realLog = console.log;
+  console.log = (...args) => written.push(args.join(' '));
+  try {
+    await sendEmail({
+      to: 'owner@test.com',
+      subject: 'Your login link',
+      text: 'Click to log in: https://box.ts.net/auth/abc123',
+      attachments: [{ filename: 'prep.md', contentBase64: Buffer.from('x').toString('base64') }],
+    });
+  } finally {
+    console.log = realLog;
+  }
+  const out = written.join('\n');
+  assert.match(out, /owner@test\.com/);
+  assert.match(out, /Your login link/);
+  assert.match(out, /auth\/abc123/);
+  // Attachments are named, not dumped, and .md is normalised first.
+  assert.match(out, /prep\.txt/);
+  assert.doesNotMatch(out, /contentBase64/);
+});
+
+test('log provider still enforces the allowlist', async () => {
+  config.emailProvider = 'log';
+  await assert.rejects(sendEmail({ to: 'evil@test.com', subject: 'x', text: 'x' }), /allowlist/);
+});

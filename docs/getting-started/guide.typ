@@ -72,7 +72,7 @@ If you prefer a different assistant, install it per its own instructions. During
 
 == Step 4 (optional): Node.js, for the portal
 
-The kit includes an optional web portal that lets you submit job adverts from your phone and receive tailored PDFs by email. It needs Node.js 20 or newer. Skip this happily; you can add it later.
+The kit includes an optional web portal that lets you submit job adverts from your phone and receive tailored PDFs by email. It needs Node.js 18 or newer. Skip this happily; you can add it later.
 
 - *macOS:* `brew install node` (or the installer from nodejs.org)
 - *Linux / WSL:* `sudo apt install -y nodejs npm`

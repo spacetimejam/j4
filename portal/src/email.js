@@ -51,7 +51,22 @@ async function sendViaWebhook({ to, subject, text, attachments }, { fetchImpl })
   if (!res.ok) throw new Error(`webhook responded ${res.status}`);
 }
 
-const PROVIDERS = { brevo: sendViaBrevo, smtp: sendViaSmtp, webhook: sendViaWebhook };
+// The smoke-test provider: no account, no credentials, no network. Prints the
+// message so a first-time user can copy a login link out of the terminal and
+// confirm the rest of the portal works before configuring mail. Never a
+// default, because a silent no-op would be worse than a loud failure.
+async function sendViaLog({ to, subject, text, attachments }) {
+  const names = attachments.map(a => a.filename).join(', ') || 'none';
+  console.log(
+    `\n--- email (EMAIL_PROVIDER=log, not actually sent) ---\n` +
+    `to:          ${to}\n` +
+    `subject:     ${subject}\n` +
+    `attachments: ${names}\n\n` +
+    `${text}\n` +
+    `--- end email ---\n`);
+}
+
+const PROVIDERS = { brevo: sendViaBrevo, smtp: sendViaSmtp, webhook: sendViaWebhook, log: sendViaLog };
 
 // Brevo rejects .md attachment filenames ("Unsupported file format: md") and
 // 400s the whole send, which loses interview prep and the plain-text CV

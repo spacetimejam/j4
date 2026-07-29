@@ -17,8 +17,21 @@ The kit handles:
 
 - macOS (10.15+), Linux, or Windows Subsystem for Linux
 - A terminal and git
-- An AI coding assistant such as Claude Code, Claude, or equivalent
+- An AI coding assistant such as Claude Code, Claude, or equivalent. This
+  costs money to run: either a paid Claude plan (Pro or Max), or API access
+  billed by usage (an `ANTHROPIC_API_KEY`, see `docs/portal.md`).
+- Node.js 18+, only if you want the optional submission portal (see `portal/`
+  below)
 - Approximately 30 minutes for initial setup
+
+## Start here
+
+New to the terminal, or not sure what any of this means? Read
+[`docs/getting-started/`](docs/getting-started) first: a step-by-step guide
+(as a PDF, "Job Search Kit - Getting Started.pdf", and its Typst source)
+written for people who have never used one, that walks you all the way from
+a bare computer to the point where the wizard below takes over. Everyone
+else can go straight to Installation.
 
 ## Installation
 
@@ -30,7 +43,7 @@ git clone https://github.com/spacetimejam/j4 && cd j4 && ./setup/setup.sh
 
 The wizard will:
 - Create your project structure (core documents, templates, application folders)
-- Set up your file tracker connection
+- Set up your application tracker, a CSV file with no external connection to configure
 - Initialise an optional Typst render pipeline for polished CV and cover-letter PDFs (you pick your own template from Typst Universe; the kit does not ship a design)
 - Seed template documents with your information
 
@@ -59,7 +72,7 @@ The kit creates:
 - `portfolio/`: case-study bank (created when you choose the creative module in setup)
 - `render/`: Typst rendering for professional PDFs (optional; bring your own template)
 - `tracker/`: configuration for your application log
-- `portal/`: an optional web app for submitting job descriptions from your phone, run from the kit checkout; the setup wizard registers you with it when you choose the portal in setup. Each submission runs an agent session in your project and emails you the finished PDFs. Read the security notes before exposing it to any network. One instance can serve several people, each mapped to their own project folder.
+- `portal/`: an optional web app for submitting job descriptions from your phone, run from the kit checkout; the setup wizard registers you with it when you choose the portal in setup. Each submission runs an agent session in your project and emails you the finished PDFs. Read the security notes before exposing it to any network. One instance can serve several people, each mapped to their own project folder. Reach it remotely with Tailscale; see `docs/portal-remote-access.md`.
 
 Portal setup, deployment and security guidance lives in `docs/portal.md`.
 
