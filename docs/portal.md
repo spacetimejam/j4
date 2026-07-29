@@ -104,7 +104,11 @@ Then edit `.env`, field by field:
 - `DB_PATH` (optional): where the SQLite database lives. Defaults to
   `data/portal.db` inside `portal/`.
 - `PORTAL_TITLE`: the name shown in the web app and email subjects.
-- `AGENT_MODEL`: the Claude model used for portal sessions.
+- `AGENT_MODEL`: the model used for portal sessions. What it means depends on
+  `AGENT_RUNNER`: for `claude-sdk` it is a Claude model id and defaults to
+  `claude-opus-5`; for `codex` it should be left unset so the codex runner
+  omits `--model` and lets Codex choose its own default (see "Using Codex"
+  below).
 - `AGENT_RUNNER`, `AGENT_CMD`, `AGENT_CMD_RESUME`: see "Using a different
   LLM" below. Leave at the defaults to use the Claude Agent SDK.
 - `EMAIL_PROVIDER` and the provider fields: see "Choosing an email provider"
@@ -335,6 +339,16 @@ access, which would silently gut the salary, company and interviewer research
 the portal agent depends on, while the agent carried on and returned thinner
 work with no sign of why.
 
+**There is a hard ceiling on how long a submission can be.** The prompt is
+passed as a single command-line argument, and on Linux a single argument is
+capped by `MAX_ARG_STRLEN` at roughly 128KB, regardless of `ulimit` and much
+lower than the machine's overall `ARG_MAX`. The portal accepts submissions up
+to 1MB and the portal system prompt alone is about 6.7KB, so a very long
+pasted job advert, or a long-running thread (a resumed turn that fails
+rebuilds its prompt from the whole message history), can cross that line. If
+it does, the runner raises a clear error naming the limit rather than a bare
+`spawn E2BIG`; shortening the submission is the fix.
+
 ## Portal calibration
 
 **The codex runner was written to the documented `codex exec --json` event
@@ -381,7 +395,9 @@ Take this section seriously before exposing the portal to anything.
   session can run commands and edit files in `PROJECT_DIR` without asking
   you first. That is what makes unattended submissions work, and it is also
   why anyone who can submit to the portal can effectively drive an agent on
-  your machine.
+  your machine. `AGENT_RUNNER=codex` runs with `--sandbox danger-full-access`,
+  which is the equivalent posture for Codex: the risk described here applies
+  the same way regardless of which runner is configured.
 - **Run it only on a network you control.** Localhost, a VPN such as
   Tailscale or WireGuard, or a tunnel that has its own authentication in
   front. Never expose the portal bare to the internet.

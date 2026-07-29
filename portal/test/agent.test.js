@@ -69,7 +69,7 @@ function fakeSpawn({ stdout = '', code = 0 } = {}) {
   const spawnImpl = (bin, args, opts) => {
     const handlers = {};
     const child = {
-      stdout: { on: (ev, fn) => { if (ev === 'data') child._out = fn; } },
+      stdout: { on: (ev, fn) => { if (ev === 'data') child._out = fn; }, setEncoding: () => {} },
       stderr: { on: () => {} },
       on: (ev, fn) => { handlers[ev] = fn; },
       stdin: {

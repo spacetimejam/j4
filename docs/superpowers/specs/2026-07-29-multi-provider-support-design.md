@@ -135,8 +135,24 @@ the resume path is a subcommand whose composition with the stdin sentinel is
 not documented at all. We are already carrying one unverified assumption about
 resume; adding a second, unverified in the same direction, would make a failure
 harder to diagnose. There is no quoting hazard because the runner spawns
-without a shell, and a portal prompt plus a job advert is on the order of tens
-of kilobytes, far inside `ARG_MAX` on both macOS and Linux.
+without a shell.
+
+The ceiling is lower than it looks, though, and the earlier draft of this
+section got it wrong by citing `ARG_MAX`. `ARG_MAX` bounds the combined size of
+argv plus environment for `execve`, but on Linux a single argv entry is
+additionally capped by `MAX_ARG_STRLEN`, fixed at 131072 bytes (128KiB),
+independent of `ARG_MAX` and not raisable with `ulimit`. The portal accepts
+request bodies up to 1MB (`express.json({ limit: '1mb' })` in
+`portal/src/server.js`), and the portal system prompt alone is about 6.7KB, so
+a long pasted job advert is not "tens of kilobytes, far inside" anything; it
+can realistically exceed 128KB. `buildRecoveryPrompt` in `portal/src/queue.js`
+makes this worse on a resumed turn, since it concatenates the whole message
+history into the new prompt. `runCodex` translates the resulting `E2BIG` spawn
+error into a message naming the limit, rather than letting a bare errno reach
+an admin alert. If the limit turns out to bite in practice, the documented `-`
+stdin sentinel is the escape hatch, at the cost of carrying the same
+unverified-resume-composition risk into the stdin path too, which is exactly
+why it was not used up front.
 
 ### Why the system prompt is re-sent on every turn
 
@@ -250,9 +266,16 @@ context):
 | `failure` set by the parser | that message |
 | exit 0 but no `agent_message` | explicit "no reply" error |
 
-The last row is the point of the whole component. A broken resume now degrades
-to a cold session carrying recovery context and a visible failure, instead of
-today's silent amnesia.
+The last row is the point of the whole component. A broken resume argv makes
+`runCodex` throw on the resumed call, and `queue.js`'s existing recovery path
+catches that and retries once in a fresh session built from
+`buildRecoveryPrompt`. When that retry succeeds, which is the normal case,
+neither the user nor an admin sees anything: the reply arrives as usual, just
+with no real memory of the previous turn, and every subsequent turn quietly
+costs two codex invocations and rebuilds context from truncated history rather
+than a resumed thread. That is silent, not visibly failed, which is exactly
+why calibration exists: it is what makes a broken resume argv detectable
+before it reaches production, since production itself will not surface it.
 
 ### 3. `portal/src/config.js`
 

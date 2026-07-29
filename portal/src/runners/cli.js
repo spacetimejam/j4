@@ -29,6 +29,10 @@ export async function runCli(
   const stdout = await new Promise((resolve, reject) => {
     const child = spawnImpl(bin, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '', errOut = '';
+    // Same fix as runners/codex.js: decode at the stream level so a
+    // multi-byte character split across a pipe boundary does not corrupt
+    // into a replacement character.
+    child.stdout.setEncoding('utf8');
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { errOut += d; });
     child.on('error', reject);
