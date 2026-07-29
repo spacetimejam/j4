@@ -27,7 +27,7 @@ The Job Search Kit is a private, AI-operated working environment for a job searc
 == What you need
 
 - A computer running *macOS*, *Linux*, or *Windows* (Windows works through WSL, step 1 below).
-- An *AI coding assistant*. The kit is built for *Claude Code* and works best with it; a paid Claude plan (Pro or Max) is required. Codex, Gemini CLI and Cursor can also run your search, with some differences worth knowing about before you choose. See "Using a different AI assistant" near the end of this guide.
+- An *AI coding assistant*. The kit is built for *Claude Code* and works best with it, which needs a paid Claude plan (Pro or Max). Codex, Gemini CLI and Cursor can also run your search, each under its own plan, with some differences worth knowing about before you choose. See "Using a different AI assistant" near the end of this guide.
 - Your *current CV* and links to your portfolio or LinkedIn, for the first session after setup.
 
 == Step 1: open a terminal
@@ -109,7 +109,11 @@ The first launch walks you through signing in. To use it with the portal, set
 `AGENT_RUNNER=codex` in the portal's configuration, and ask whoever runs the
 portal to run its calibration check first. That check is described in
 `docs/portal.md`; it takes a couple of minutes and confirms the kit and your
-version of Codex agree with each other.
+version of Codex agree with each other. Note that `AGENT_RUNNER` applies to
+the whole portal, not just your login: on a shared household portal, setting
+it to `codex` switches every user's sessions to Codex, including anyone using
+Claude Code with only a `CLAUDE.md` in their project folder. Agree this with
+whoever else uses the portal before changing it.
 
 *Gemini CLI.* Your project folder works, after one setting. To install it:
 
