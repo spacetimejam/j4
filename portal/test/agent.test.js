@@ -211,3 +211,8 @@ test('portal prompt explains when awaiting_user is true', () => {
 test('portal prompt instructs the session-title block', () => {
   assert.match(portalPrompt('Sam'), /session-title/);
 });
+
+test('codex is a registered runner', async () => {
+  const { RUNNER_NAMES } = await import('../src/agent.js');
+  assert.ok(RUNNER_NAMES.includes('codex'), `expected codex in ${RUNNER_NAMES.join(', ')}`);
+});

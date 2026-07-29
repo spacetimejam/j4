@@ -1,3 +1,6 @@
+import { spawn } from 'node:child_process';
+import { config } from '../config.js';
+
 // Runner for the Codex CLI (`codex exec --json`), which writes a JSON Lines
 // event stream: one JSON object per line. This is why the generic `cli`
 // runner cannot drive it. That runner JSON.parses the whole of stdout, which
@@ -90,4 +93,64 @@ export function buildCodexArgs({ resumeSessionId, model, modelExplicit, fullProm
   const head = resumeSessionId ? ['exec', 'resume', resumeSessionId] : ['exec'];
   const modelArgs = modelExplicit ? ['--model', model] : [];
   return [...head, '--json', ...SANDBOX, SKIP_REPO_CHECK, ...modelArgs, fullPrompt];
+}
+
+// Satisfies the runner contract documented in src/agent.js. spawnImpl is
+// injected so tests need no child process.
+//
+// The system prompt is re-sent on every turn including resumes, matching the
+// claude-sdk runner, which passes options.systemPrompt on each query(). This
+// costs tokens and is deliberate: the session-title and email-to-user
+// directive formats are load-bearing for the portal, codex compacts long
+// threads, and an instruction that had aged out of a compacted context would
+// produce a session that silently stopped naming itself and stopped
+// delivering documents.
+export async function runCodex(
+  { prompt, systemPrompt, resumeSessionId, cwd, model },
+  { spawnImpl = spawn } = {},
+) {
+  const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+  const args = buildCodexArgs({
+    resumeSessionId: resumeSessionId || null,
+    model,
+    modelExplicit: config.agentModelExplicit,
+    fullPrompt,
+  });
+
+  const sink = createCodexEventSink();
+  let partial = '';
+  let errOut = '';
+
+  await new Promise((resolve, reject) => {
+    const child = spawnImpl('codex', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', data => {
+      partial += data;
+      const lines = partial.split('\n');
+      // The last element is either an incomplete line or an empty string, and
+      // is held back until the next chunk completes it.
+      partial = lines.pop();
+      for (const line of lines) sink.push(line);
+    });
+    child.stderr.on('data', data => { errOut += data; });
+    child.on('error', error => reject(
+      error.code === 'ENOENT'
+        ? new Error('codex was not found on PATH. Install the Codex CLI, or set AGENT_RUNNER to a runner you have.')
+        : error));
+    child.on('close', code => {
+      if (partial.trim()) sink.push(partial);
+      if (code !== 0) reject(new Error(`codex exited ${code}: ${errOut.trim()}`));
+      else resolve();
+    });
+  });
+
+  const { threadId, text, failure } = sink.result();
+  // Everything below throws, so queue.js's existing recovery takes over: one
+  // retry in a fresh session carrying buildRecoveryPrompt context. That is
+  // strictly better than storing a raw event stream as the reply, which is
+  // what the generic cli runner did.
+  if (failure) throw new Error(`codex turn failed: ${failure}`);
+  if (text === null) {
+    throw new Error('codex exited cleanly but emitted no agent_message, so there is no reply to store.');
+  }
+  return { sessionId: threadId ?? resumeSessionId ?? null, text };
 }

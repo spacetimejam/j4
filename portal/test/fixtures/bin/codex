@@ -1,0 +1,11 @@
+#!/bin/sh
+# Stand-in for the codex CLI in tests. Emits a real-shaped JSON Lines event
+# stream on stdout and exits 0. POSIX sh only: the kit supports macOS, whose
+# system bash is 3.2, and the development box's bash 5.2 would hide the
+# difference. Argv is echoed to stderr so a test can inspect what was passed.
+echo "argv: $*" >&2
+printf '%s\n' '{"type":"thread.started","thread_id":"th_fixture_1"}'
+printf '%s\n' '{"type":"turn.started"}'
+printf '%s\n' '{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"bash -lc ls","aggregated_output":"","exit_code":null,"status":"in_progress"}}'
+printf '%s\n' '{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"Fixture reply."}}'
+printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":3}}'

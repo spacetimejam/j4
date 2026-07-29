@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { runClaudeSdk } from './runners/claude-sdk.js';
 import { runCli } from './runners/cli.js';
+import { runCodex } from './runners/codex.js';
 
 export const portalPrompt = (userName) => `
 You are working inside a job-search project on ${userName}'s behalf, driven from the
@@ -158,7 +159,11 @@ export function parseTitleDirective(text) {
 // where systemPrompt is the portal instructions to append, resumeSessionId is
 // null for a new session, cwd and the userName baked into systemPrompt come
 // from the session's user, and the returned sessionId is passed back on resume.
-const RUNNERS = { 'claude-sdk': runClaudeSdk, cli: runCli };
+const RUNNERS = { 'claude-sdk': runClaudeSdk, cli: runCli, codex: runCodex };
+
+// The vocabulary of valid AGENT_RUNNER values, exported so preflight.js can
+// be checked against it rather than repeating the list.
+export const RUNNER_NAMES = Object.keys(RUNNERS);
 
 export async function runAgentTurn({ prompt, resumeSessionId, user }, { runners = RUNNERS } = {}) {
   const runner = runners[config.agentRunner];
