@@ -91,6 +91,25 @@ test('unrecognised EXPOSURE also applies the stricter public secret bar', () => 
   assert.match(issueErrors[1].message, /COOKIE_SECRET/);
 });
 
+test('EXPOSURE is matched case-insensitively', () => {
+  for (const exposure of ['PUBLIC', 'Public', 'PRIVATE', 'Private']) {
+    const issues = checkConfig(valid({ exposure }), { exists: alwaysExists });
+    assert.deepEqual(errors(issues), [], `expected no errors for ${exposure}`);
+  }
+});
+
+test('EXPOSURE tolerates surrounding whitespace', () => {
+  const issues = checkConfig(valid({ exposure: '  private  ' }), { exists: alwaysExists });
+  assert.deepEqual(errors(issues), []);
+});
+
+test('uppercase PUBLIC still applies the stricter public secret bar', () => {
+  const issues = checkConfig(
+    valid({ exposure: 'PUBLIC', cookieSecret: OK_PRIVATE_SECRET }), { exists: alwaysExists });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /EXPOSURE=public requires at least 64/);
+});
+
 test('http BASE_URL on a non-local host is an error naming the Secure cookie', () => {
   const issues = checkConfig(
     valid({ baseUrl: 'http://192.168.1.10:8710' }), { exists: alwaysExists });

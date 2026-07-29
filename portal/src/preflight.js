@@ -41,7 +41,11 @@ export function checkConfig(cfg, { exists = existsSync } = {}) {
   // --- Exposure ------------------------------------------------------------
   // EXPOSURE describes reachability, not tooling, so a publicly reachable
   // Caddy install is held to the same bar as a Tailscale Funnel one.
-  let exposure = cfg.exposure || '';
+  // Normalised here rather than in config.js because this is where the
+  // vocabulary is defined, and because it also covers the plain objects the
+  // tests inject. EXPOSURE=PUBLIC used to stop the service with a message
+  // that named the value without hinting that case was the culprit.
+  let exposure = (cfg.exposure || '').trim().toLowerCase();
   if (!exposure) {
     warn('EXPOSURE is not set, so this portal is being treated as private. If it is reachable from the public internet, set EXPOSURE=public in .env so the stronger COOKIE_SECRET rule applies.');
     exposure = 'private';
