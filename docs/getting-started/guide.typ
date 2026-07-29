@@ -27,7 +27,7 @@ The Job Search Kit is a private, AI-operated working environment for a job searc
 == What you need
 
 - A computer running *macOS*, *Linux*, or *Windows* (Windows works through WSL, step 1 below).
-- An *AI coding assistant*. The kit is built for *Claude Code* and works best with it; a paid Claude plan (Pro or Max) is required. Other tools that read AGENTS.md files (Codex, Gemini CLI, Cursor) also work.
+- An *AI coding assistant*. The kit is built for *Claude Code* and works best with it; a paid Claude plan (Pro or Max) is required. Codex, Gemini CLI and Cursor can also run your search, with some differences worth knowing about before you choose. See "Using a different AI assistant" near the end of this guide.
 - Your *current CV* and links to your portfolio or LinkedIn, for the first session after setup.
 
 == Step 1: open a terminal
@@ -87,6 +87,55 @@ cd j4 && ./setup/setup.sh
 ```
 
 The wizard checks your machine, asks a short set of questions about you and your search (including whether to register you with the shared submission portal, if your household runs one, and if so whether you should receive failure alerts from it), and builds your personal project folder inside the kit, named with your initials (for example `j4/sj`). When it finishes, it tells you the final step: move into that new folder in the terminal and start your AI assistant from inside it, for example `cd ~/j4/sj` and then `claude`. Starting it from inside the folder is what lets the assistant see your project. Once it is running, say *"run setup"*. The assistant then interviews you properly, builds your profile and CV materials, and from that point on you are running your search together.
+
+== Using a different AI assistant
+
+The kit is built for Claude Code and that is the smoothest path. Three other
+assistants can run your search too. What differs is not the quality of the
+help you get day to day, but whether the optional web portal works with them.
+
+*Claude Code.* Everything works: your project folder and the portal. Nothing
+extra to do.
+
+*Codex.* Your project folder works straight away. Portal support is new. To
+install it (Node.js from step 4 is needed first):
+
+```
+npm install -g @openai/codex
+codex
+```
+
+The first launch walks you through signing in. To use it with the portal, set
+`AGENT_RUNNER=codex` in the portal's configuration, and ask whoever runs the
+portal to run its calibration check first. That check is described in
+`docs/portal.md`; it takes a couple of minutes and confirms the kit and your
+version of Codex agree with each other.
+
+*Gemini CLI.* Your project folder works, after one setting. To install it:
+
+```
+npm install -g @google/gemini-cli
+gemini
+```
+
+Gemini looks for a file called `GEMINI.md`, while the kit writes `AGENTS.md`.
+Point it at the right file by creating `.gemini/settings.json` in your project
+folder containing:
+
+```
+{ "contextFileName": ["AGENTS.md", "GEMINI.md"] }
+```
+
+On newer versions that setting is nested instead, as
+`{ "context": { "fileName": ["AGENTS.md", "GEMINI.md"] } }`. If one form is
+ignored, try the other. There is no portal support for Gemini CLI.
+
+*Cursor.* Your project folder works straight away: Cursor reads `AGENTS.md`
+without configuration. There is no portal support for Cursor.
+
+The portal is optional in all cases. Without it you submit job adverts by
+talking to your assistant in the terminal, which is how the kit is designed to
+work anyway; the portal exists so you can also do it from your phone.
 
 == Good to know
 
