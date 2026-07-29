@@ -41,8 +41,9 @@ export const AGENT_RUNNERS = ['claude-sdk', 'cli', 'codex'];
 
 // Is `bin` executable somewhere on PATH? A plain scan rather than a
 // subprocess, so preflight stays synchronous and cheap. Injected as
-// `lookupBin` so tests need no real binary.
-function onPath(bin) {
+// `lookupBin` so tests need no real binary. Exported so a test can exercise
+// the real default directly, rather than only ever through an injected fake.
+export function onPath(bin) {
   return (process.env.PATH || '')
     .split(delimiter)
     .some(dir => dir && existsSync(join(dir, bin)));
@@ -136,6 +137,12 @@ export function checkConfig(cfg, { exists = existsSync, lookupBin = onPath } = {
     if (cfg.agentModelExplicit && /^claude-/.test(cfg.agentModel || '')) {
       err(`AGENT_RUNNER is "codex" but AGENT_MODEL is "${cfg.agentModel}", which is a Claude model id. Leave AGENT_MODEL unset to let codex choose its own default, or set a codex model.`);
     }
+    // A warning, not an error: the runner may well be correct. But a broken
+    // assumption here fails silently in production (queue.js's existing
+    // retry-in-a-fresh-session recovery swallows it, so neither the user nor
+    // an admin sees anything), so this is the one place to say out loud that
+    // calibration is the way to find out before that happens.
+    warn('AGENT_RUNNER is "codex". This runner is written to the documented codex exec --json event stream and has not been verified against a live binary. Run `npm run calibrate` once before first use.');
   }
 
   // --- Bind ----------------------------------------------------------------

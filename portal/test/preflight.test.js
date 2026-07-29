@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { checkConfig, PLACEHOLDER_SECRET } from '../src/preflight.js';
+import { dirname, delimiter } from 'node:path';
+import { checkConfig, PLACEHOLDER_SECRET, onPath } from '../src/preflight.js';
 
 const GOOD_SECRET = 'a'.repeat(64);
 const OK_PRIVATE_SECRET = 'b'.repeat(32);
@@ -273,4 +274,37 @@ test('AGENT_RUNNER=codex with an explicit codex model is fine', () => {
     valid({ agentRunner: 'codex', agentModel: 'gpt-5-codex', agentModelExplicit: true }),
     { exists: alwaysExists, lookupBin: binPresent });
   assert.deepEqual(errors(issues), []);
+});
+
+test('AGENT_RUNNER=codex always warns that calibration has not been run, even when otherwise valid', () => {
+  const issues = checkConfig(
+    valid({ agentRunner: 'codex', agentModel: 'gpt-5-codex', agentModelExplicit: true }),
+    { exists: alwaysExists, lookupBin: binPresent });
+  assert.deepEqual(errors(issues), []);
+  const calibrationWarnings = warns(issues).filter(w => /calibrate/.test(w.message));
+  assert.equal(calibrationWarnings.length, 1);
+  assert.match(calibrationWarnings[0].message, /has not been verified against a live binary/);
+});
+
+test('other runners do not get the codex calibration warning', () => {
+  for (const agentRunner of ['claude-sdk', 'cli']) {
+    const issues = checkConfig(valid({ agentRunner }), { exists: alwaysExists, lookupBin: binPresent });
+    assert.equal(warns(issues).filter(w => /calibrate/.test(w.message)).length, 0);
+  }
+});
+
+test('onPath (the real default lookup, not an injected fake) finds a real binary and rejects a made-up one', () => {
+  // Prove the default itself works, not just every test's injected
+  // replacement for it. node is a safe stand-in for a real binary: its own
+  // directory is guaranteed to exist, even if it is not already on PATH in
+  // whatever environment runs this test.
+  const nodeDir = dirname(process.execPath);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${nodeDir}${delimiter}${originalPath || ''}`;
+  try {
+    assert.equal(onPath('node'), true);
+    assert.equal(onPath('definitely-not-a-real-binary-9f3c2a'), false);
+  } finally {
+    process.env.PATH = originalPath;
+  }
 });
