@@ -106,7 +106,7 @@ Then edit `.env`, field by field:
 - `PORTAL_TITLE`: the name shown in the web app and email subjects.
 - `AGENT_MODEL`: the model used for portal sessions. What it means depends on
   `AGENT_RUNNER`: for `claude-sdk` it is a Claude model id and defaults to
-  `claude-opus-5`; for `codex` it should be left unset so the codex runner
+  `claude-opus-4-6`; for `codex` it should be left unset so the codex runner
   omits `--model` and lets Codex choose its own default (see "Using Codex"
   below).
 - `AGENT_RUNNER`, `AGENT_CMD`, `AGENT_CMD_RESUME`: see "Using a different
