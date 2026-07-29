@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseCodexEvents } from '../src/runners/codex.js';
+import { parseCodexEvents, buildCodexArgs } from '../src/runners/codex.js';
 
 // Real-shaped events, taken from the documented codex exec --json stream.
 const THREAD = '{"type":"thread.started","thread_id":"th_abc123"}';
@@ -73,4 +73,60 @@ test('blank lines are ignored', () => {
 
 test('an empty stream yields nothing at all', () => {
   assert.deepEqual(parseCodexEvents([]), { threadId: null, text: null, failure: null });
+});
+
+const PROMPT = 'system rules\n\njob advert text';
+
+test('a new session builds the documented exec argv', () => {
+  const args = buildCodexArgs({
+    resumeSessionId: null, model: 'gpt-5-codex', modelExplicit: false, fullPrompt: PROMPT,
+  });
+  assert.deepEqual(args, [
+    'exec', '--json',
+    '--sandbox', 'danger-full-access',
+    '--skip-git-repo-check',
+    PROMPT,
+  ]);
+});
+
+test('an explicit model adds --model, in that position', () => {
+  const args = buildCodexArgs({
+    resumeSessionId: null, model: 'gpt-5-codex', modelExplicit: true, fullPrompt: PROMPT,
+  });
+  assert.deepEqual(args, [
+    'exec', '--json',
+    '--sandbox', 'danger-full-access',
+    '--skip-git-repo-check',
+    '--model', 'gpt-5-codex',
+    PROMPT,
+  ]);
+});
+
+test('no --model anywhere when the model was not set explicitly', () => {
+  const args = buildCodexArgs({
+    resumeSessionId: null, model: 'claude-opus-5', modelExplicit: false, fullPrompt: PROMPT,
+  });
+  assert.equal(args.includes('--model'), false);
+  assert.equal(args.includes('claude-opus-5'), false);
+});
+
+test('resuming uses the exec resume subcommand with the id in third position', () => {
+  const args = buildCodexArgs({
+    resumeSessionId: 'th_abc123', model: 'gpt-5-codex', modelExplicit: false, fullPrompt: PROMPT,
+  });
+  assert.deepEqual(args, [
+    'exec', 'resume', 'th_abc123', '--json',
+    '--sandbox', 'danger-full-access',
+    '--skip-git-repo-check',
+    PROMPT,
+  ]);
+});
+
+test('the prompt is always the final argument, on both paths', () => {
+  for (const resumeSessionId of [null, 'th_abc123']) {
+    const args = buildCodexArgs({
+      resumeSessionId, model: 'gpt-5-codex', modelExplicit: true, fullPrompt: PROMPT,
+    });
+    assert.equal(args[args.length - 1], PROMPT);
+  }
 });

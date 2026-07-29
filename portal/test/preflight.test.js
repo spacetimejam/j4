@@ -204,3 +204,8 @@ test('config exposes bindHost, exposure and emailProviderExplicit', async () => 
   // The default must stay 0.0.0.0 so the Caddy-in-Docker install keeps working.
   assert.equal(config.bindHost, '0.0.0.0');
 });
+
+test('config exposes agentModelExplicit', async () => {
+  const { config } = await import('../src/config.js');
+  assert.equal(typeof config.agentModelExplicit, 'boolean');
+});

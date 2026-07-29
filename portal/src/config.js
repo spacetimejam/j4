@@ -18,6 +18,10 @@ export const config = {
   portalTitle: process.env.PORTAL_TITLE || 'Job Search Portal',
   userName: process.env.USER_NAME || 'the owner',
   agentModel: process.env.AGENT_MODEL || 'claude-opus-5',
+  // Whether the fallback above is in play. The codex runner omits --model
+  // entirely when it is not, so the Claude default can never leak into a
+  // codex command line. Same pattern as emailProviderExplicit below.
+  agentModelExplicit: Boolean(process.env.AGENT_MODEL),
   agentRunner: process.env.AGENT_RUNNER || 'claude-sdk',
   agentCmd: process.env.AGENT_CMD || '',
   agentCmdResume: process.env.AGENT_CMD_RESUME || '',

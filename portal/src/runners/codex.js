@@ -64,3 +64,30 @@ export function parseCodexEvents(lines) {
   for (const line of lines) sink.push(line);
   return sink.result();
 }
+
+// Matches the bypassPermissions posture the claude-sdk runner already runs
+// with, and which docs/portal.md documents. Hardcoded rather than exposed as
+// an env var because the only other values break the workflow: workspace-write
+// blocks network access, which silently guts the salary, company and
+// interviewer research the portal agent depends on.
+const SANDBOX = ['--sandbox', 'danger-full-access'];
+
+// A project folder created outside the kit checkout need not be a git
+// repository, and codex refuses to run in one without this.
+const SKIP_REPO_CHECK = '--skip-git-repo-check';
+
+// The prompt goes on argv rather than through the documented `-` stdin
+// sentinel. It is the form the docs lead with, there is no quoting hazard
+// because runCodex spawns without a shell, and a portal prompt plus a job
+// advert is tens of kilobytes, far inside ARG_MAX on macOS and Linux. The
+// resume path is a subcommand whose composition with the stdin sentinel is
+// not documented at all, and one unverified assumption about resume is
+// enough.
+//
+// CALIBRATION FIX POINT: if `npm run calibrate` reports that the argv is
+// wrong, this function is the only place to change it.
+export function buildCodexArgs({ resumeSessionId, model, modelExplicit, fullPrompt }) {
+  const head = resumeSessionId ? ['exec', 'resume', resumeSessionId] : ['exec'];
+  const modelArgs = modelExplicit ? ['--model', model] : [];
+  return [...head, '--json', ...SANDBOX, SKIP_REPO_CHECK, ...modelArgs, fullPrompt];
+}
