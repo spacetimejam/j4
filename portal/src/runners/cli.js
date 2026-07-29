@@ -1,16 +1,21 @@
 import { spawn } from 'node:child_process';
 import { config } from '../config.js';
 
-// Generic CLI runner, configured by env (see .env.example):
+// Runner for CLIs that emit a single JSON object of the Claude Code
+// `-p --output-format json` shape, configured by env (see .env.example):
 //   AGENT_CMD        command template for a new session
 //   AGENT_CMD_RESUME command template for resuming an existing session
 // {model} and {sessionId} placeholders are substituted; the prompt (with the
 // portal system prompt prepended) is written to the process stdin. Stdout is
-// parsed as JSON when it carries result/session_id fields (the Claude Code
-// `-p --output-format json` shape); otherwise it is treated as the raw final
-// text and the previous sessionId is carried over. Other CLIs (codex, gemini)
-// can be wired via these templates or given their own runner file satisfying
-// the contract in src/agent.js.
+// parsed as JSON when it carries result/session_id fields; otherwise it is
+// treated as the raw final text and the previous sessionId is carried over.
+//
+// This does NOT generalise to every CLI, and used to claim that it did.
+// Codex emits newline-delimited events rather than one object, so this
+// runner's JSON.parse throws, the raw event stream is stored as the reply,
+// and no session id is ever found, which makes every turn start cold. Codex
+// has its own runner in runners/codex.js. A CLI whose output is not a single
+// JSON object needs one too: the contract is in src/agent.js.
 export async function runCli(
   { prompt, systemPrompt, resumeSessionId, cwd, model },
   { spawnImpl = spawn } = {},

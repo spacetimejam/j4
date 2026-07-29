@@ -260,26 +260,47 @@ Then `launchctl load ~/Library/LaunchAgents/com.job-search.portal.plist`.
 
 ## Using a different LLM
 
-The portal is Claude-first but not Claude-only. Two mechanisms:
+The portal is Claude-first but not Claude-only. `AGENT_RUNNER` selects how
+sessions run:
 
-- **`AGENT_RUNNER`** selects how sessions run. `claude-sdk` (the default)
-  uses `@anthropic-ai/claude-agent-sdk` in-process. `cli` shells out to a
-  command-line tool using the templates below.
-- **The runner contract.** Adding first-class support for another LLM means
-  writing one file under `src/runners/` that exports a single async
-  function taking `{ prompt, systemPrompt, resumeSessionId, cwd, model }`
-  and returning `{ sessionId, text }` (the contract is documented in
-  `src/agent.js`), then wiring it into the runner switch there.
+- **`claude-sdk`** (the default) uses `@anthropic-ai/claude-agent-sdk` in
+  process. This is the tested path.
+- **`codex`** shells out to `codex exec --json`. New, and calibration is
+  required before first use; see the next section.
+- **`cli`** shells out to a command-line tool using the templates below. It
+  suits a CLI that prints a single JSON object of the Claude Code
+  `-p --output-format json` shape, and nothing else.
 
-For CLI tools you usually do not need a new runner file. Set
-`AGENT_RUNNER=cli` and provide command templates:
+Gemini CLI and Cursor have no runner. They work well on a project folder
+through `AGENTS.md`, but they cannot drive the portal.
+
+### The runner contract
+
+Adding first-class support for another LLM means writing one file under
+`src/runners/` that exports a single async function taking
+`{ prompt, systemPrompt, resumeSessionId, cwd, model }` and returning
+`{ sessionId, text }` (the contract is documented in `src/agent.js`), then
+adding it to the `RUNNERS` map there and to `AGENT_RUNNERS` in
+`src/preflight.js`.
+
+Write a runner, rather than reaching for `AGENT_RUNNER=cli`, whenever the
+tool's output is not a single JSON object. `cli` used to claim it could wire
+up any CLI. It cannot, and the failure is silent and expensive: with a
+streaming tool its `JSON.parse` throws, the raw event stream gets stored as
+the assistant's reply and shown to the user, and no session id is ever found,
+so every turn starts a fresh session with no memory. The portal's core loop
+(fit assessment, then apply, then notes, then interview prep) depends
+entirely on the session remembering the turn before.
+
+### CLI templates
+
+For a CLI that does print one JSON object, set `AGENT_RUNNER=cli` and provide:
 
 - `AGENT_CMD`: the command for a fresh session. `{model}` is substituted.
 - `AGENT_CMD_RESUME`: the command for resuming a session. `{sessionId}` is
   substituted.
 
-The prompt is piped to the command's stdin. A worked Claude Code CLI
-example:
+The prompt is piped to the command's stdin. A worked Claude Code CLI example:
 
 ```bash
 AGENT_RUNNER=cli
@@ -287,10 +308,70 @@ AGENT_CMD=claude -p --output-format json --model {model}
 AGENT_CMD_RESUME=claude -p --output-format json --resume {sessionId}
 ```
 
-One limitation: command templates are split on whitespace, so quoted
-arguments containing spaces are not supported. If your tool needs an
-argument with spaces in it, wrap the invocation in a small shell script and
-point the template at that instead.
+Two limitations: command templates are split on whitespace, so quoted
+arguments containing spaces are not supported (wrap the invocation in a small
+shell script instead), and a resume mechanism that is a subcommand rather
+than a flag cannot be expressed at all.
+
+### Using Codex
+
+Install the Codex CLI and log in per its own instructions, then:
+
+```bash
+AGENT_RUNNER=codex
+# AGENT_MODEL left unset on purpose: see below
+```
+
+Leave `AGENT_MODEL` unset unless you want a specific Codex model. It defaults
+to a Claude model id, and the codex runner omits `--model` altogether when it
+was not set explicitly, so Codex chooses its own default. Preflight treats an
+explicitly set `claude-*` model with this runner as an error.
+
+The runner runs Codex with `--sandbox danger-full-access`. That matches the
+`bypassPermissions` posture the `claude-sdk` runner already uses, described
+under Security below, so the portal's risk profile does not change with the
+runner. The weaker `workspace-write` was not used because it blocks network
+access, which would silently gut the salary, company and interviewer research
+the portal agent depends on, while the agent carried on and returned thinner
+work with no sign of why.
+
+## Portal calibration
+
+**The codex runner was written to the documented `codex exec --json` event
+stream and has never been exercised against a live binary.** Codex is not
+installed on the machine the kit is developed on. Rather than claim tested
+support, the portal ships a calibration step that verifies the assumptions
+against the binary you actually have.
+
+Run it once before using a non-Claude runner for the first time:
+
+```bash
+cd portal && npm run calibrate
+```
+
+It confirms `codex` is installed, captures `codex exec --help` and
+`codex exec resume --help` as evidence, runs one real turn in a throwaway
+directory using exactly the argv the runner builds, saves the raw event
+stream to `portal/data/calibration-<date>.jsonl`, feeds it through exactly the
+parser the runner uses, and then resumes that thread with a question only
+answerable from the first turn. It prints a pass or fail line per assumption.
+
+It never touches a real project folder, because that turn runs an agent with
+full access.
+
+If something fails, there is exactly one place to change for each case:
+
+| What failed | What to change |
+| --- | --- |
+| The new-session argv was rejected | `buildCodexArgs` in `src/runners/codex.js`, the non-resume branch |
+| The resume argv was rejected | `buildCodexArgs`, the resume branch |
+| No thread id, or no `agent_message`, was found | `createCodexEventSink` in `src/runners/codex.js` |
+| Resume was accepted but the thread did not remember | the resume argv is being accepted and ignored; compare `codex exec resume --help` against what calibration printed |
+
+Compare against the saved `.jsonl` to see what the real events look like, and
+update `test/codex.test.js` in the same commit. Those tests pin the exact argv
+and event field names on purpose, so that a correction cannot be applied to
+the runner and missed in the tests.
 
 ## Security
 
