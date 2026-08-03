@@ -48,3 +48,9 @@ test('documents rows get a default delivered_at and reject duplicate paths', () 
     /UNIQUE/,
   );
 });
+
+test('documents table has a message_id column', () => {
+  const db = getDb();
+  const cols = db.prepare('pragma table_info(documents)').all().map(c => c.name);
+  assert.ok(cols.includes('message_id'), 'message_id column exists');
+});

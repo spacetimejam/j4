@@ -380,4 +380,78 @@ test('only an applying stage can go inactive', async () => {
   assert.equal(s.stage, 'interviewing');
 });
 
+test('session detail attaches docs to the Claude message that delivered them', async () => {
+  const p = join(projectDir, 'inline-cv.pdf');
+  writeFileSync(p, 'inline-bytes');
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Inline docs role' }),
+  });
+  const { id } = await r.json();
+  const db = getDb();
+  const msgId = 'inline-msg-1';
+  db.prepare("insert into messages (id, session_id, role, body) values (?, ?, 'claude', 'Here are your docs.')").run(msgId, id);
+  db.prepare('insert into documents (id, session_id, path, message_id) values (?, ?, ?, ?)')
+    .run('inline-doc-1', id, p, msgId);
+
+  const detail = await (await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).json();
+  const claudeMsg = detail.messages.find(m => m.id === msgId);
+  assert.ok(claudeMsg, 'Claude message found');
+  assert.ok(claudeMsg.docs, 'docs array present');
+  assert.equal(claudeMsg.docs.length, 1);
+  assert.equal(claudeMsg.docs[0].id, 'inline-doc-1');
+  assert.equal(claudeMsg.docs[0].name, 'inline-cv.pdf');
+  assert.equal(claudeMsg.docs[0].available, true);
+});
+
+test('a document with null message_id does not appear on any message', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Orphan doc role' }),
+  });
+  const { id } = await r.json();
+  const db = getDb();
+  db.prepare("insert into messages (id, session_id, role, body) values (?, ?, 'claude', 'No docs here.')").run('orphan-msg', id);
+  db.prepare('insert into documents (id, session_id, path) values (?, ?, ?)')
+    .run('orphan-doc', id, join(projectDir, 'orphan.pdf'));
+
+  const detail = await (await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).json();
+  const withDocs = detail.messages.filter(m => m.docs?.length);
+  assert.equal(withDocs.length, 0);
+});
+
+test('an unavailable document file shows available: false on the message', async () => {
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Missing file docs role' }),
+  });
+  const { id } = await r.json();
+  const db = getDb();
+  const msgId = 'missing-file-msg';
+  db.prepare("insert into messages (id, session_id, role, body) values (?, ?, 'claude', 'Docs ready.')").run(msgId, id);
+  db.prepare('insert into documents (id, session_id, path, message_id) values (?, ?, ?, ?)')
+    .run('missing-file-doc', id, join(projectDir, 'does-not-exist.pdf'), msgId);
+
+  const detail = await (await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).json();
+  const claudeMsg = detail.messages.find(m => m.id === msgId);
+  assert.equal(claudeMsg.docs[0].available, false);
+});
+
+test('session detail still includes the files field', async () => {
+  const p = join(projectDir, 'files-field-cv.pdf');
+  writeFileSync(p, 'cv');
+  const r = await fetch(`${base}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ jd: 'Files field role' }),
+  });
+  const { id } = await r.json();
+  getDb().prepare('update sessions set files = ? where id = ?').run(JSON.stringify([p]), id);
+  const detail = await (await fetch(`${base}/api/sessions/${id}`, { headers: { cookie: ownerCookie } })).json();
+  assert.deepEqual(detail.files, [{ idx: 0, name: 'files-field-cv.pdf' }]);
+});
+
 test.after(() => server.close());

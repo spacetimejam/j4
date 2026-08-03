@@ -98,6 +98,33 @@ export function getDb() {
       });
       backfill();
     }
+    // Add message_id to documents for databases that predate inline footers.
+    const docCols = db.prepare('pragma table_info(documents)').all();
+    if (!docCols.some(c => c.name === 'message_id')) {
+      db.exec('alter table documents add column message_id text');
+    }
+    // Backfill message_id by matching each document to the closest preceding
+    // Claude message in the same session. Guarded by a marker row, same
+    // pattern as the documents backfill above.
+    const msgDone = db.prepare("select 1 from meta where key = 'documents_message_id_backfill_done'").get();
+    if (!msgDone) {
+      const unmapped = db.prepare('select id, session_id, delivered_at from documents where message_id is null').all();
+      const findMsg = db.prepare(
+        `select id from messages
+         where session_id = ? and role = 'claude' and created_at <= ?
+         order by created_at desc limit 1`);
+      const setMsg = db.prepare('update documents set message_id = ? where id = ?');
+      const markMsgDone = db.prepare(
+        "insert or ignore into meta (key, value) values ('documents_message_id_backfill_done', datetime('now'))");
+      const backfillMsg = db.transaction(() => {
+        for (const doc of unmapped) {
+          const msg = findMsg.get(doc.session_id, doc.delivered_at);
+          if (msg) setMsg.run(msg.id, doc.id);
+        }
+        markMsgDone.run();
+      });
+      backfillMsg();
+    }
   }
   return db;
 }

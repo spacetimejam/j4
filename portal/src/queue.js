@@ -71,8 +71,9 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     const { clean, title, awaitingUser } = parseTitleDirective(afterEmail);
     // Persist the turn immediately: if the email send fails below, the session
     // must still be resumable and its deliverables downloadable from the UI.
+    const msgId = newId();
     db.prepare('insert into messages (id, session_id, role, body) values (?, ?, ?, ?)')
-      .run(newId(), job.session_id, 'claude', clean);
+      .run(msgId, job.session_id, 'claude', clean);
     db.prepare("update sessions set claude_session_id = ?, updated_at = datetime('now') where id = ?")
       .run(claudeId, job.session_id);
     const newTitle = (title || '').trim().slice(0, 80);
@@ -85,10 +86,11 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
       // documents accumulates across the whole session; files above is only
       // ever the latest delivery. Redelivery of a revised file is idempotent:
       // there is one file on disk, so one row, with its date moved forward.
-      const recordDoc = db.prepare(`insert into documents (id, session_id, path)
-        values (?, ?, ?)
-        on conflict (session_id, path) do update set delivered_at = datetime('now')`);
-      for (const p of email.attachments) recordDoc.run(newId(), job.session_id, p);
+      const recordDoc = db.prepare(`insert into documents (id, session_id, path, message_id)
+        values (?, ?, ?, ?)
+        on conflict (session_id, path) do update set
+          delivered_at = datetime('now'), message_id = excluded.message_id`);
+      for (const p of email.attachments) recordDoc.run(newId(), job.session_id, p, msgId);
       const attachments = email.attachments.map(p => ({
         filename: basename(p),
         contentBase64: readFileSync(p).toString('base64'),
