@@ -162,8 +162,23 @@ export function createApp({ send = sendEmail } = {}) {
     if (!session) return res.status(404).json({ error: 'not found' });
     const messages = db.prepare('select * from messages where session_id = ? order by created_at').all(session.id);
     const files = (JSON.parse(session.files || '[]')).map((p, idx) => ({ idx, name: basename(p) }));
-    const tracker = readTracker(getUser(req.userEmail)?.projectDir);
-    res.json({ ...withStage(session, tracker), messages, files });
+    const user = getUser(req.userEmail);
+    const tracker = readTracker(user?.projectDir);
+    const docs = db.prepare(
+      'select * from documents where session_id = ? and message_id is not null'
+    ).all(session.id);
+    const docsByMsg = {};
+    for (const d of docs) (docsByMsg[d.message_id] ??= []).push(d);
+    const enriched = messages.map(m => {
+      const msgDocs = docsByMsg[m.id];
+      if (!msgDocs) return m;
+      return { ...m, docs: msgDocs.map(d => ({
+        id: d.id,
+        name: basename(d.path),
+        available: resolveOwnedFile(d.path, user) !== null,
+      })) };
+    });
+    res.json({ ...withStage(session, tracker), messages: enriched, files });
   });
 
   app.get('/api/sessions/:id/files/:idx', requireAuth, (req, res) => {
