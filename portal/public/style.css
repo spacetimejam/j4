@@ -207,6 +207,31 @@ a.card:hover {
 .msg.md hr { border: 0; border-top: 1px solid var(--hairline); margin: 1em 0; }
 .msg.md a { overflow-wrap: anywhere; }
 
+.msg-docs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.msg-doc {
+  display: inline-block;
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--tint);
+  color: var(--accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.msg-doc:hover { background: var(--hairline); }
+.msg-doc.unavailable {
+  color: var(--ink-soft);
+  cursor: default;
+}
+.msg-doc.unavailable:hover { background: var(--tint); }
+
 .muted { color: var(--ink-soft); font-size: 0.85rem; }
 a { color: var(--accent); }
 a.back {

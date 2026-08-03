@@ -250,11 +250,17 @@ async function renderSession(id, scrollToLatest = false) {
       ${pill(s)}
       ${docs.length ? `<button id="doc-btn" class="icon-btn" title="Documents" aria-label="Documents (${docs.length})"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="doc-count">${docs.length}</span></button>` : ''}
     </div>
-    ${s.messages.map(m => m.role === 'claude'
-      ? `<div class="msg claude md">${renderMarkdown(m.body)}</div>`
-      : `<div class="msg ${m.role}">${esc(m.body)}</div>`).join('')}
-    ${s.files?.length ? `<div class="card"><strong>Your documents</strong>${s.files.map(f =>
-      `<div><a href="/api/sessions/${id}/files/${f.idx}" download>${esc(f.name)}</a></div>`).join('')}</div>` : ''}
+    ${s.messages.map(m => {
+      if (m.role === 'claude') {
+        const docFooter = m.docs?.length ? `<div class="msg-docs">${m.docs.map(d =>
+          d.available
+            ? `<a class="msg-doc" href="/api/sessions/${id}/documents/${d.id}" download>${esc(d.name)}</a>`
+            : `<span class="msg-doc unavailable">${esc(d.name)}</span>`
+        ).join('')}</div>` : '';
+        return `<div class="msg claude md">${renderMarkdown(m.body)}${docFooter}</div>`;
+      }
+      return `<div class="msg ${m.role}">${esc(m.body)}</div>`;
+    }).join('')}
     ${s.status === 'working' ? '<p class="muted">Jawbs is working on this. You can close the page; it will be here when you come back.</p>' : ''}
     <textarea id="reply" placeholder="Your reply"></textarea><button id="send" title="Send (${SUBMIT_HINT})">Send</button>`;
   bindSubmit(document.getElementById('reply'), document.getElementById('send'), async () => {
