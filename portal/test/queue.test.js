@@ -335,3 +335,40 @@ test('a turn that says nothing is outstanding does not ask for a reply', async (
   assert.equal(s.status, 'active');
   assert.equal(s.title, 'D at A');
 });
+
+test('delivery sets message_id on document rows', async () => {
+  const sid = mkSession();
+  const p = join(tmpdir(), `cv-${newId()}.pdf`);
+  writeFileSync(p, 'cv');
+  const directive = JSON.stringify({ subject: 'S', body: 'B', attachments: [p] });
+  enqueue({ sessionId: sid, prompt: 'go' });
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-msgid',
+      text: `Done.\n\`\`\`email-to-user\n${directive}\n\`\`\``,
+    }),
+    send: async () => {},
+  });
+  const msg = getDb().prepare("select id from messages where session_id = ? and role = 'claude'").get(sid);
+  const doc = getDb().prepare('select message_id from documents where session_id = ?').get(sid);
+  assert.equal(doc.message_id, msg.id);
+});
+
+test('redelivery of the same path updates message_id to the new message', async () => {
+  const sid = mkSession();
+  const p = join(tmpdir(), `cv-${newId()}.pdf`);
+  writeFileSync(p, 'v1');
+  const directive = JSON.stringify({ subject: 'S', body: 'B', attachments: [p] });
+  const mkTurn = cid => async () => ({ sessionId: cid, text: `Done.\n\`\`\`email-to-user\n${directive}\n\`\`\`` });
+
+  enqueue({ sessionId: sid, prompt: 'first' });
+  await processOneJob({ runTurn: mkTurn('c-re1'), send: async () => {} });
+  const msg1 = getDb().prepare("select id from messages where session_id = ? and role = 'claude' order by created_at").get(sid);
+
+  enqueue({ sessionId: sid, prompt: 'again' });
+  await processOneJob({ runTurn: mkTurn('c-re2'), send: async () => {} });
+  const msgs = getDb().prepare("select id from messages where session_id = ? and role = 'claude' order by created_at").all(sid);
+  const doc = getDb().prepare('select message_id from documents where session_id = ?').get(sid);
+  assert.notEqual(doc.message_id, msg1.id);
+  assert.equal(doc.message_id, msgs[1].id);
+});
