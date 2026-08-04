@@ -52,7 +52,6 @@ The application log lives in a table described in `tracker/tracker.md`, includin
 CLAUDE.md            - this file, the spine
 TASKS.md             - task list
 WORKFLOW.md          - the JD-to-logged runbook
-email-sign-offs.md   - sign-off bank for outgoing email (never sign with a name)
 core/                - durable source documents (read before tailoring)
   profile.md         - fit criteria, dealbreakers, the better-than-current bar
   master-cv.md        - synthesised master CV
@@ -74,7 +73,11 @@ tracker/
   tracker.md           - pointer and schema for the tracking table
 ```
 
-Conventions: kebab-case application slugs; the sent CV and letter are the immutable version record, re-tailoring creates new files; log sent versions in the tracker. Emails sent from this project are never signed with a name: end each one with a random sign-off from `email-sign-offs.md` (rules in that file's header).
+Conventions: kebab-case application slugs; the sent CV and letter are the immutable version record, re-tailoring creates new files; log sent versions in the tracker. Emails sent from this project are never signed with a name: end each one with a random sign-off from the kit's shared bank at `{{KIT_DIR}}/email-sign-offs.md` (rules in that file's header):
+
+```bash
+grep '^- ' {{KIT_DIR}}/email-sign-offs.md | sed 's/^- //' | shuf -n1
+```
 
 ## 9. First-session setup
 
