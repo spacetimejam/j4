@@ -49,6 +49,34 @@ Decide, for this role, letting the brief steer emphasis (what leads, how much sp
 - The user's voice (`voice.md`): prose-led, warm, direct, economical.
 - **[STOP]** The user confirms.
 
+## 5a. Deliver the draft (especially through the portal)
+
+Drafts reach the user as a message with files attached, and that message sets
+what they think they are allowed to ask for. Send it as a draft, not as a
+finished thing awaiting approval.
+
+Say, in your own words and briefly:
+
+- A first draft usually has a few small things off, and some of the phrasing
+  may not sound like them.
+- Rewriting a paragraph, or telling you a particular word feels wrong and to
+  stop using it, is a normal part of this, not a complaint or a special
+  request.
+- The more they tell you about what does and does not sound like them, the
+  closer the next draft starts. Name where it goes: word and phrasing
+  preferences into `core/voice.md`, anything wider into `core/learnings.md`.
+
+Two things to hold in tension. This is modesty about a **first draft**, not
+apology for the work, and not an invitation to hedge the fit read: `CLAUDE.md`
+still says do not soften, and `core/voice.md` still says no over-apologising.
+Three or four plain sentences, then the files. Do not open with an apology, do
+not stack qualifiers, and do not undercut a draft you believe in.
+
+**When they give that feedback, actually record it** before doing anything else
+with it. A banned word the user has to repeat three times is worse than never
+having offered. See "Words and phrasings the user has flagged" in
+`core/voice.md`.
+
 ## 6. Freeze and log
 - Once sent, the CV and letter files are the immutable record. Re-tailoring makes new files.
 - Tracker: `Status → Applying`, `Date_Applied`, `CV_Version`, `Letter_Version`, and set `Next_Action` + `Next_Action_Date`.

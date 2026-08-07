@@ -19,6 +19,22 @@ Never use these in application copy; to a trained eye they read as AI-written:
 
 Say the thing plainly instead: name what fits and why, and let sincerity come from specifics rather than an intensifier.
 
+## Words and phrasings the user has flagged (project rule, 2026-08-07)
+
+Whenever the user says a word or a turn of phrase feels off, wrong, or not like
+them, add it here **in the same session they say it**, with a short note on why
+if they gave one. Then treat it exactly like the banned phrases above: never
+use it in application copy again.
+
+This list is the reason drafts are delivered with an explicit invitation to
+flag wording (see step 5a of `WORKFLOW.md`). That invitation is only honest if
+what they say survives the session, so recording it is not optional
+housekeeping; it is the mechanism.
+
+Nothing flagged yet. Entries take the form:
+
+- "phrase" - flagged 2026-00-00. Why, if they said.
+
 ## Paragraph length (kit-wide rule, 2026-07-24)
 
 In application copy, no paragraph runs longer than six lines, ever, and most should sit well below that. Long paragraphs read as unedited; if one is pushing the limit, split it or cut it rather than reflowing it.
