@@ -4,11 +4,43 @@ Notes on how the user writes and sounds, so application copy reads as theirs rat
 
 ## How to fill this
 
-Populated during the first AI session (intake), ideally from samples of the user's own writing. Until real voice notes exist, the default is plain, warm and direct prose (a suggestion, not an imposed rule): prose-led, economical, no over-apologising.
+Populated during the first AI session (intake). Until real voice notes exist, the default is plain, warm and direct prose (a suggestion, not an imposed rule): prose-led, economical, no over-apologising.
+
+**Build this from the intake conversation itself. Do not wait for a writing
+sample** (kit-wide rule, owner decision 2026-08-09). An hour of someone talking
+unguarded about their own career is usually the richest sample of them the
+project will ever get, and it arrives in session one. Waiting for an old cover
+letter that may never surface means drafting in the AI's default register in
+the meantime, which is the thing this file exists to prevent. Samples of their
+own writing are still better evidence about *written* register; get one when you
+can and revise against it. It is a revision, not a precondition.
+
+Speech is not writing, so a transcript has to be split rather than copied:
+
+- **Durable traits**, which shape drafts. How they frame things, what they
+  reach for first, what they are modest or blunt about, their characteristic
+  sentence moves, the ceiling of their enthusiasm vocabulary, the words they use
+  for the things they care about.
+- **Spoken-only artefacts**, which must never reach copy. Verbal hedges ("I
+  think", "I guess"), fillers ("kind of", "sort of", "like"), fragments,
+  restarts and in-the-moment slang. These are load-bearing in speech and read as
+  an unsure candidate on the page.
+
+Write both lists explicitly, so a later session can tell which is which. Say in
+the file what the source was and when, and flag it for checking with the user:
+voice notes they have never seen are a guess, however well evidenced.
+
+Two things worth looking for while you are at it. Where their existing CV or
+letters sound unlike the way they talk, that gap is itself evidence, usually
+that formal writing pulls them towards a corporate register that flattens them;
+record it, and pull drafts the other way. And where a trait is at particular
+risk of being translated into stock phrasing (plain-spoken ethics becoming
+mission-speak is the common one), say so as an explicit prohibition rather than
+a preference.
 
 ## Professional frame first, personality second (kit-wide rule, 2026-07-22)
 
-Whatever the voice notes end up saying, they describe tone and word choice, not the frame. A cover letter's themes are professional: the role, the team's work, the fit. Frame observations around those ("What stood out to me about this role is that your team likes to...") rather than as personal address to the reader ("You say you like to..."). Voice sits on top of that frame; it never replaces it, and it never excuses unclear writing. Watch for voice notes built from a single informal sample pulling drafts into familiarity: one warm letter from the user is a register, not a licence.
+Whatever the voice notes end up saying, they describe tone and word choice, not the frame. A cover letter's themes are professional: the role, the team's work, the fit. Frame observations around those ("What stood out to me about this role is that your team likes to...") rather than as personal address to the reader ("You say you like to..."). Voice sits on top of that frame; it never replaces it, and it never excuses unclear writing. Watch for voice notes built from a single informal sample pulling drafts into familiarity: one warm letter from the user is a register, not a licence. That caution is about how far a sample licenses informality, not about which sources may be used; building the notes from the intake conversation is required, per "How to fill this" above.
 
 ## Banned phrases (kit-wide rule, 2026-07-24)
 

@@ -33,4 +33,19 @@ Run this as a conversation, one question at a time, not a form to fill in silent
 
 ## After the interview
 
+**Write `core/voice.md` from this conversation, in this session.** The intake is
+usually the richest sample of how the user sounds that the project will ever
+get, and it is available immediately; do not hold the file open waiting for a
+sample of their writing. That file's own header explains how to mine a
+transcript, and in particular how to separate durable traits from artefacts of
+speech that must never reach copy. Revise it later against a writing sample if
+one turns up.
+
 Once the CV is in `core/source/` and question 2 is answered, research the target field and build `core/industry-brief.md` before the first fit read. The brief's own header explains what to research and what it may and may not change. Present the draft brief to the user for review; it steers nothing until they confirm adopting it.
+
+Be careful with the answer to question 2 specifically. When someone names an
+example to illustrate the kind of work or employer they want, record it as an
+example. Promoting it into a target sector points the search somewhere they did
+not ask to go, and the resulting research can be entirely accurate while aiming
+at the wrong thing. The kind of work and the kind of employer are separate axes:
+one is what to search for, the other is a filter across the results.
