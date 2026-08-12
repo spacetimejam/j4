@@ -120,6 +120,10 @@ test('cli runner rejects on a non-zero exit code', async () => {
   );
 });
 
+// The prompt is hand-wrapped prose, so a sentence-level assertion must not
+// depend on where a line happens to break.
+const flat = (p) => p.replace(/\s+/g, ' ');
+
 test('prompt includes a post-application stage 3', () => {
   const p = portalPrompt('Test');
   assert.match(p, /STAGE 3: AFTER APPLYING/);
@@ -132,7 +136,7 @@ test('stage 3 handles interviews: tracker, log, numbered prep files, email deliv
   assert.match(p, /log\.md/);
   assert.match(p, /interview-1-prep\.md, interview-2-prep\.md/);
   assert.match(p, /complete prep in your reply/);
-  assert.match(p, /followed by an email-to-user block[\s\S]{0,80}attaching the prep file/);
+  assert.match(flat(p), /deliver the prep file to Test via an email-to-user block/);
 });
 
 test('stage 3 asks for missing interview essentials instead of guessing', () => {
@@ -243,11 +247,34 @@ test('the default prompt keeps the fenced protocol for the CLI runners', () => {
   assert.match(p, /```session-title/);
 });
 
-test('the structured prompt keeps the render-failure fallback and the redraft-delivery workflow', () => {
-  const p = portalPrompt('Sam', { structured: true });
-  assert.match(p, /If the render fails and you cannot fix it, fall back to plain-text copy deliverables/);
-  assert.match(p, /If Sam replies after the PDFs have been delivered but before the application has been/);
-});
+/* The workflow body has lost paragraphs into fencedProtocol three times, and
+   each time it was the structured variant, the one production runs, that ended
+   up missing an instruction. Assert the shared workflow symmetrically in both
+   variants so an extraction that takes it from one is caught. */
+const VARIANTS = [['fenced', portalPrompt('Sam')], ['structured', portalPrompt('Sam', { structured: true })]];
+
+for (const [variant, p] of VARIANTS) {
+  test(`the ${variant} prompt keeps the render-failure fallback and the redraft-delivery workflow`, () => {
+    assert.match(p, /If the render fails and you cannot fix it, fall back to plain-text copy deliverables/);
+    assert.match(p, /If Sam replies after the PDFs have been delivered but before the application has been/);
+  });
+
+  test(`the ${variant} prompt says to deliver the finished pack, with the subject convention`, () => {
+    assert.match(flat(p), /deliver both PDFs to Sam/);
+    assert.match(flat(p), /"<role> at <company>: your tailored CV and cover letter"/);
+  });
+
+  test(`the ${variant} prompt delivers interview prep, with its subject convention`, () => {
+    assert.match(flat(p), /deliver the prep file to Sam/);
+    assert.match(flat(p), /"<role> at <company>: interview prep for <date>"/);
+  });
+
+  // Two double-article bugs ("a an email-to-user block") reached the branch by
+  // hand, both from substituting a phrase that already carried its article.
+  test(`the ${variant} prompt has no double article from a substituted phrase`, () => {
+    assert.doesNotMatch(p, /\ba an\b|\ban a\b/);
+  });
+}
 
 test('runAgentTurn gives the claude-sdk runner the structured prompt', async () => {
   let seen;

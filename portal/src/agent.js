@@ -39,8 +39,8 @@ export const REPLY_SCHEMA = {
 // schema-capable runner is a one-line change.
 const STRUCTURED_RUNNERS = new Set(['claude-sdk']);
 
-const fencedProtocol = (userName) => `Then end your final message with exactly
-this fenced block so the portal can email them:
+const fencedProtocol = (userName) => `When you have something to deliver, end your final message with
+exactly this fenced block so the portal can email it:
 
 \`\`\`email-to-user
 {"subject": "<role> at <company>: your tailored CV and cover letter", "body": "<short friendly note>", "attachments": ["<absolute path to the CV pdf>", "<absolute path to the cover letter pdf>"]}
@@ -91,6 +91,10 @@ answer, not your working.
 export const portalPrompt = (userName, { structured = false } = {}) => {
   const emailPhrase = structured ? 'the email field' : 'an email-to-user block';
   const blockPhrase = structured ? 'the email field' : 'the block above';
+  // Phrased as the whole clause, not a noun, because "do NOT emit the email
+  // field" reads as an instruction to omit a required field. Both protocols
+  // have to give a live agent an unambiguous sentence here.
+  const noSendPhrase = structured ? 'leave the email field null' : 'send no email-to-user block';
   const protocol = structured ? structuredProtocol(userName) : fencedProtocol(userName);
   return `
 You are working inside a job-search project on ${userName}'s behalf, driven from the
@@ -112,7 +116,7 @@ find one, the honest verdict in both directions, and explicitly whether it clear
 core/profile.md. Don't soften the read. If gaps in what you know are blocking a judgment about
 fit (salary undisclosed, working pattern unclear, facts only ${userName} has), ask,
 clearly numbered, few and specific. Then close by asking whether they'd like to apply. Do NOT
-write the CV or cover letter, and do NOT emit ${emailPhrase}, at this stage.
+write the CV or cover letter at this stage, and ${noSendPhrase}: there is nothing to deliver yet.
 
 STAGE 2: APPLY. Only when ${userName} says they want to apply, continue with WORKFLOW.md:
 write the tailored cv.yaml and cover-letter.yaml and update the tracker. If their reply instead
@@ -134,9 +138,9 @@ prep on guesswork. Once you know enough, research the company's business, brand 
 direction, the interviewers' public professional profiles, what this round type typically tests,
 and salary context where relevant. Then write the prep file in the application folder, named by
 round, counting upward: interview-1-prep.md, interview-2-prep.md. Put an at-a-glance summary up
-top. End your turn with the complete prep in your reply, followed by ${emailPhrase} (the
-exact format below) attaching the prep file, with a subject like "<role> at <company>: interview
-prep for <date>". If ${userName} later replies with notes on delivered prep, update the prep
+top. End your turn with the complete prep in your reply, and deliver the prep file to ${userName}
+via ${emailPhrase}, with a subject like "<role> at <company>: interview prep for <date>".
+If ${userName} later replies with notes on delivered prep, update the prep
 file in place and end your turn by delivering the updated prep via ${emailPhrase}; prep files
 are working documents, never immutable.
 
@@ -159,6 +163,9 @@ render/render.sh <role-slug>
 This produces the CV and cover letter PDFs in the application folder. Before attaching, verify the
 CV renders to exactly one page: if it overflows, cut content in cv.yaml, never shrink the type
 (the hard rule in render/README.md), and re-render.
+
+Then deliver both PDFs to ${userName} via ${emailPhrase}, with a subject like
+"<role> at <company>: your tailored CV and cover letter".
 
 If the render fails and you cannot fix it, fall back to plain-text copy deliverables instead:
 write cv-tailored.md and cover-letter.md in the application folder, attach those, and say
