@@ -100,6 +100,16 @@ test('declares the reply schema as the output format', async () => {
   assert.deepEqual(seen.options.outputFormat.schema, REPLY_SCHEMA);
 });
 
+/* The schema lives in its own module so that agent.js and the runners no
+   longer import each other. That cycle worked only because every runner is a
+   hoisted function declaration; rewriting one as an arrow constant would have
+   thrown a TDZ ReferenceError in exactly this file's import order. agent.js
+   still re-exports it, so imports written against the old home keep working. */
+test('the agent re-export and the schema module are the same object', async () => {
+  const { REPLY_SCHEMA: fromModule } = await import('../src/reply-schema.js');
+  assert.strictEqual(fromModule, REPLY_SCHEMA);
+});
+
 test('returns the structured reply when the SDK supplies one', async () => {
   const { structured } = await run([init, assistantText('narration'), structuredSuccess(REPLY)]);
   assert.deepEqual(structured, REPLY);

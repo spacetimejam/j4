@@ -1,5 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { REPLY_SCHEMA } from '../agent.js';
+import { REPLY_SCHEMA } from '../reply-schema.js';
 
 // Default runner: drives Claude via @anthropic-ai/claude-agent-sdk.
 // Satisfies the runner contract documented in src/agent.js.
