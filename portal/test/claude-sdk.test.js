@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 const { runClaudeSdk } = await import('../src/runners/claude-sdk.js');
+const { REPLY_SCHEMA } = await import('../src/agent.js');
 
 // Real-shaped messages from @anthropic-ai/claude-agent-sdk's query() stream.
 const init = { type: 'system', subtype: 'init', session_id: 'sess-1' };
@@ -17,6 +18,10 @@ const toolUse = (name = 'Edit') => ({
   message: { role: 'assistant', content: [{ type: 'tool_use', id: 't1', name, input: {} }] },
 });
 const success = (result) => ({ type: 'result', subtype: 'success', result });
+const structuredSuccess = (output, text = '') => ({
+  type: 'result', subtype: 'success', result: text, structured_output: output,
+});
+const REPLY = { reply: 'One more chase tonight.', title: 'Director at Acme', awaiting_user: false, email: null };
 
 const fakeQuery = (messages) => () => (async function* () {
   for (const m of messages) yield m;
@@ -79,4 +84,36 @@ test('throws when the turn did not end in success', async () => {
 test('reports the session id from the init message', async () => {
   const { sessionId } = await run([init, assistantText('hello'), success('hello')]);
   assert.equal(sessionId, 'sess-1');
+});
+
+test('declares the reply schema as the output format', async () => {
+  let seen;
+  const capture = (args) => {
+    seen = args;
+    return (async function* () { yield init; yield success('hi'); })();
+  };
+  await runClaudeSdk(
+    { prompt: 'p', systemPrompt: 's', resumeSessionId: null, cwd: '/tmp', model: 'm' },
+    { queryImpl: capture },
+  );
+  assert.equal(seen.options.outputFormat.type, 'json_schema');
+  assert.deepEqual(seen.options.outputFormat.schema, REPLY_SCHEMA);
+});
+
+test('returns the structured reply when the SDK supplies one', async () => {
+  const { structured } = await run([init, assistantText('narration'), structuredSuccess(REPLY)]);
+  assert.deepEqual(structured, REPLY);
+});
+
+test('returns no structured output when the SDK supplies none', async () => {
+  const { structured, text } = await run([init, assistantText('plain answer'), success('plain answer')]);
+  assert.equal(structured, null);
+  assert.equal(text, 'plain answer');
+});
+
+test('throws naming the subtype when structured output retries are exhausted', async () => {
+  await assert.rejects(
+    run([init, { type: 'result', subtype: 'error_max_structured_output_retries' }]),
+    /error_max_structured_output_retries/,
+  );
 });
