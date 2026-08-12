@@ -222,3 +222,34 @@ test('the preflight runner vocabulary matches the runners that actually exist', 
   const { AGENT_RUNNERS } = await import('../src/preflight.js');
   assert.deepEqual([...AGENT_RUNNERS].sort(), [...RUNNER_NAMES].sort());
 });
+
+test('the structured prompt describes the fields and drops the fenced blocks', () => {
+  const p = portalPrompt('Sam', { structured: true });
+  assert.match(p, /"reply"/);
+  assert.match(p, /"awaiting_user"/);
+  assert.doesNotMatch(p, /```email-to-user/);
+  assert.doesNotMatch(p, /```session-title/);
+});
+
+test('the structured prompt asks for one answer after the work, not narration', () => {
+  const p = portalPrompt('Sam', { structured: true });
+  assert.match(p, /Do all the work first/);
+  assert.match(p, /No thinking aloud/);
+});
+
+test('the default prompt keeps the fenced protocol for the CLI runners', () => {
+  const p = portalPrompt('Sam');
+  assert.match(p, /```email-to-user/);
+  assert.match(p, /```session-title/);
+});
+
+test('runAgentTurn gives the claude-sdk runner the structured prompt', async () => {
+  let seen;
+  const runners = { 'claude-sdk': async args => { seen = args; return { sessionId: 's', text: '' }; } };
+  await runAgentTurn(
+    { prompt: 'p', resumeSessionId: null, user: { name: 'Sam', projectDir: '/tmp' } },
+    { runners, runnerName: 'claude-sdk' },
+  );
+  assert.doesNotMatch(seen.systemPrompt, /```session-title/);
+  assert.match(seen.systemPrompt, /"awaiting_user"/);
+});
