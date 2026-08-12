@@ -204,10 +204,15 @@ export function parseTitleDirective(text) {
 
 // Runner contract: adding a new LLM means writing one file that satisfies it.
 // A runner is exactly:
-//   async ({ prompt, systemPrompt, resumeSessionId, cwd, model }) => ({ sessionId, text })
+//   async ({ prompt, systemPrompt, resumeSessionId, cwd, model })
+//     => ({ sessionId, structured?, text })
 // where systemPrompt is the portal instructions to append, resumeSessionId is
 // null for a new session, cwd and the userName baked into systemPrompt come
 // from the session's user, and the returned sessionId is passed back on resume.
+// Only a runner that can enforce REPLY_SCHEMA populates `structured`, and its
+// presence is what tells queue.js to read the four fields rather than parse
+// fenced directives out of `text`; portalPrompt gives every other runner the
+// fenced protocol, so the two always agree.
 const RUNNERS = { 'claude-sdk': runClaudeSdk, cli: runCli, codex: runCodex };
 
 // The vocabulary of valid AGENT_RUNNER values, exported so preflight.js can

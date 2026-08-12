@@ -283,9 +283,14 @@ through `AGENTS.md`, but they cannot drive the portal.
 Adding first-class support for another LLM means writing one file under
 `src/runners/` that exports a single async function taking
 `{ prompt, systemPrompt, resumeSessionId, cwd, model }` and returning
-`{ sessionId, text }` (the contract is documented in `src/agent.js`), then
-adding it to the `RUNNERS` map there and to `AGENT_RUNNERS` in
-`src/preflight.js`.
+`{ sessionId, structured?, text }` (the contract is documented in
+`src/agent.js`), then adding it to the `RUNNERS` map there and to
+`AGENT_RUNNERS` in `src/preflight.js`.
+
+Only a schema-capable runner populates `structured`, and its presence is what
+makes `queue.js` read the reply, title and email as fields; `portalPrompt`
+gives every other runner the fenced protocol and `queue.js` parses those
+directives out of `text` instead.
 
 Write a runner, rather than reaching for `AGENT_RUNNER=cli`, whenever the
 tool's output is not a single JSON object. `cli` used to claim it could wire

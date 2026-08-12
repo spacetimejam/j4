@@ -51,7 +51,7 @@ export function readTracker(projectDir) {
   }
 }
 
-/* Sessions are titled "<Role> at <Org>" by the agent's session-title directive.
+/* Sessions are titled "<Role> at <Org>" by the agent's reply.
    Split on the last " at ", since a role can contain the word. Org matches when
    either value is a prefix of the other, which is what lets a session titled
    "... at M+C Saatchi" find the tracker's "M+C Saatchi UK". */
