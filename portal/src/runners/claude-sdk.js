@@ -27,12 +27,12 @@ export async function runClaudeSdk(
   let structured = null;
   for await (const msg of q) {
     if (msg.type === 'system' && msg.subtype === 'init') sessionId = msg.session_id;
-    // Every text block the agent addressed to the user, in order. This is now
-    // the fallback for a build that ignores outputFormat; the structured field
-    // below is the real answer. Reading msg.result instead loses everything
-    // said before a tool call, because result is only the final assistant
-    // message. A subagent's text is working-out rather than an answer, so it
-    // stays out.
+    // Every text block the agent addressed to the user, in order. The
+    // structured field below is the answer; this satisfies the shared runner
+    // contract and gives a failing turn something to show. Reading msg.result
+    // instead loses everything said before a tool call, because result is only
+    // the final assistant message. A subagent's text is working-out rather than
+    // an answer, so it stays out.
     if (msg.type === 'assistant' && !msg.parent_tool_use_id) {
       for (const block of msg.message?.content || []) {
         if (block.type === 'text' && block.text.trim()) parts.push(block.text.trim());
@@ -43,6 +43,22 @@ export async function runClaudeSdk(
       result = msg.result || '';
       structured = msg.structured_output ?? null;
     }
+  }
+  // This runner always asks for REPLY_SCHEMA and always prompts the agent with
+  // the structured protocol, so a success without structured_output cannot be
+  // parsed as fenced directives either: queue.js would store the narration,
+  // title nothing, send nothing, and badge every session for a reply, all
+  // without a word in the log. Fail loudly rather than run a portal that looks
+  // healthy and delivers nothing. The message goes straight into an admin
+  // email, so it has to say what to check.
+  if (!structured) {
+    throw new Error(
+      'the agent SDK returned a successful turn with no structured_output, but this runner '
+      + 'requested the reply schema, so the reply, title and email delivery are all missing. '
+      + 'Check that @anthropic-ai/claude-agent-sdk is at least 0.3.207, the version where '
+      + 'outputFormat support was verified, and that the installed CLI matches it. '
+      + `Claude session id: ${sessionId || 'unknown'}.`,
+    );
   }
   return { sessionId, structured, text: parts.length ? parts.join('\n\n') : result };
 }

@@ -45,7 +45,7 @@ test('keeps text the agent wrote before its tool calls', async () => {
     assistantText(prose),
     toolUse(),
     assistantText(directive),
-    success(directive),
+    structuredSuccess(REPLY, directive),
   ]);
   assert.match(text, /One more short chase tonight/);
   assert.match(text, /session-title/);
@@ -57,20 +57,20 @@ test('leaves subagent text out of the reply', async () => {
     init,
     assistantText('Searching the tracker now', { parent_tool_use_id: 'toolu_1' }),
     assistantText('Here is the fit assessment.'),
-    success('Here is the fit assessment.'),
+    structuredSuccess(REPLY, 'Here is the fit assessment.'),
   ]);
   assert.equal(text, 'Here is the fit assessment.');
 });
 
 test('an empty text block adds no blank space to the reply', async () => {
-  const { text } = await run([init, assistantText(''), assistantText('The verdict.'), success('The verdict.')]);
+  const { text } = await run([init, assistantText(''), assistantText('The verdict.'), structuredSuccess(REPLY, 'The verdict.')]);
   assert.equal(text, 'The verdict.');
 });
 
 // The old runner read msg.result alone. Keeping it as the fallback means this
 // one can never return less than the old one did.
 test('falls back to the result text when no assistant message carried any', async () => {
-  const { text } = await run([init, toolUse(), success('Delivered.')]);
+  const { text } = await run([init, toolUse(), structuredSuccess(REPLY, 'Delivered.')]);
   assert.equal(text, 'Delivered.');
 });
 
@@ -82,7 +82,7 @@ test('throws when the turn did not end in success', async () => {
 });
 
 test('reports the session id from the init message', async () => {
-  const { sessionId } = await run([init, assistantText('hello'), success('hello')]);
+  const { sessionId } = await run([init, assistantText('hello'), structuredSuccess(REPLY, 'hello')]);
   assert.equal(sessionId, 'sess-1');
 });
 
@@ -90,7 +90,7 @@ test('declares the reply schema as the output format', async () => {
   let seen;
   const capture = (args) => {
     seen = args;
-    return (async function* () { yield init; yield success('hi'); })();
+    return (async function* () { yield init; yield structuredSuccess(REPLY, 'hi'); })();
   };
   await runClaudeSdk(
     { prompt: 'p', systemPrompt: 's', resumeSessionId: null, cwd: '/tmp', model: 'm' },
@@ -105,10 +105,21 @@ test('returns the structured reply when the SDK supplies one', async () => {
   assert.deepEqual(structured, REPLY);
 });
 
-test('returns no structured output when the SDK supplies none', async () => {
-  const { structured, text } = await run([init, assistantText('plain answer'), success('plain answer')]);
-  assert.equal(structured, null);
-  assert.equal(text, 'plain answer');
+/* This runner always asks for REPLY_SCHEMA, and it prompts the agent with the
+   structured protocol, so a turn that comes back without structured_output has
+   no fenced blocks in its text either: queue.js would title nothing, send
+   nothing, and show a Reply badge on every session while looking healthy.
+   Failing here routes it to needs_attention with an admin email instead. */
+test('throws when a schema was requested and no structured output came back', async () => {
+  await assert.rejects(
+    run([init, assistantText('plain answer'), success('plain answer')]),
+    (err) => {
+      assert.match(err.message, /structured_output/);
+      assert.match(err.message, /sess-1/);
+      assert.match(err.message, /0\.3\.207/);
+      return true;
+    },
+  );
 });
 
 test('throws naming the subtype when structured output retries are exhausted', async () => {
