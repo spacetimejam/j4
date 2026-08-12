@@ -438,3 +438,69 @@ test('an empty structured reply fails the job instead of storing a blank message
     0,
   );
 });
+
+// The 2026-08-12 incident itself: a turn whose entire text is a directive. The
+// fenced path has to reject it too, or the original bug is still reachable
+// through the runners that still use it.
+test('a fenced turn that is nothing but a directive fails instead of storing a blank message', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'reply' });
+  let sent;
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-bare-directive',
+      text: '```email-to-user\n{"subject":"S","body":"B","attachments":[]}\n```',
+    }),
+    send: async e => { sent = e; },
+  });
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
+  const job = getDb().prepare('select status, error from jobs where session_id = ?').get(sid);
+  assert.equal(job.status, 'failed');
+  assert.match(job.error, /empty reply/);
+  assert.equal(
+    getDb().prepare("select count(*) c from messages where session_id = ? and role = 'claude'").get(sid).c,
+    0,
+  );
+  // The only send is the admin alert, never the deliverables of a blank turn.
+  assert.match(sent.subject, /needs attention/);
+});
+
+// The SDK types structured_output as unknown. A transport that hands back
+// serialised JSON must not be destructured blind, or four undefined fields
+// produce an admin alert claiming the agent said nothing when it did not.
+test('a structured reply arriving as a JSON string is parsed, not called empty', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'reply' });
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-json-string',
+      structured: JSON.stringify({
+        reply: 'The verdict, plainly.', title: 'Director at Acme', awaiting_user: false, email: null,
+      }),
+      text: '',
+    }),
+    send: async () => {},
+  });
+  const s = getDb().prepare('select * from sessions where id = ?').get(sid);
+  assert.equal(s.title, 'Director at Acme');
+  assert.equal(s.status, 'active');
+  const msgs = getDb().prepare("select body from messages where session_id = ? and role = 'claude'").all(sid);
+  assert.deepEqual(msgs.map(m => m.body), ['The verdict, plainly.']);
+});
+
+test('a non-string reply fails with the empty-reply message, not a TypeError', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'reply' });
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-nonstring',
+      structured: { reply: 42, title: null, awaiting_user: false, email: null },
+      text: '',
+    }),
+    send: async () => {},
+  });
+  const job = getDb().prepare('select status, error from jobs where session_id = ?').get(sid);
+  assert.equal(job.status, 'failed');
+  assert.match(job.error, /empty reply/);
+  assert.doesNotMatch(job.error, /TypeError/);
+});

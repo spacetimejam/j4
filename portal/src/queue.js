@@ -31,6 +31,10 @@ export function buildRecoveryPrompt(session, messages, prompt) {
    asked you something that is still open", not merely "Claude stopped talking".
    The agent says which in its session-title block; when it says nothing we keep
    the old behaviour, because a silently missing badge hides a real question. */
+function tryParseJson(text) {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 export function sessionStatus({ email, awaitingUser }) {
   if (awaitingUser === true) return 'awaiting_reply';
   if (email) return 'done';
@@ -70,10 +74,14 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     // A schema-enforced turn says which text is the answer, so there is nothing
     // to parse out of prose and nothing the agent narrates can leak into the
     // reply. Runners that cannot enforce a schema still use the fenced blocks.
+    // The SDK types structured_output as unknown, so a transport that returns
+    // it as serialised JSON must be parsed rather than destructured blind:
+    // otherwise every field is undefined and the alert below claims the agent
+    // said nothing when it said plenty.
+    const fields = typeof structured === 'string' ? tryParseJson(structured) : structured;
     let clean, title, awaitingUser, email;
-    if (structured) {
-      ({ reply: clean, title, awaiting_user: awaitingUser, email } = structured);
-      if (!clean || !clean.trim()) throw new Error('agent returned an empty reply');
+    if (fields && typeof fields === 'object') {
+      ({ reply: clean, title, awaiting_user: awaitingUser, email } = fields);
       // The schema guarantees this shape; the guard mirrors parseEmailDirective
       // so a malformed field degrades to "no email" rather than throwing here.
       if (email && (!email.subject || !email.body || !Array.isArray(email.attachments))) email = null;
@@ -82,6 +90,12 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
       ({ clean, title, awaitingUser } = parseTitleDirective(afterEmail));
       email = parsedEmail;
     }
+    // Both paths, deliberately. The 2026-08-12 incident was a turn whose whole
+    // text was a directive: strip it and nothing is left. A blank bubble marked
+    // done is the failure this feature exists to end, so it fails loudly here
+    // even when the deliverables parsed cleanly. The type check keeps a
+    // non-string reply from surfacing as an opaque TypeError in the alert.
+    if (typeof clean !== 'string' || !clean.trim()) throw new Error('agent returned an empty reply');
     // Persist the turn immediately: if the email send fails below, the session
     // must still be resumable and its deliverables downloadable from the UI.
     const msgId = newId();
