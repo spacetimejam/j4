@@ -27,14 +27,14 @@ export function buildRecoveryPrompt(session, messages, prompt) {
     + prompt;
 }
 
-/* The Reply badge follows awaiting_reply, so the status has to mean "Claude
-   asked you something that is still open", not merely "Claude stopped talking".
-   The agent says which in its session-title block; when it says nothing we keep
-   the old behaviour, because a silently missing badge hides a real question. */
 function tryParseJson(text) {
   try { return JSON.parse(text); } catch { return null; }
 }
 
+/* The Reply badge follows awaiting_reply, so the status has to mean "Claude
+   asked you something that is still open", not merely "Claude stopped talking".
+   The agent says which in its session-title block; when it says nothing we keep
+   the old behaviour, because a silently missing badge hides a real question. */
 export function sessionStatus({ email, awaitingUser }) {
   if (awaitingUser === true) return 'awaiting_reply';
   if (email) return 'done';

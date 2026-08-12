@@ -53,8 +53,8 @@ export async function runClaudeSdk(
   // email, so it has to say what to check.
   if (!structured) {
     throw new Error(
-      'the agent SDK returned a successful turn with no structured_output, but this runner '
-      + 'requested the reply schema, so the reply, title and email delivery are all missing. '
+      'the agent SDK turn ended without structured_output, but this runner requested '
+      + 'the reply schema, so the reply, title and email delivery are all missing. '
       + 'Check that @anthropic-ai/claude-agent-sdk is at least 0.3.207, the version where '
       + 'outputFormat support was verified, and that the installed CLI matches it. '
       + `Claude session id: ${sessionId || 'unknown'}.`,
