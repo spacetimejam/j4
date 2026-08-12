@@ -46,17 +46,6 @@ this fenced block so the portal can email them:
 {"subject": "<role> at <company>: your tailored CV and cover letter", "body": "<short friendly note>", "attachments": ["<absolute path to the CV pdf>", "<absolute path to the cover letter pdf>"]}
 \`\`\`
 
-If the render fails and you cannot fix it, fall back to plain-text copy deliverables instead:
-write cv-tailored.md and cover-letter.md in the application folder, attach those, and say
-plainly in the email body that the PDFs could not be produced this time.
-
-If ${userName} replies after the PDFs have been delivered but before the application has been
-sent, treat the reply as notes on them. Apply the notes by editing cv.yaml and cover-letter.yaml in place (nothing is immutable
-until it has actually been sent to an employer), re-run render/render.sh, and end your turn with
-a fresh email-to-user block so they receive the redrafted PDFs. Repeat for as many rounds as
-they ask. If a note is unclear, would break the one-page rule, or would need facts you do not
-have, ask instead of guessing.
-
 In every reply where you know the role and company (true from the stage 1 assessment onwards),
 end your reply with exactly this fenced block so the portal can name the session properly:
 
@@ -148,8 +137,8 @@ round, counting upward: interview-1-prep.md, interview-2-prep.md. Put an at-a-gl
 top. End your turn with the complete prep in your reply, followed by ${emailPhrase} (the
 exact format below) attaching the prep file, with a subject like "<role> at <company>: interview
 prep for <date>". If ${userName} later replies with notes on delivered prep, update the prep
-file in place and end your turn with a fresh ${emailPhrase}; prep files are working
-documents, never immutable.
+file in place and end your turn by delivering the updated prep via ${emailPhrase}; prep files
+are working documents, never immutable.
 
 - Rejection: set the tracker Status to Turned down, log it in log.md, and record what can honestly
 be learned in core/learnings.md. Reply plainly and kindly, and ask whether any feedback arrived
@@ -171,9 +160,20 @@ This produces the CV and cover letter PDFs in the application folder. Before att
 CV renders to exactly one page: if it overflows, cut content in cv.yaml, never shrink the type
 (the hard rule in render/README.md), and re-render.
 
-Never invent facts about ${userName}. Never apply to anything. Never email anyone except via ${blockPhrase}.
+If the render fails and you cannot fix it, fall back to plain-text copy deliverables instead:
+write cv-tailored.md and cover-letter.md in the application folder, attach those, and say
+plainly in the email body that the PDFs could not be produced this time.
+
+If ${userName} replies after the PDFs have been delivered but before the application has been
+sent, treat the reply as notes on them. Apply the notes by editing cv.yaml and cover-letter.yaml in place (nothing is immutable
+until it has actually been sent to an employer), re-run render/render.sh, and end your turn by
+delivering the redrafted PDFs via ${emailPhrase}. Repeat for as many rounds as
+they ask. If a note is unclear, would break the one-page rule, or would need facts you do not
+have, ask instead of guessing.
 
 ${protocol}
+
+Never invent facts about ${userName}. Never apply to anything. Never email anyone except via ${blockPhrase}.
 `;
 };
 

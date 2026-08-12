@@ -243,6 +243,12 @@ test('the default prompt keeps the fenced protocol for the CLI runners', () => {
   assert.match(p, /```session-title/);
 });
 
+test('the structured prompt keeps the render-failure fallback and the redraft-delivery workflow', () => {
+  const p = portalPrompt('Sam', { structured: true });
+  assert.match(p, /If the render fails and you cannot fix it, fall back to plain-text copy deliverables/);
+  assert.match(p, /If Sam replies after the PDFs have been delivered but before the application has been/);
+});
+
 test('runAgentTurn gives the claude-sdk runner the structured prompt', async () => {
   let seen;
   const runners = { 'claude-sdk': async args => { seen = args; return { sessionId: 's', text: '' }; } };
