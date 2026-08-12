@@ -372,3 +372,69 @@ test('redelivery of the same path updates message_id to the new message', async 
   assert.notEqual(doc.message_id, msg1.id);
   assert.equal(doc.message_id, msgs[1].id);
 });
+
+test('a structured turn stores the reply, title and status without parsing prose', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'reply' });
+  const runTurn = async () => ({
+    sessionId: 'c-struct',
+    structured: {
+      reply: 'One more chase tonight, then let them come to you.',
+      title: 'Social Strategy Director at M+C Saatchi',
+      awaiting_user: false,
+      email: null,
+    },
+    text: 'narration that must not reach the user',
+  });
+  await processOneJob({ runTurn, send: async () => {} });
+  const s = getDb().prepare('select * from sessions where id = ?').get(sid);
+  assert.equal(s.title, 'Social Strategy Director at M+C Saatchi');
+  assert.equal(s.status, 'active');
+  assert.equal(s.claude_session_id, 'c-struct');
+  const msgs = getDb().prepare("select body from messages where session_id = ? and role = 'claude'").all(sid);
+  assert.equal(msgs.length, 1);
+  assert.equal(msgs[0].body, 'One more chase tonight, then let them come to you.');
+});
+
+test('a structured email is delivered and recorded', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'reply' });
+  const prepPath = join(tmpdir(), `prep-${newId()}.md`);
+  writeFileSync(prepPath, '# prep');
+  let sent;
+  const runTurn = async () => ({
+    sessionId: 'c-mail',
+    structured: {
+      reply: 'Prep attached.',
+      title: 'Director at Acme',
+      awaiting_user: false,
+      email: { subject: 'Interview prep', body: 'Here you go', attachments: [prepPath] },
+    },
+    text: '',
+  });
+  await processOneJob({ runTurn, send: async e => { sent = e; } });
+  assert.equal(sent.subject, 'Interview prep');
+  assert.equal(sent.attachments[0].filename, basename(prepPath));
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'done');
+  const docs = getDb().prepare('select path from documents where session_id = ?').all(sid);
+  assert.deepEqual(docs.map(d => d.path), [prepPath]);
+});
+
+test('an empty structured reply fails the job instead of storing a blank message', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'reply' });
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-empty',
+      structured: { reply: '   ', title: null, awaiting_user: false, email: null },
+      text: '',
+    }),
+    send: async () => {},
+  });
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
+  assert.equal(getDb().prepare('select status from jobs where session_id = ?').get(sid).status, 'failed');
+  assert.equal(
+    getDb().prepare("select count(*) c from messages where session_id = ? and role = 'claude'").get(sid).c,
+    0,
+  );
+});

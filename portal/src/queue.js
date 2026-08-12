@@ -66,9 +66,22 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
         user,
       });
     }
-    const { sessionId: claudeId, text } = turn;
-    const { clean: afterEmail, email } = parseEmailDirective(text);
-    const { clean, title, awaitingUser } = parseTitleDirective(afterEmail);
+    const { sessionId: claudeId, structured, text } = turn;
+    // A schema-enforced turn says which text is the answer, so there is nothing
+    // to parse out of prose and nothing the agent narrates can leak into the
+    // reply. Runners that cannot enforce a schema still use the fenced blocks.
+    let clean, title, awaitingUser, email;
+    if (structured) {
+      ({ reply: clean, title, awaiting_user: awaitingUser, email } = structured);
+      if (!clean || !clean.trim()) throw new Error('agent returned an empty reply');
+      // The schema guarantees this shape; the guard mirrors parseEmailDirective
+      // so a malformed field degrades to "no email" rather than throwing here.
+      if (email && (!email.subject || !email.body || !Array.isArray(email.attachments))) email = null;
+    } else {
+      const { clean: afterEmail, email: parsedEmail } = parseEmailDirective(text);
+      ({ clean, title, awaitingUser } = parseTitleDirective(afterEmail));
+      email = parsedEmail;
+    }
     // Persist the turn immediately: if the email send fails below, the session
     // must still be resumable and its deliverables downloadable from the UI.
     const msgId = newId();
