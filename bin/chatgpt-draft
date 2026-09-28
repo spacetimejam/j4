@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+// Writes CV and cover letter copy with the ChatGPT subagent, for Claude to fit
+// into cv.yaml and cover-letter.yaml. Usage: chatgpt-draft <application folder>
+// The logic lives in portal/src/drafting.js; exit codes are documented there.
+const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+import(pathToFileURL(join(__dirname, '..', 'portal', 'src', 'drafting.js')).href)
+  .then(m => m.main(process.argv.slice(2)))
+  .then(code => { process.exitCode = code; });
