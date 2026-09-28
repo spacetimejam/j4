@@ -485,6 +485,55 @@ check "missing node explained" grep -q "Node" "$LWORK/env5.out"
 check "missing node writes no .env" test ! -f "$LWORK/env5"
 rm -rf "$LWORK"
 
+# --- install_launcher ---------------------------------------------------------
+IWORK="$(mktemp -d)"
+mkdir -p "$IWORK/kit/bin" "$IWORK/kit/setup/assets" "$IWORK/home"
+cp "$SETUP_DIR/assets/jawbs.png" "$IWORK/kit/setup/assets/"
+(
+  HOME="$IWORK/home" JAWBS_OS=Linux JAWBS_DESKTOP_DIR="$IWORK/home/Desktop" PATH="/opt/fake:$PATH"
+  export HOME JAWBS_OS JAWBS_DESKTOP_DIR PATH
+  install_launcher "$IWORK/kit" "/opt/node/bin/node" >/dev/null 2>&1
+)
+L="$IWORK/kit/bin/jawbs-open"
+check "launcher written" test -x "$L"
+check "launcher bakes absolute node" grep -q '^NODE="/opt/node/bin/node"$' "$L"
+check "launcher bakes setup PATH" grep -q '^export PATH="/opt/fake:' "$L"
+check "launcher bakes kit dir" grep -q "^KIT=\"$IWORK/kit\"$" "$L"
+check "linux menu entry" test -f "$IWORK/home/.local/share/applications/jawbs.desktop"
+check "linux desktop entry is executable" test -x "$IWORK/home/Desktop/jawbs.desktop"
+check "desktop entry runs the launcher" grep -q "^Exec=\"$L\"$" "$IWORK/home/.local/share/applications/jawbs.desktop"
+check "launcher is valid bash" bash -n "$L"
+
+rm -rf "$IWORK/home" && mkdir -p "$IWORK/home"
+(
+  HOME="$IWORK/home" JAWBS_OS=Darwin JAWBS_DESKTOP_DIR="$IWORK/home/Desktop"
+  export HOME JAWBS_OS JAWBS_DESKTOP_DIR
+  install_launcher "$IWORK/kit" "/opt/node/bin/node" >/dev/null 2>&1
+)
+APP="$IWORK/home/Applications/Jawbs.app"
+check "mac app bundle" test -f "$APP/Contents/Info.plist"
+check "mac app executable" test -x "$APP/Contents/MacOS/Jawbs"
+check "mac app runs the launcher" grep -q "$L" "$APP/Contents/MacOS/Jawbs"
+check "mac desktop shortcut" test -e "$IWORK/home/Desktop/Jawbs.app"
+
+# The launcher starts node with a GUI's minimal PATH.
+cat > "$IWORK/fake-node" <<'EOF'
+#!/bin/sh
+echo "started $*" >> "$FAKE_NODE_LOG"
+EOF
+chmod +x "$IWORK/fake-node"
+(
+  HOME="$IWORK/home" JAWBS_OS=Linux JAWBS_DESKTOP_DIR="$IWORK/home/Desktop"
+  export HOME JAWBS_OS JAWBS_DESKTOP_DIR
+  install_launcher "$IWORK/kit" "$IWORK/fake-node" >/dev/null 2>&1
+)
+mkdir -p "$IWORK/kit/portal/data"
+env -i HOME="$IWORK/home" PATH="/usr/bin:/bin" FAKE_NODE_LOG="$IWORK/node.log" JAWBS_PORT=59717 JAWBS_WAIT_SECS=1 JAWBS_NO_BROWSER=yes JAWBS_NO_DIALOG=yes \
+  /bin/bash "$L" >/dev/null 2>&1
+sleep 1
+check "launcher starts node from a bare PATH" grep -q "started src/server.js" "$IWORK/node.log"
+rm -rf "$IWORK"
+
 # --- Summary ----------------------------------------------------------------
 
 rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"
