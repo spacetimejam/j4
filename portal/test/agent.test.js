@@ -344,3 +344,24 @@ test('runAgentTurn drafts through ChatGPT under both and not under claude-only',
   assert.doesNotMatch(seen.p, /brief\.md|600000/);
   assert.match(seen.p, /You write the CV and cover letter copy yourself/);
 });
+
+test('runAgentTurn gives setup sessions the setup prompt, without drafting', async () => {
+  let seen;
+  const runners = { 'claude-sdk': async a => { seen = a; return { sessionId: 's', text: 'x' }; } };
+  const user = { name: 'Alex', projectDir: '/tmp' };
+  await runAgentTurn({ prompt: 'hi', user, kind: 'setup' }, { runners, runnerName: 'claude-sdk', subscriptions: 'both' });
+  assert.match(seen.systemPrompt, /SETUP\.md/);
+  assert.match(seen.systemPrompt, /paperclip/);
+  assert.match(seen.systemPrompt, /YOUR REPLY IS STRUCTURED DATA/);
+  assert.doesNotMatch(seen.systemPrompt, /STAGE 1: ASSESS/);
+  assert.doesNotMatch(seen.systemPrompt, /chatgpt-draft/);
+  await runAgentTurn({ prompt: 'hi', user }, { runners, runnerName: 'claude-sdk', subscriptions: 'both' });
+  assert.match(seen.systemPrompt, /STAGE 1: ASSESS/);
+});
+
+test('the setup prompt uses fenced blocks for runners without a schema', async () => {
+  const { setupPrompt } = await import('../src/agent.js');
+  const p = setupPrompt('Alex', { structured: false });
+  assert.match(p, /```session-title/);
+  assert.match(p, /Getting started|leave "title" out/);
+});

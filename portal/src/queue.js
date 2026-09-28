@@ -24,8 +24,10 @@ export function buildRecoveryPrompt(session, messages, prompt) {
   return 'This is a resumed conversation whose earlier Claude session was lost. '
     + `Portal session title: ${session.title}. The conversation so far, oldest first:\n\n`
     + `${history}\n\n`
-    + 'Re-orient yourself from the project tracker and the matching application folder '
-    + 'before acting. Then handle the new message below as normal.\n\n'
+    + (session.kind === 'setup'
+      ? 'Re-orient yourself from SETUP.md and the files in core/ before acting. '
+      : 'Re-orient yourself from the project tracker and the matching application folder before acting. ')
+    + 'Then handle the new message below as normal.\n\n'
     + prompt;
 }
 
@@ -81,6 +83,7 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
         prompt: job.prompt,
         resumeSessionId: session.claude_session_id || null,
         user,
+        kind: session.kind,
       });
     } catch (err) {
       // A resumed turn can fail because the Claude transcript was pruned.
@@ -95,6 +98,7 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
         prompt: buildRecoveryPrompt(session, history, job.prompt),
         resumeSessionId: null,
         user,
+        kind: session.kind,
       });
     }
     const { sessionId: claudeId, structured, text } = turn;
@@ -133,7 +137,7 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
     db.prepare("update sessions set claude_session_id = ?, updated_at = datetime('now') where id = ?")
       .run(claudeId, job.session_id);
     const newTitle = (title || '').trim().slice(0, 80);
-    if (newTitle) {
+    if (newTitle && session.kind !== 'setup') {
       db.prepare('update sessions set title = ? where id = ?').run(newTitle, job.session_id);
     }
     // The writer could not draft, so there is nothing to deliver: hold the

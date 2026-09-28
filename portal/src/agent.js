@@ -111,6 +111,45 @@ Claude Code session in the project folder; do not run bin/chatgpt-draft, even
 where WORKFLOW.md mentions it.
 `;
 
+// Setup sessions work through the project's SETUP.md in the browser. They
+// reuse the reply protocol, never rename themselves and never draft through
+// ChatGPT: the writer is for applications.
+export const setupPrompt = (userName, { structured = false } = {}) => {
+  const protocol = structured ? structuredProtocol(userName, false) : fencedProtocol(userName);
+  const deliver = structured ? 'the email field' : 'an email-to-user block';
+  return `
+You are setting up a job-search project with ${userName}, in the ${config.portalTitle} web app.
+The person you are talking to IS ${userName}. Address them directly, warmly and plainly, in
+British English, with no dashes as punctuation, unless the project's own notes say otherwise.
+
+SETUP.md in the project root is your to-do list. Work its tasks in order, mark each one done in
+the file as it completes, and delete the file only when every task is done, exactly as it says.
+
+This is a chat window, not a terminal:
+
+- Ask one question per turn. When a question is outstanding, say so with awaiting_user.
+  Keep each turn short enough to read comfortably on a phone.
+- Where SETUP.md says to drop a CV into core/source/, ask ${userName} to attach it with the
+  paperclip button beside the reply box. Attached files arrive in core/source/ and their message
+  names the path.
+- The between-sessions work runs on their word. At the end of session A, summarise what you
+  recorded, say that the next step (drafting the master CV and researching their field, the
+  "Between sessions" tasks) takes around 15 to 30 minutes and that they can close the window while
+  it runs, and ask them to tell you when to start. Do that work in the next turn, then open
+  session B with the results. Mark drafts "draft, awaiting review" as SETUP.md asks.
+- Session C: the project already has a working default CV template in render/templates/. Render a
+  test CV from core/master-cv.md as render/README.md describes, and deliver the PDF through
+  ${deliver} so it appears as a download. Changing the design can happen later in a Claude Code
+  session; do not offer to browse Typst Universe here.
+- Never set a session title: this conversation is always called "Getting started", so leave
+  "title" ${structured ? 'null' : 'out of the session-title block'}.
+
+${protocol}
+
+Never invent facts about ${userName}. Never apply to anything. Never email anyone except via ${deliver}.
+`;
+};
+
 export const portalPrompt = (userName, { structured = false, drafting = false } = {}) => {
   const emailPhrase = structured ? 'the email field' : 'an email-to-user block';
   const blockPhrase = structured ? 'the email field' : 'the block above';
@@ -275,17 +314,18 @@ const RUNNERS = { 'claude-sdk': runClaudeSdk, cli: runCli, codex: runCodex };
 export const RUNNER_NAMES = Object.keys(RUNNERS);
 
 export async function runAgentTurn(
-  { prompt, resumeSessionId, user },
+  { prompt, resumeSessionId, user, kind = 'application' },
   { runners = RUNNERS, runnerName = config.agentRunner, subscriptions = config.subscriptions } = {},
 ) {
   const runner = runners[runnerName];
   if (!runner) throw new Error(`unknown agent runner: ${runnerName}`);
+  const structured = STRUCTURED_RUNNERS.has(runnerName);
+  const systemPrompt = kind === 'setup'
+    ? setupPrompt(user.name, { structured })
+    : portalPrompt(user.name, { structured, drafting: draftingEnabled({ subscriptions, runnerName }) });
   return runner({
     prompt,
-    systemPrompt: portalPrompt(user.name, {
-      structured: STRUCTURED_RUNNERS.has(runnerName),
-      drafting: draftingEnabled({ subscriptions, runnerName }),
-    }),
+    systemPrompt,
     resumeSessionId: resumeSessionId || null,
     cwd: user.projectDir,
     model: config.agentModel,

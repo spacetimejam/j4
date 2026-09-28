@@ -708,3 +708,29 @@ test('stopWorker resolves once the running job has finished and starts no more',
   await new Promise(r => setTimeout(r, 30));
   assert.equal(turns, 1);
 });
+
+test('the turn is told the session kind, and setup recovery points at SETUP.md', async () => {
+  // A prior test (stopWorker) deliberately leaves a second job queued; drain
+  // it so processOneJob below picks up this test's own job, not that one.
+  getDb().prepare("delete from jobs where status = 'queued'").run();
+  const id = newId();
+  getDb().prepare("insert into sessions (id, user_email, title, kind) values (?, 'owner@test.com', 'Getting started', 'setup')").run(id);
+  enqueue({ sessionId: id, prompt: 'go' });
+  let kind;
+  await processOneJob({ runTurn: async a => { kind = a.kind; return { sessionId: 'c', text: 'Hello' }; }, send: async () => {} });
+  assert.equal(kind, 'setup');
+  const rec = buildRecoveryPrompt({ title: 'Getting started', kind: 'setup' }, [], 'next');
+  assert.match(rec, /SETUP\.md/);
+  assert.doesNotMatch(rec, /tracker/);
+});
+
+test('a setup turn never renames the session', async () => {
+  const id = newId();
+  getDb().prepare("insert into sessions (id, user_email, title, kind) values (?, 'owner@test.com', 'Getting started', 'setup')").run(id);
+  enqueue({ sessionId: id, prompt: 'go' });
+  await processOneJob({
+    runTurn: async () => ({ sessionId: 'c', structured: { reply: 'Hi', title: 'Designer at Acme', awaiting_user: true, email: null, drafting_blocked: null } }),
+    send: async () => {},
+  });
+  assert.equal(getDb().prepare('select title from sessions where id = ?').get(id).title, 'Getting started');
+});
