@@ -1,6 +1,7 @@
 import { renderMarkdown } from './markdown.js';
 import { isSubmitChord } from './keys.js';
-import { formatLondon, formatResetLondon, resetHasPassed } from './time.js';
+import { formatLondon } from './time.js';
+import { delayedNotice } from './notices.js';
 
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
@@ -18,21 +19,6 @@ const STAGES = Object.assign(Object.create(null), {
 });
 const NEEDS_REPLY = new Set(['awaiting_reply', 'needs_attention']);
 const pill = s => (STAGES[s.stage] ? `<span class="pill ${s.stage}">${STAGES[s.stage]}</span>` : '');
-
-/* Shown when the account's usage limit stopped Claude answering. Built only
-   from fixed strings and the formatted time, never from the error text. */
-function delayedNotice(d) {
-  let when = '';
-  if (resetHasPassed(d.resetsAt, d)) {
-    when = ' The limit should have reset by now, so a retry should work.';
-  } else {
-    const at = formatResetLondon(d.resetsAt, d);
-    if (at) when = ` The limit should reset at about ${esc(at)}.`;
-  }
-  return `<div class="notice-delayed" role="status">
-    <p><strong>Your reply is delayed.</strong> The Claude account behind Jawbs has reached its usage limit, so Jawbs couldn't answer this message yet.${when}</p>
-    <button id="retry" class="secondary">Retry message</button></div>`;
-}
 
 /* navigator.platform is deprecated but still populated everywhere current; the
    userAgent fallback covers its removal. Getting this wrong only mislabels a
@@ -203,7 +189,7 @@ async function renderList() {
       <a class="card has-menu" href="#${s.id}"><strong>${esc(s.title)}</strong>
       <div class="meta"><span class="muted">${formatLondon(s.updated_at)}</span>${pill(s)}</div>
       ${NEEDS_REPLY.has(s.status) ? `<span class="badge-reply" aria-label="${esc(s.title)}: waiting for your reply">Reply</span>` : ''}
-      ${s.status === 'usage_limited' ? `<span class="badge-delayed" aria-label="${esc(s.title)}: reply delayed by the usage limit">Delayed</span>` : ''}
+      ${s.status === 'usage_limited' || s.status === 'drafting_blocked' ? `<span class="badge-delayed" aria-label="${esc(s.title)}: ${s.status === 'drafting_blocked' ? 'draft waiting' : 'reply delayed by the usage limit'}">Delayed</span>` : ''}
       <button class="dots" data-id="${s.id}" aria-label="Options for ${esc(s.title)}">&#8942;</button></a>`).join('')}</div>`;
   bindSubmit(document.getElementById('jd'), document.getElementById('submit'), async () => {
     const jd = document.getElementById('jd').value;

@@ -52,16 +52,31 @@ function withStage(session, rows) {
   return { ...session, stage: age > INACTIVE_DAYS * 86400000 ? 'inactive' : 'applying' };
 }
 
-// The failed turn a usage-limited session is waiting on, or null. Only the
-// latest job counts: once the user sends something newer, the notice is stale.
+// Prepended once when a blocked draft is retried, so Claude resumes the draft
+// rather than reading the repeated message as new.
+export const DRAFT_RETRY_PREFIX = 'Retrying after the writer was unavailable: carry on with the draft.\n\n';
+
+// Which failure kind each retryable session status is waiting on.
+const RETRYABLE = { usage_limited: 'usage_limit', drafting_blocked: 'drafting_blocked' };
+
+// The failed turn a delayed session is waiting on, or null. Only the latest
+// job counts: once the user sends something newer, the notice is stale.
 // rowid breaks ties between jobs created in the same second.
 function delayedFor(db, session) {
-  if (session.status !== 'usage_limited') return null;
+  const kind = RETRYABLE[session.status];
+  if (!kind) return null;
   const job = db.prepare('select * from jobs where session_id = ? order by created_at desc, rowid desc limit 1')
     .get(session.id);
-  if (!job || job.status !== 'failed' || job.failure_kind !== 'usage_limit') return null;
+  if (!job || job.status !== 'failed' || job.failure_kind !== kind) return null;
+  if (kind === 'drafting_blocked') {
+    return {
+      jobId: job.id, kind: 'drafting', draftingKind: job.limit_type || 'error',
+      resetsAt: job.resets_at, exact: job.resets_at_exact === 1, limitType: 'unknown',
+    };
+  }
   return {
     jobId: job.id,
+    kind: 'usage_limit',
     resetsAt: job.resets_at,
     exact: job.resets_at_exact === 1,
     limitType: job.limit_type || 'unknown',
@@ -262,8 +277,11 @@ export function createApp({ send = sendEmail } = {}) {
     const retried = db.transaction(() => {
       const delayed = delayedFor(db, session);
       if (!delayed) return false;
-      db.prepare(`update jobs set status = 'queued', error = null, failure_kind = null,
-          resets_at = null, resets_at_exact = null, limit_type = null where id = ?`).run(delayed.jobId);
+      const prompt = db.prepare('select prompt from jobs where id = ?').get(delayed.jobId).prompt;
+      const next = delayed.kind === 'drafting' && !prompt.startsWith(DRAFT_RETRY_PREFIX)
+        ? DRAFT_RETRY_PREFIX + prompt : prompt;
+      db.prepare(`update jobs set status = 'queued', prompt = ?, error = null, failure_kind = null,
+          resets_at = null, resets_at_exact = null, limit_type = null where id = ?`).run(next, delayed.jobId);
       db.prepare("update sessions set status = 'working', updated_at = datetime('now') where id = ?").run(session.id);
       return true;
     })();

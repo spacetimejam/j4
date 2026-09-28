@@ -473,7 +473,7 @@ const detail = async (sid, cookie = ownerCookie) => (await fetch(`${base}/api/se
 test('session detail reports the delay only while usage-limited', async () => {
   const { sid, jid } = mkLimited();
   assert.deepEqual((await detail(sid)).delayed, {
-    jobId: jid, resetsAt: '2026-09-28 00:10:00', exact: true, limitType: 'session',
+    jobId: jid, kind: 'usage_limit', resetsAt: '2026-09-28 00:10:00', exact: true, limitType: 'session',
   });
   getDb().prepare("update sessions set status = 'active' where id = ?").run(sid);
   assert.equal((await detail(sid)).delayed, null);
@@ -518,5 +518,43 @@ test('users cannot retry each other\'s sessions', async () => {
   const { sid, jid } = mkLimited('owner@test.com');
   const r = await post(`/api/sessions/${sid}/retry`, operatorCookie);
   assert.equal(r.status, 404);
+  assert.equal(getDb().prepare('select status from jobs where id = ?').get(jid).status, 'failed');
+});
+
+function mkDraftBlocked(email = 'owner@test.com', kind = 'auth') {
+  const db = getDb();
+  const sid = `drb-${Math.random().toString(16).slice(2)}`;
+  const jid = `job-${sid}`;
+  db.prepare("insert into sessions (id, user_email, title, status) values (?, ?, 'Designer at Acme', 'drafting_blocked')").run(sid, email);
+  db.prepare("insert into messages (id, session_id, role, body) values (?, ?, 'user', 'yes, apply')").run(`m-${sid}`, sid);
+  db.prepare(`insert into jobs (id, session_id, prompt, status, error, failure_kind, resets_at, resets_at_exact, limit_type)
+    values (?, ?, 'the prompt', 'failed', 'detail', 'drafting_blocked', null, 0, ?)`).run(jid, sid, kind);
+  return { sid, jid };
+}
+
+test('a drafting-blocked session reports a drafting delay', async () => {
+  const { sid, jid } = mkDraftBlocked();
+  assert.deepEqual((await detail(sid)).delayed, {
+    jobId: jid, kind: 'drafting', draftingKind: 'auth', resetsAt: null, exact: false, limitType: 'unknown',
+  });
+});
+
+test('retrying a blocked draft requeues it once with the carry-on prefix', async () => {
+  const { DRAFT_RETRY_PREFIX } = await import('../src/server.js');
+  const { sid, jid } = mkDraftBlocked();
+  assert.equal((await post(`/api/sessions/${sid}/retry`, ownerCookie)).status, 200);
+  const job = getDb().prepare('select * from jobs where id = ?').get(jid);
+  assert.equal(job.status, 'queued');
+  assert.equal(job.prompt, `${DRAFT_RETRY_PREFIX}the prompt`);
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'working');
+  assert.equal((await post(`/api/sessions/${sid}/retry`, ownerCookie)).status, 409);
+  assert.equal(getDb().prepare('select prompt from jobs where id = ?').get(jid).prompt, `${DRAFT_RETRY_PREFIX}the prompt`);
+});
+
+test('a blocked draft cannot be retried once a newer message was sent', async () => {
+  const { sid, jid } = mkDraftBlocked();
+  getDb().prepare("insert into jobs (id, session_id, prompt, status, created_at) values (?, ?, 'newer', 'queued', datetime('now', '+1 minute'))")
+    .run(`newer-${sid}`, sid);
+  assert.equal((await post(`/api/sessions/${sid}/retry`, ownerCookie)).status, 409);
   assert.equal(getDb().prepare('select status from jobs where id = ?').get(jid).status, 'failed');
 });
