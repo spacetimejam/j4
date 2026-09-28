@@ -13,6 +13,11 @@ import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } 
 import { readTracker, stageFor } from './tracker.js';
 import { setupPending, findSetupSession, startSetupSession } from './setup-session.js';
 import { saveUpload, MAX_UPLOAD_BYTES } from './upload.js';
+import { fileURLToPath } from 'node:url';
+
+// The kit checkout this portal runs from, resolved, so bin/jawbs-open can
+// tell its own Jawbs from another copy answering on the same port.
+const KIT_DIR = realpathSync(fileURLToPath(new URL('../..', import.meta.url)));
 
 // Look up a session only if it belongs to the requesting user. Missing and
 // forbidden are deliberately the same answer (404) so the API never confirms
@@ -94,7 +99,7 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.static(new URL('../public', import.meta.url).pathname));
 
-  app.get('/api/meta', (req, res) => res.json(local ? { title: config.portalTitle, local: true } : { title: config.portalTitle }));
+  app.get('/api/meta', (req, res) => res.json(local ? { title: config.portalTitle, local: true, kit: KIT_DIR } : { title: config.portalTitle }));
 
   if (!local) {
     // Local mode has no sign-in, so the login routes do not exist there.

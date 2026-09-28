@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { request } from 'node:http';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 process.env.DB_PATH = ':memory:';
 process.env.PORTAL_USERS_FILE = '/nonexistent-portal-users.json';
 process.env.ALLOWED_EMAILS = 'solo@test.com';
@@ -48,7 +50,9 @@ test('the one user is signed in without a cookie', async () => {
 });
 
 test('meta says local', async () => {
-  assert.deepEqual(JSON.parse((await call('/api/meta')).body), { title: 'Jawbs', local: true });
+  // kit lets the launcher tell its own Jawbs from another copy on the same port.
+  const kit = realpathSync(fileURLToPath(new URL('../..', import.meta.url)));
+  assert.deepEqual(JSON.parse((await call('/api/meta')).body), { title: 'Jawbs', local: true, kit });
 });
 
 test('login routes do not exist in local mode', async () => {
