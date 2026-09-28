@@ -42,6 +42,29 @@ export function sessionStatus({ email, awaitingUser }) {
   return awaitingUser === false ? 'active' : 'awaiting_reply';
 }
 
+const DRAFTING_KINDS = new Set(['usage_limit', 'auth', 'error']);
+
+// The agent copies this from the drafting script's failure line, so it is
+// checked rather than trusted: an unknown kind becomes error, which still
+// blocks and alerts, and an unreadable reset time is dropped rather than stored.
+function readDraftingBlocked(value) {
+  if (!value || typeof value !== 'object') return null;
+  const resetsAt = value.resets_at ? new Date(value.resets_at) : null;
+  return {
+    kind: DRAFTING_KINDS.has(value.kind) ? value.kind : 'error',
+    detail: String(value.detail || 'the writing service was unavailable'),
+    resetsAt: resetsAt && !Number.isNaN(resetsAt.getTime()) ? resetsAt : null,
+  };
+}
+
+async function alertAdmins(send, subject, text) {
+  for (const admin of adminEmails()) {
+    try {
+      await send({ to: admin, subject, text, attachments: [] });
+    } catch { /* alert is best-effort */ }
+  }
+}
+
 export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail } = {}) {
   const db = getDb();
   const job = db.prepare("select * from jobs where status = 'queued' order by created_at limit 1").get();
@@ -82,9 +105,11 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     // otherwise every field is undefined and the alert below claims the agent
     // said nothing when it said plenty.
     const fields = typeof structured === 'string' ? tryParseJson(structured) : structured;
-    let clean, title, awaitingUser, email;
+    let clean, title, awaitingUser, email, blocked = null;
     if (fields && typeof fields === 'object') {
-      ({ reply: clean, title, awaiting_user: awaitingUser, email } = fields);
+      let rawBlocked;
+      ({ reply: clean, title, awaiting_user: awaitingUser, email, drafting_blocked: rawBlocked } = fields);
+      blocked = readDraftingBlocked(rawBlocked);
       // The schema guarantees this shape; the guard mirrors parseEmailDirective
       // so a malformed field degrades to "no email" rather than throwing here.
       if (email && (!email.subject || !email.body || !Array.isArray(email.attachments))) email = null;
@@ -109,6 +134,24 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     const newTitle = (title || '').trim().slice(0, 80);
     if (newTitle) {
       db.prepare('update sessions set title = ? where id = ?').run(newTitle, job.session_id);
+    }
+    // The writer could not draft, so there is nothing to deliver: hold the
+    // session on a Retry button. The reply above is already stored, so the
+    // conversation resumes intact. A limit clears itself; anything else needs
+    // the owner, typically `codex login` on the host.
+    if (blocked) {
+      db.prepare(`update jobs set status = 'failed', error = ?, failure_kind = 'drafting_blocked',
+          resets_at = ?, resets_at_exact = ?, limit_type = ? where id = ?`)
+        .run(blocked.detail, toSqlUtc(blocked.resetsAt), blocked.resetsAt ? 1 : 0, blocked.kind, job.id);
+      db.prepare("update sessions set status = 'drafting_blocked', updated_at = datetime('now') where id = ?")
+        .run(job.session_id);
+      if (blocked.kind !== 'usage_limit') {
+        await alertAdmins(send,
+          `${config.portalTitle}: drafting blocked on "${newTitle || session.title}"`,
+          `The ChatGPT writer could not draft (${blocked.kind}): ${blocked.detail}\n\n`
+          + 'The session shows a Retry button. If this is "auth", sign Codex in again on the host with: codex login');
+      }
+      return true;
     }
     if (email) {
       db.prepare('update sessions set files = ? where id = ?')
@@ -144,16 +187,7 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
     db.prepare("update jobs set status = 'failed', error = ? where id = ?").run(String(err), job.id);
     db.prepare("update sessions set status = 'needs_attention', updated_at = datetime('now') where id = ?")
       .run(job.session_id);
-    for (const admin of adminEmails()) {
-      try {
-        await send({
-          to: admin,
-          subject: `${config.portalTitle}: session "${session.title}" needs attention`,
-          text: String(err),
-          attachments: [],
-        });
-      } catch { /* alert is best-effort */ }
-    }
+    await alertAdmins(send, `${config.portalTitle}: session "${session.title}" needs attention`, String(err));
   }
   return true;
 }

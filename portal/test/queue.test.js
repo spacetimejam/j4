@@ -570,3 +570,71 @@ test('an ordinary failure still goes to needs_attention and emails admins', asyn
   assert.equal(getDb().prepare('select failure_kind from jobs where session_id = ?').get(sid).failure_kind, null);
   assert.ok(sent.length >= 1);
 });
+
+const blockedTurn = (blocked, extra = {}) => async () => ({
+  sessionId: 'claude-draft',
+  structured: {
+    reply: 'Your draft is waiting on the writing service.',
+    title: 'Designer at Acme', awaiting_user: false, email: null,
+    drafting_blocked: blocked, ...extra,
+  },
+  text: '',
+});
+
+for (const [kind, emailsAdmin] of [['usage_limit', false], ['auth', true], ['error', true]]) {
+  test(`a ${kind} drafting block stores the reply, holds the session, ${emailsAdmin ? 'and' : 'but does not'} email admins`, async () => {
+    const sid = mkSession();
+    enqueue({ sessionId: sid, prompt: 'yes, apply' });
+    const sent = [];
+    await processOneJob({
+      runTurn: blockedTurn({ kind, detail: `${kind} detail`, resets_at: kind === 'usage_limit' ? '2026-09-28T10:45:00Z' : null }),
+      send: async e => { sent.push(e); },
+    });
+    const db = getDb();
+    const s = db.prepare('select * from sessions where id = ?').get(sid);
+    assert.equal(s.status, 'drafting_blocked');
+    assert.equal(s.claude_session_id, 'claude-draft');
+    assert.equal(s.title, 'Designer at Acme');
+    const msgs = db.prepare("select body from messages where session_id = ? and role = 'claude'").all(sid);
+    assert.deepEqual(msgs.map(m => m.body), ['Your draft is waiting on the writing service.']);
+    const job = db.prepare('select * from jobs where session_id = ?').get(sid);
+    assert.equal(job.status, 'failed');
+    assert.equal(job.failure_kind, 'drafting_blocked');
+    assert.equal(job.limit_type, kind);
+    assert.equal(job.error, `${kind} detail`);
+    assert.equal(job.resets_at, kind === 'usage_limit' ? '2026-09-28 10:45:00' : null);
+    assert.equal(job.resets_at_exact, kind === 'usage_limit' ? 1 : 0);
+    assert.equal(sent.length > 0, emailsAdmin);
+    if (emailsAdmin) assert.match(sent[0].text, new RegExp(`${kind} detail`));
+  });
+}
+
+test('a blocked draft sends no email even if the agent also set one', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'yes, apply' });
+  const sent = [];
+  await processOneJob({
+    runTurn: blockedTurn({ kind: 'usage_limit', detail: 'limit', resets_at: null },
+      { email: { subject: 'CV', body: 'b', attachments: [] } }),
+    send: async e => { sent.push(e); },
+  });
+  assert.equal(sent.length, 0);
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'drafting_blocked');
+});
+
+test('an unknown kind or unreadable reset degrades to error with no reset', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'yes, apply' });
+  await processOneJob({ runTurn: blockedTurn({ kind: 'weird', detail: 'x', resets_at: 'soon' }), send: async () => {} });
+  const job = getDb().prepare('select * from jobs where session_id = ?').get(sid);
+  assert.equal(job.limit_type, 'error');
+  assert.equal(job.resets_at, null);
+});
+
+test('a null drafting_blocked leaves an ordinary turn untouched', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'JD' });
+  await processOneJob({ runTurn: blockedTurn(null), send: async () => {} });
+  assert.equal(getDb().prepare('select status from jobs where session_id = ?').get(sid).status, 'done');
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'active');
+});
