@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { REPLY_SCHEMA } from '../reply-schema.js';
+import { toUsageLimitError } from '../usage-limit.js';
 
 // Default runner: drives Claude via @anthropic-ai/claude-agent-sdk.
 // Satisfies the runner contract documented in src/agent.js.
@@ -25,24 +26,36 @@ export async function runClaudeSdk(
   const parts = [];
   let result = '';
   let structured = null;
-  for await (const msg of q) {
-    if (msg.type === 'system' && msg.subtype === 'init') sessionId = msg.session_id;
-    // Every text block the agent addressed to the user, in order. The
-    // structured field below is the answer; this satisfies the shared runner
-    // contract and gives a failing turn something to show. Reading msg.result
-    // instead loses everything said before a tool call, because result is only
-    // the final assistant message. A subagent's text is working-out rather than
-    // an answer, so it stays out.
-    if (msg.type === 'assistant' && !msg.parent_tool_use_id) {
-      for (const block of msg.message?.content || []) {
-        if (block.type === 'text' && block.text.trim()) parts.push(block.text.trim());
+  // The account's usage limit announces itself before the turn fails: a
+  // rejected rate_limit_event carries the exact reset time, and the assistant
+  // message that could not be produced is marked error: 'rate_limit'. Both are
+  // kept so the failure can be reported as a usage limit rather than a fault.
+  let rejected = null;
+  let rateLimited = false;
+  try {
+    for await (const msg of q) {
+      if (msg.type === 'rate_limit_event' && msg.rate_limit_info?.status === 'rejected') rejected = msg.rate_limit_info;
+      if (msg.type === 'assistant' && msg.error === 'rate_limit') rateLimited = true;
+      if (msg.type === 'system' && msg.subtype === 'init') sessionId = msg.session_id;
+      // Every text block the agent addressed to the user, in order. The
+      // structured field below is the answer; this satisfies the shared runner
+      // contract and gives a failing turn something to show. Reading msg.result
+      // instead loses everything said before a tool call, because result is only
+      // the final assistant message. A subagent's text is working-out rather than
+      // an answer, so it stays out.
+      if (msg.type === 'assistant' && !msg.parent_tool_use_id) {
+        for (const block of msg.message?.content || []) {
+          if (block.type === 'text' && block.text.trim()) parts.push(block.text.trim());
+        }
+      }
+      if (msg.type === 'result') {
+        if (msg.subtype !== 'success') throw new Error(`agent turn failed: ${msg.subtype}`);
+        result = msg.result || '';
+        structured = msg.structured_output ?? null;
       }
     }
-    if (msg.type === 'result') {
-      if (msg.subtype !== 'success') throw new Error(`agent turn failed: ${msg.subtype}`);
-      result = msg.result || '';
-      structured = msg.structured_output ?? null;
-    }
+  } catch (err) {
+    throw toUsageLimitError(err, { rejected, rateLimited }) ?? err;
   }
   // This runner always asks for REPLY_SCHEMA and always prompts the agent with
   // the structured protocol, so a success without structured_output cannot be

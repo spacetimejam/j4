@@ -138,3 +138,60 @@ test('throws naming the subtype when structured output retries are exhausted', a
     /error_max_structured_output_retries/,
   );
 });
+
+const { UsageLimitError } = await import('../src/usage-limit.js');
+
+// A stream that yields some messages and then fails the way the SDK does when
+// the account limit is hit: by throwing from the iterator.
+const failingQuery = (messages, error) => () => (async function* () {
+  for (const m of messages) yield m;
+  throw error;
+})();
+const runFailing = (messages, error) =>
+  runClaudeSdk(
+    { prompt: 'p', systemPrompt: 's', resumeSessionId: null, cwd: '/tmp', model: 'm' },
+    { queryImpl: failingQuery(messages, error) },
+  );
+
+test('a rejected rate_limit_event before the failure gives an exact UsageLimitError', async () => {
+  const event = {
+    type: 'rate_limit_event', session_id: 'sess-1', uuid: 'u1',
+    rate_limit_info: { status: 'rejected', resetsAt: 1790554200, rateLimitType: 'five_hour' },
+  };
+  await assert.rejects(
+    runFailing([init, event], new Error("Claude Code returned an error result: You've hit your session limit · resets 12:10am (UTC)")),
+    err => err instanceof UsageLimitError && err.exact === true && err.limitType === 'session'
+      && err.resetsAt.getTime() === 1790554200 * 1000,
+  );
+});
+
+test('an allowed rate_limit_event does not by itself make a failure a usage limit', async () => {
+  const event = {
+    type: 'rate_limit_event', session_id: 'sess-1', uuid: 'u1',
+    rate_limit_info: { status: 'allowed_warning', resetsAt: 1790554200, rateLimitType: 'five_hour' },
+  };
+  await assert.rejects(
+    runFailing([init, event], new Error('boom')),
+    err => !(err instanceof UsageLimitError) && err.message === 'boom',
+  );
+});
+
+test('the limit text alone gives an estimated UsageLimitError', async () => {
+  await assert.rejects(
+    runFailing([init], new Error("Claude Code returned an error result: You've hit your weekly limit · resets 7am (UTC)")),
+    err => err instanceof UsageLimitError && err.exact === false && err.limitType === 'weekly'
+      && err.resetsAt instanceof Date,
+  );
+});
+
+test('an assistant rate_limit error then a failed result is a usage limit', async () => {
+  await assert.rejects(
+    run([init, assistantText('API Error', { error: 'rate_limit' }), { type: 'result', subtype: 'error_during_execution' }]),
+    err => err instanceof UsageLimitError && err.resetsAt === null,
+  );
+});
+
+test('an unrelated failure is rethrown unchanged', async () => {
+  const original = new Error('socket hang up');
+  await assert.rejects(runFailing([init], original), err => err === original);
+});
