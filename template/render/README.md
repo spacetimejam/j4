@@ -1,11 +1,11 @@
 # Render pipeline
 
-Typst rendering for send-ready CV and cover letter PDFs. The kit deliberately
-does not ship a finished CV design: you choose a Typst template yourself (see
-"Choosing your template" below), vendor it into `render/templates/`, and adapt it with
-your AI assistant to read the yaml content model described here. The design is
-yours; the content model and the hard rules stay the same regardless of which
-template you pick.
+Typst rendering for send-ready CV and cover letter PDFs. A default design is
+included in `render/templates/` (derived from the MIT-licensed vantage-cv
+layout, using fonts that ship with Typst), so rendering works as soon as
+Typst is installed. You can swap it for a Typst Universe template whenever
+you like: see "Choosing your template" below. The content model and the hard
+rules stay the same whichever template you use.
 
 ## Usage
 
@@ -36,7 +36,7 @@ is drafted.
 `render/build.sh <input.typ> [output.pdf]` compiles any Typst file with the
 bundled fonts, for one-off proofs.
 
-Until you have set up a template, `render.sh` will stop with a message pointing
+If a template file goes missing, `render.sh` will stop with a message pointing
 back here: it expects `templates/main.typ` (the CV) and
 `templates/cover-letter.typ` (the letter) to exist.
 

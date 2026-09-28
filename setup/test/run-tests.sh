@@ -157,38 +157,32 @@ else
   fail "initial commit message mismatch"
 fi
 
-# With no vendored template, render.sh must fail with a clear pointer at the
-# README's "Choosing your template" section, not a raw typst error.
-mkdir -p "$TARGET1/applications/dummy-role"
-RENDER_OUT="$(bash "$TARGET1/render/render.sh" dummy-role 2>&1)"
-RENDER_RC=$?
-if [ "$RENDER_RC" -ne 0 ]; then
-  pass
-else
-  fail "render.sh should exit non-zero without a vendored template"
-fi
-if echo "$RENDER_OUT" | grep -q "Choosing your template"; then
-  pass
-else
-  fail "render.sh missing-template message should point at 'Choosing your template' in render/README.md"
-fi
+# The kit ships a default template, so a new project has both files.
+check "default CV template ships" test -f "$TARGET1/render/templates/main.typ"
+check "default letter template ships" test -f "$TARGET1/render/templates/cover-letter.typ"
+check "template licence ships" test -f "$TARGET1/render/templates/VANTAGE-LICENSE"
 
-# Also test missing cover-letter.typ with main.typ present.
-# Create both templates, then remove only cover-letter.typ.
-touch "$TARGET1/render/templates/main.typ"
-touch "$TARGET1/render/templates/cover-letter.typ"
+# Removing a template still fails with a pointer at the README.
+mkdir -p "$TARGET1/applications/dummy-role"
 rm "$TARGET1/render/templates/cover-letter.typ"
 RENDER_OUT2="$(bash "$TARGET1/render/render.sh" dummy-role 2>&1)"
 RENDER_RC2=$?
-if [ "$RENDER_RC2" -ne 0 ]; then
-  pass
-else
-  fail "render.sh should exit non-zero without a vendored cover-letter template"
-fi
-if echo "$RENDER_OUT2" | grep -q "Choosing your template"; then
-  pass
-else
-  fail "render.sh missing-cover-letter-template message should point at 'Choosing your template' in render/README.md"
+check "render.sh fails without a letter template" test "$RENDER_RC2" -ne 0
+if echo "$RENDER_OUT2" | grep -q "Choosing your template"; then pass; else fail "missing-template message should point at 'Choosing your template'"; fi
+
+# With typst present, the skeleton renders to a one-page CV and a letter.
+if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1; then
+  RWORK_T="$(mktemp -d)"
+  bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers.env" --target "$RWORK_T/p" --skip-deps >/dev/null 2>&1
+  mkdir -p "$RWORK_T/p/applications/demo"
+  cp "$RWORK_T/p/render/templates/configuration.yaml" "$RWORK_T/p/applications/demo/cv.yaml"
+  cp "$RWORK_T/p/render/templates/cover-letter.yaml" "$RWORK_T/p/applications/demo/cover-letter.yaml"
+  # The skeleton letter is deliberately short, so the 66% page-fill rule in
+  # cover-letter.typ stops it: the CV renders and the letter is refused.
+  bash "$RWORK_T/p/render/render.sh" demo >"$RWORK_T/out.txt" 2>&1
+  check "CV pdf produced" test -f "$RWORK_T/p/applications/demo/CV - Alex Example - Senior Widget Analyst.pdf"
+  check "short letter refused by the page-fill rule" grep -q "cover letter too short" "$RWORK_T/out.txt"
+  rm -rf "$RWORK_T"
 fi
 
 # No remaining {{ tokens anywhere in substituted file types.

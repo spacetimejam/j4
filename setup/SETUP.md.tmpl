@@ -56,11 +56,14 @@ them in the next session.
 
 ### Session C: finishing (with user)
 
-10. Set up the render templates: help {{USER_NAME}} choose a Typst Universe
-    CV template (https://typst.app/universe), or replicate their existing CV
-    design from an example they provide, and vendor it into
-    `render/templates/` so `main.typ` and `cover-letter.typ` exist and
-    `render.sh` works end to end; verify with a real render of a dummy slug.
+10. The project ships with a default CV and cover letter design in
+    `render/templates/`. Render a test CV from `core/master-cv.md` (copy the
+    skeleton `configuration.yaml` into a dummy application folder, fill it from
+    the master CV, and run `render/render.sh <slug>`), check it fits one page,
+    and show it to {{USER_NAME}}. In a terminal session, offer to switch to a
+    different design from Typst Universe (https://typst.app/universe) or to
+    replicate their existing CV's look, following "Choosing your template" in
+    `render/README.md`.
 11. Delete this file and tell {{USER_NAME}} the project is ready to judge
     fits and draft applications.
 

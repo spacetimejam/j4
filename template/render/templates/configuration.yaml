@@ -7,11 +7,11 @@
 # Theme dials, overridable per role. These keys are read by whatever template
 # you vendor into render/templates/ (see render/README.md "Choosing your
 # template"), so the block is optional and its accepted keys depend on your
-# template. Example:
+# template. The default template reads exactly these three keys:
 # theme:
 #   accent: "#2b6777"
-#   sidebar_fill: "#f2f5f5"
 #   body_font: "Inter"
+#   heading_font: "Libertinus Serif"
 theme: {}
 
 contacts:

@@ -19,14 +19,14 @@ fi
 # No template yet? Stop with guidance rather than a raw typst error.
 if [ ! -f "$HERE/templates/main.typ" ]; then
   echo "error: no CV template found at render/templates/main.typ." >&2
-  echo "The kit does not ship a CV design. Pick and vendor a Typst template first:" >&2
+  echo "The default template is missing. Restore it from the kit's template/render/templates/, or vendor another:" >&2
   echo "see the 'Choosing your template' section in render/README.md." >&2
   exit 1
 fi
 
 if [ ! -f "$HERE/templates/cover-letter.typ" ]; then
   echo "error: no cover letter template found at render/templates/cover-letter.typ." >&2
-  echo "The kit does not ship a cover letter design. Pick and vendor a Typst template first:" >&2
+  echo "The default template is missing. Restore it from the kit's template/render/templates/, or vendor another:" >&2
   echo "see the 'Choosing your template' section in render/README.md." >&2
   exit 1
 fi
