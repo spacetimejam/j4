@@ -3,6 +3,10 @@ import { join, sep } from 'node:path';
 
 export const UPLOAD_EXTENSIONS = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'pages', 'txt', 'md'];
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+// Most filesystems cap a name at 255 bytes; a longer X-Filename would fail
+// the write with ENAMETOOLONG. 120 leaves room for the extension and a clash
+// suffix, and the stem is plain ASCII by then so characters are bytes.
+const MAX_STEM = 120;
 
 // The browser's name is untrusted: keep only the last path segment (either
 // slash, since Windows browsers send backslashes), judge the type by the
@@ -13,7 +17,7 @@ export function safeUploadName(raw) {
   if (dot < 0) return null;
   const ext = base.slice(dot + 1);
   if (!UPLOAD_EXTENSIONS.includes(ext.toLowerCase())) return null;
-  const stem = base.slice(0, dot).replace(/[^A-Za-z0-9._ -]+/g, '-').replace(/^[.\s-]+$/, '').trim();
+  const stem = base.slice(0, dot).replace(/[^A-Za-z0-9._ -]+/g, '-').slice(0, MAX_STEM).replace(/^[.\s-]+$/, '').trim();
   return `${stem || 'upload'}.${ext}`;
 }
 

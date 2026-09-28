@@ -25,6 +25,14 @@ test('names are reduced to a safe basename with an allowed final extension', () 
   assert.equal(safeUploadName(''), null);
 });
 
+test('a very long name is cut to a safe length, keeping the extension', () => {
+  const name = safeUploadName('a'.repeat(400) + '.docx');
+  assert.equal(name, 'a'.repeat(120) + '.docx');
+  // The clash suffix and the extension still fit well inside a 255-byte name.
+  assert.ok(Buffer.byteLength(name) < 200);
+  assert.ok(saveUpload(projectDir, 'b'.repeat(400) + '.pdf', Buffer.from('x')).endsWith('b'.repeat(120) + '.pdf'));
+});
+
 test('saveUpload writes into core/source and suffixes clashes', () => {
   const a = saveUpload(projectDir, 'cv.pdf', Buffer.from('one'));
   const b = saveUpload(projectDir, 'cv.pdf', Buffer.from('two'));
