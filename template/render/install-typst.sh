@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # Install the Typst CLI as a self-contained static binary into ~/.local/bin.
-# Idempotent: run on any Linux machine to get a working Typst. On macOS use
-# `brew install typst` instead.
+# Idempotent: run again any time to get a working Typst. Works on Linux and
+# macOS.
 set -euo pipefail
+
+OS="${TYPST_UNAME_S:-$(uname -s)}"
+ARCH="${TYPST_UNAME_M:-$(uname -m)}"
+case "$OS/$ARCH" in
+  Linux/x86_64)        ASSET="typst-x86_64-unknown-linux-musl"; EXT="tar.xz" ;;
+  Linux/aarch64)       ASSET="typst-aarch64-unknown-linux-musl"; EXT="tar.xz" ;;
+  Darwin/arm64)        ASSET="typst-aarch64-apple-darwin"; EXT="tar.xz" ;;
+  Darwin/x86_64)       ASSET="typst-x86_64-apple-darwin"; EXT="tar.xz" ;;
+  *) echo "unsupported system: $OS $ARCH" >&2; exit 1 ;;
+esac
+if [ "${TYPST_PRINT_ASSET:-}" = "1" ]; then echo "$ASSET"; exit 0; fi
 
 DEST="$HOME/.local/bin"
 mkdir -p "$DEST"
-
-case "$(uname -m)" in
-  x86_64)  ASSET="typst-x86_64-unknown-linux-musl" ;;
-  aarch64) ASSET="typst-aarch64-unknown-linux-musl" ;;
-  *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
-esac
 
 # Fetch first, parse after: grep -m1 closing the pipe early makes curl exit 23
 # under pipefail.
@@ -22,9 +27,9 @@ VER=$(printf '%s' "$RELEASE_JSON" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 curl -sL --max-time 120 \
-  "https://github.com/typst/typst/releases/download/${VER}/${ASSET}.tar.xz" \
-  -o "$TMP/typst.tar.xz"
-tar -xf "$TMP/typst.tar.xz" -C "$TMP"
+  "https://github.com/typst/typst/releases/download/${VER}/${ASSET}.${EXT}" \
+  -o "$TMP/typst.${EXT}"
+tar -xf "$TMP/typst.${EXT}" -C "$TMP"
 install -m 0755 "$TMP/$ASSET/typst" "$DEST/typst"
 
 hash -r 2>/dev/null || true

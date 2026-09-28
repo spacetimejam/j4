@@ -401,6 +401,14 @@ rm -rf "$PWORK"
 # shellcheck source=remote-tests.sh
 . "$TEST_DIR/remote-tests.sh"
 
+# --- install-typst.sh asset selection ----------------------------------------
+IT="$SETUP_DIR/../template/render/install-typst.sh"
+asset() { TYPST_PRINT_ASSET=1 TYPST_UNAME_S="$1" TYPST_UNAME_M="$2" bash "$IT"; }
+check "linux x86_64 asset" test "$(asset Linux x86_64)" = "typst-x86_64-unknown-linux-musl"
+check "linux arm64 asset" test "$(asset Linux aarch64)" = "typst-aarch64-unknown-linux-musl"
+check "mac arm64 asset" test "$(asset Darwin arm64)" = "typst-aarch64-apple-darwin"
+check "mac intel asset" test "$(asset Darwin x86_64)" = "typst-x86_64-apple-darwin"
+
 # --- Summary ----------------------------------------------------------------
 
 rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"

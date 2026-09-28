@@ -160,29 +160,27 @@ if [ "$SKIP_DEPS" = "no" ]; then
     fi
   else
     echo "  python3: NOT found. The render pipeline needs python3 with pyyaml." >&2
+    case "$(uname)" in
+      Darwin) echo "  On macOS, run: xcode-select --install   and accept the prompt, then re-run setup." >&2 ;;
+    esac
   fi
 
   if command -v typst >/dev/null 2>&1; then
     echo "  typst: found"
   else
     echo "  typst: not found."
-    case "$(uname)" in
-      Darwin)
-        echo "  On macOS, install with: brew install typst" ;;
-      *)
-        if [ "$ASSUME_DEPS_YES" = "yes" ]; then
-          reply="y"
-          echo "  --assume-deps-yes: running the Typst installer."
-        elif [ -t 0 ]; then
-          read -r -p "  Run template/render/install-typst.sh now? [y/N]: " reply
-        else
-          reply="n"
-          echo "  Non-interactive session: skipping the Typst installer (use --assume-deps-yes to install)."
-        fi
-        case "$reply" in
-          y|Y) bash "$TEMPLATE_DIR/render/install-typst.sh" ;;
-          *) echo "  Skipped. The installer also ships in your project at render/install-typst.sh." ;;
-        esac ;;
+    if [ "$ASSUME_DEPS_YES" = "yes" ]; then
+      reply="y"
+      echo "  --assume-deps-yes: running the Typst installer."
+    elif [ -t 0 ]; then
+      read -r -p "  Install Typst into ~/.local/bin now? [y/N]: " reply
+    else
+      reply="n"
+      echo "  Non-interactive session: skipping the Typst installer (use --assume-deps-yes to install)."
+    fi
+    case "$reply" in
+      y|Y) bash "$TEMPLATE_DIR/render/install-typst.sh" ;;
+      *) echo "  Skipped. The installer also ships in your project at render/install-typst.sh." ;;
     esac
   fi
 
