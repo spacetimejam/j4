@@ -51,6 +51,8 @@ The wizard will:
 
 First run the setup wizard from the kit folder (see Installation above). Then start your AI tool from inside the newly created project folder (the target directory you chose during the wizard), for example `cd ~/j4/ae` then `claude`, and say: **"run setup"**
 
+If you chose Jawbs in your browser, the wizard opens it for you on a Getting started conversation instead, and you can skip the terminal step; next time, double-click the Jawbs icon.
+
 Your AI tool will guide you through intake, then manage applications, track progress, and redraft materials as you refine your search. See `docs/first-session.md` for what that first session looks like, including choosing a Typst CV template with the assistant.
 
 ## Principles

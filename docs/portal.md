@@ -30,6 +30,46 @@ rest of the kit works without it.
 - **An email provider** for sending you the finished PDFs: Brevo, any SMTP
   account, or a webhook you run yourself.
 
+## Using Jawbs on your own computer
+
+The simplest way to run Jawbs is in your browser on the computer you already
+use, with nothing to publish and no emailed sign-in links. In the setup
+wizard, choose option 1, "In your web browser, on this computer". The wizard
+then runs `setup/jawbs-local.sh` for you, which does six things:
+
+1. Checks that Node 18 or newer and Claude Code are installed. If either is
+   missing it tells you how to install it and stops without failing.
+2. Checks that this copy of the kit does not already run Jawbs for someone
+   else.
+3. Installs the portal's dependencies.
+4. Writes `portal/.env` with the local settings (`EXPOSURE=local`, loopback
+   only, no email provider), and works out whether to use Claude, ChatGPT or
+   both from what is signed in on this computer. An existing `.env` is left
+   as it is.
+5. Registers you as the portal's one user.
+6. Creates a Jawbs icon (in Applications and on your Desktop on a Mac, in the
+   applications menu and on your Desktop on Linux) and opens Jawbs in your
+   browser.
+
+Next time, double-click the Jawbs icon. It starts Jawbs if it is not already
+running and opens it in your browser; double-clicking again is harmless. The
+page has a Quit Jawbs link, which lets any reply in progress finish and then
+stops Jawbs. Open it from the icon again whenever you like.
+
+Jawbs opens on a conversation called Getting started, which works through the
+same steps as `docs/first-session.md`. When it asks for your CV, attach it
+with the Attach a file button (PDF, Word, text and similar formats, up to
+15 MB).
+
+If something goes wrong, the log is `portal/data/jawbs.log` in the kit
+folder. If setup stopped because something was missing, install it and run
+`setup/jawbs-local.sh <project folder>` again; it needs no further questions.
+
+Jawbs on a computer serves one person, so a second person needs their own copy
+of the kit (clone it again into another folder).
+
+There is no sign-in. Anyone or anything that can act as your user account on this computer can use Jawbs, including other programs you run. Jawbs listens only on this computer (127.0.0.1) and refuses requests addressed to any other host name, which stops websites you visit from reaching it through your browser. Do not change `BIND_HOST` or put a proxy in front of a local Jawbs: publish it with `docs/portal-remote-access.md` instead, which switches to emailed sign-in links.
+
 ## Setup walkthrough
 
 From the project root:
@@ -56,12 +96,13 @@ Then edit `.env`, field by field:
   `EXPOSURE=public` is held to a stronger bar of at least 64, because the
   session cookie is the only thing between a stranger on the internet and an
   agent running with `bypassPermissions` inside your project.
-- `EXPOSURE`: `private` or `public`, describing whether the portal is
+- `EXPOSURE`: `private`, `public` or `local`, describing whether the portal is
   reachable from the public internet, not which tool you used to publish it.
   A Tailscale Funnel install and a reverse-proxied public domain are both
   `public`. Leave it unset (or `private`) for Tailscale `serve`, a VPN, or
   localhost only. `setup-remote.sh configure` sets this for you when using
-  Tailscale.
+  Tailscale. `local` is Jawbs on your own computer, with no sign-in and one
+  person; the wizard writes it for you (see the next section).
 - `BIND_HOST`: the address the portal listens on. Defaults to `0.0.0.0`, all
   interfaces, which is what a reverse proxy on another host or in a
   container such as Docker generally needs, since it cannot reach loopback.

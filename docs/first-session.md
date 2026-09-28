@@ -7,7 +7,12 @@ skeleton into a working search environment.
 
 ## How to start
 
-Open the project folder in your AI tool (for example, run `claude` inside the
+**If you chose Jawbs in your browser**, setup opens it for you. Next time,
+double-click Jawbs on your Desktop or in Applications. It opens on a
+conversation called Getting started, which works through the same steps as
+below; attach your CV with the Attach a file button when Jawbs asks for it.
+
+**In a terminal**, open the project folder in your AI tool (for example, run `claude` inside the
 folder) and say:
 
 > run setup
@@ -31,10 +36,9 @@ minutes, most of it conversation.
    `core/stories.md` (reusable evidence for CVs and interviews) and
    `core/voice.md` (how your application copy should sound).
 5. **Tracker check.** A quick confirmation that the application log works.
-6. **Choose a CV template.** Rendering uses Typst. Rather than shipping one
-   fixed design, the kit expects you to browse Typst Universe
-   (https://typst.app/universe) with the assistant, pick a CV template you
-   like, customise it together, and confirm a test compile to PDF succeeds.
+6. **Test render.** The kit includes a CV design, so the assistant renders a
+   test CV from your master CV for you to look at. In a terminal session you
+   can also choose a different design from Typst Universe.
 7. **Cleanup.** The assistant deletes `SETUP.md` and tells you the project is
    ready to judge fits and draft applications.
 
