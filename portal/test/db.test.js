@@ -54,3 +54,10 @@ test('documents table has a message_id column', () => {
   const cols = db.prepare('pragma table_info(documents)').all().map(c => c.name);
   assert.ok(cols.includes('message_id'), 'message_id column exists');
 });
+
+test('sessions have a kind that defaults to application', async () => {
+  const { getDb, newId } = await import('../src/db.js');
+  const id = newId();
+  getDb().prepare("insert into sessions (id, user_email, title) values (?, 'a@b.c', 't')").run(id);
+  assert.equal(getDb().prepare('select kind from sessions where id = ?').get(id).kind, 'application');
+});

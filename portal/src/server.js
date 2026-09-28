@@ -11,6 +11,7 @@ import { getUser } from './users.js';
 import { isLocal, localHostGuard } from './local.js';
 import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } from './deletion.js';
 import { readTracker, stageFor } from './tracker.js';
+import { setupPending, findSetupSession, startSetupSession } from './setup-session.js';
 
 // Look up a session only if it belongs to the requesting user. Missing and
 // forbidden are deliberately the same answer (404) so the API never confirms
@@ -122,6 +123,17 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
   }
 
   app.get('/api/me', requireAuth, (req, res) => res.json({ email: req.userEmail }));
+
+  app.get('/api/setup', requireAuth, (req, res) => {
+    const pending = setupPending(getUser(req.userEmail)?.projectDir);
+    const session = findSetupSession(getDb(), req.userEmail);
+    res.json({ pending, sessionId: session?.id ?? null });
+  });
+
+  app.post('/api/setup/start', requireAuth, (req, res) => {
+    if (!setupPending(getUser(req.userEmail)?.projectDir)) return res.status(409).json({ error: 'setup is complete' });
+    res.json({ id: startSetupSession(getDb(), req.userEmail).id });
+  });
 
   app.get('/api/sessions', requireAuth, (req, res) => {
     const archived = req.query.archived === '1' ? 1 : 0;

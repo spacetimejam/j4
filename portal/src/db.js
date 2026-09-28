@@ -66,6 +66,11 @@ export function getDb() {
     if (!cols.some(c => c.name === 'archived')) {
       db.exec('alter table sessions add column archived integer not null default 0');
     }
+    // 'setup' marks the Getting started conversation that works through the
+    // project's SETUP.md; everything else is an application.
+    if (!cols.some(c => c.name === 'kind')) {
+      db.exec("alter table sessions add column kind text not null default 'application'");
+    }
     // Usage-limit failures are recorded on the job so the notice and the retry
     // both read from the one row that holds the waiting prompt.
     const jobCols = db.prepare('pragma table_info(jobs)').all();
