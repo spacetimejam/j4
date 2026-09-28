@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { formatLondon } from '../public/time.js';
+import { formatLondon, formatResetLondon, resetHasPassed } from '../public/time.js';
 
 // Stored timestamps are UTC (SQLite datetime('now')). Expectations below are
 // the London wall-clock time for that instant, so a pure passthrough fails.
@@ -48,4 +48,53 @@ test('ignores the ambient timezone', () => {
     }).trim();
     assert.equal(out, '2026-07-21 14:40:06', `wrong under TZ=${TZ}`);
   }
+});
+
+const exactSession = { exact: true, limitType: 'session' };
+// 20:39 BST on Sunday 27 Sep 2026.
+const SUN_EVENING = new Date('2026-09-27T19:39:00Z');
+
+test('a reset later the same London day says today, in BST', () => {
+  assert.equal(formatResetLondon('2026-09-27 21:10:00', exactSession, SUN_EVENING), '22:10 BST today');
+});
+
+test('a reset after London midnight says tomorrow with the weekday', () => {
+  assert.equal(formatResetLondon('2026-09-28 00:10:00', exactSession, SUN_EVENING), '01:10 BST tomorrow (Monday)');
+});
+
+test('a reset further out gives the weekday and date', () => {
+  assert.equal(formatResetLondon('2026-10-01 07:00:00', { exact: true, limitType: 'weekly' }, SUN_EVENING),
+    '08:00 BST on Thursday 1 October');
+});
+
+test('a winter reset is labelled GMT', () => {
+  assert.equal(formatResetLondon('2026-01-15 09:00:00', exactSession, new Date('2026-01-15T06:00:00Z')),
+    '09:00 GMT today');
+});
+
+test('the label follows the clocks going back', () => {
+  const now = new Date('2026-10-24T20:00:00Z');
+  assert.equal(formatResetLondon('2026-10-25 00:30:00', exactSession, now), '01:30 BST tomorrow (Sunday)');
+  assert.equal(formatResetLondon('2026-10-25 01:30:00', exactSession, now), '01:30 GMT tomorrow (Sunday)');
+});
+
+test('an estimated weekly reset gives no day', () => {
+  assert.equal(formatResetLondon('2026-09-28 07:00:00', { exact: false, limitType: 'weekly' }, SUN_EVENING),
+    '08:00 BST on a day within the next week');
+});
+
+test('an estimated session reset keeps its day, which the five-hour window makes safe', () => {
+  assert.equal(formatResetLondon('2026-09-28 00:10:00', { exact: false, limitType: 'session' }, SUN_EVENING),
+    '01:10 BST tomorrow (Monday)');
+});
+
+test('no reset time gives an empty string', () => {
+  assert.equal(formatResetLondon(null, exactSession, SUN_EVENING), '');
+  assert.equal(formatResetLondon('not a date', exactSession, SUN_EVENING), '');
+});
+
+test('resetHasPassed compares the stored UTC time with now', () => {
+  assert.equal(resetHasPassed('2026-09-27 19:00:00', SUN_EVENING), true);
+  assert.equal(resetHasPassed('2026-09-28 00:10:00', SUN_EVENING), false);
+  assert.equal(resetHasPassed(null, SUN_EVENING), false);
 });
