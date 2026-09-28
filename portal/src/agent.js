@@ -12,6 +12,13 @@ export { REPLY_SCHEMA } from './reply-schema.js';
 // schema-capable runner is a one-line change.
 const STRUCTURED_RUNNERS = new Set(['claude-sdk']);
 
+// Whether ChatGPT writes the CV and cover letter copy: only when the host has
+// both subscriptions and the runner is Claude with the schema. The prompt and
+// queue.js's provenance alert both ask this, so they cannot disagree.
+export function draftingEnabled({ subscriptions = config.subscriptions, runnerName = config.agentRunner } = {}) {
+  return subscriptions === 'both' && STRUCTURED_RUNNERS.has(runnerName);
+}
+
 const fencedProtocol = (userName) => `When you have something to deliver, end your final message with
 exactly this fenced block so the portal can email it:
 
@@ -36,7 +43,7 @@ exchange, or the next move is waiting on an employer rather than on ${userName},
 false. Include the block with "awaiting_user" in every reply, even before you know the role and
 company, leaving "title" out until you do.`;
 
-const structuredProtocol = (userName) => `
+const structuredProtocol = (userName, drafting) => `
 YOUR REPLY IS STRUCTURED DATA. The portal reads five fields from you, not prose:
 
 - "reply": everything ${userName} should read, as markdown. This is the only text
@@ -48,8 +55,10 @@ YOUR REPLY IS STRUCTURED DATA. The portal reads five fields from you, not prose:
   ${userName}, set it to false.
 - "email": null, or {"subject": ..., "body": ..., "attachments": [absolute paths]}
   when you have documents to deliver.
-- "drafting_blocked": null, except when the drafting script could not run (see
-  WRITING THE CV AND COVER LETTER COPY).
+${drafting
+    ? `- "drafting_blocked": null, except when the drafting script could not run (see
+  WRITING THE CV AND COVER LETTER COPY).`
+    : '- "drafting_blocked": always null.'}
 
 Do all the work first. Write nothing to ${userName} until every file is written
 and every check is done. Then reply once, in "reply":
@@ -94,16 +103,18 @@ cover letter copy:
    Retry. In every other turn "drafting_blocked" is null.
 `;
 
-export const portalPrompt = (userName, { structured = false } = {}) => {
+export const portalPrompt = (userName, { structured = false, drafting = false } = {}) => {
   const emailPhrase = structured ? 'the email field' : 'an email-to-user block';
   const blockPhrase = structured ? 'the email field' : 'the block above';
   // Phrased as the whole clause, not a noun, because "do NOT emit the email
   // field" reads as an instruction to omit a required field. Both protocols
   // have to give a live agent an unambiguous sentence here.
   const noSendPhrase = structured ? 'leave the email field null' : 'send no email-to-user block';
-  const protocol = structured
-    ? `${structuredProtocol(userName)}\n${draftingProtocol(userName)}`
-    : fencedProtocol(userName);
+  const protocol = !structured
+    ? fencedProtocol(userName)
+    : drafting
+      ? `${structuredProtocol(userName, true)}\n${draftingProtocol(userName)}`
+      : structuredProtocol(userName, false);
   return `
 You are working inside a job-search project on ${userName}'s behalf, driven from the
 ${config.portalTitle} web app. The person you are talking to IS ${userName}. Address them
@@ -257,13 +268,16 @@ export const RUNNER_NAMES = Object.keys(RUNNERS);
 
 export async function runAgentTurn(
   { prompt, resumeSessionId, user },
-  { runners = RUNNERS, runnerName = config.agentRunner } = {},
+  { runners = RUNNERS, runnerName = config.agentRunner, subscriptions = config.subscriptions } = {},
 ) {
   const runner = runners[runnerName];
   if (!runner) throw new Error(`unknown agent runner: ${runnerName}`);
   return runner({
     prompt,
-    systemPrompt: portalPrompt(user.name, { structured: STRUCTURED_RUNNERS.has(runnerName) }),
+    systemPrompt: portalPrompt(user.name, {
+      structured: STRUCTURED_RUNNERS.has(runnerName),
+      drafting: draftingEnabled({ subscriptions, runnerName }),
+    }),
     resumeSessionId: resumeSessionId || null,
     cwd: user.projectDir,
     model: config.agentModel,

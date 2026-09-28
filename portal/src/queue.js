@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { getDb, newId } from './db.js';
 import { config } from './config.js';
-import { runAgentTurn, parseEmailDirective, parseTitleDirective } from './agent.js';
+import { runAgentTurn, parseEmailDirective, parseTitleDirective, draftingEnabled } from './agent.js';
 import { sendEmail } from './email.js';
 import { getUser, adminEmails } from './users.js';
 import { UsageLimitError, toSqlUtc } from './usage-limit.js';
@@ -66,7 +66,7 @@ async function alertAdmins(send, subject, text) {
   }
 }
 
-export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail } = {}) {
+export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, drafting = draftingEnabled() } = {}) {
   const db = getDb();
   const job = db.prepare("select * from jobs where status = 'queued' order by created_at limit 1").get();
   if (!job) return false;
@@ -171,8 +171,9 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
       }));
       await send({ to: session.user_email, subject: email.subject, text: email.body, attachments });
       // The writer's provenance is how the owner knows ChatGPT wrote the copy.
-      // Delivery has already happened; this only makes a bypass visible.
-      const unproven = unprovenancedDeliveries(email.attachments);
+      // Delivery has already happened; this only makes a bypass visible. With
+      // one subscription Claude writes the copy, so there is nothing to bypass.
+      const unproven = drafting ? unprovenancedDeliveries(email.attachments) : [];
       if (unproven.length) {
         await alertAdmins(send,
           `${config.portalTitle}: CV or cover letter delivered without a ChatGPT draft on "${newTitle || session.title}"`,

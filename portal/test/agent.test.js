@@ -299,7 +299,7 @@ test('the reply schema requires a nullable drafting_blocked with the three kinds
 
 test('the structured prompt hands the copy to the drafting script with a long enough timeout', async () => {
   const { DRAFT_TIMEOUT_MS } = await import('../src/drafting.js');
-  const p = portalPrompt('Sam', { structured: true });
+  const p = portalPrompt('Sam', { structured: true, drafting: true });
   assert.match(p, /WRITING THE CV AND COVER LETTER COPY/);
   assert.match(p, /bin\/chatgpt-draft/);
   assert.match(p, /600000/);
@@ -313,4 +313,28 @@ test('the structured prompt hands the copy to the drafting script with a long en
 
 test('the fenced prompt, for runners that are not Claude, has no drafting subagent', () => {
   assert.doesNotMatch(portalPrompt('Sam'), /chatgpt-draft|drafting_blocked/);
+});
+
+test('draftingEnabled is on only for both with the structured runner', async () => {
+  const { draftingEnabled } = await import('../src/agent.js');
+  assert.equal(draftingEnabled({ subscriptions: 'both', runnerName: 'claude-sdk' }), true);
+  assert.equal(draftingEnabled({ subscriptions: 'claude-only', runnerName: 'claude-sdk' }), false);
+  assert.equal(draftingEnabled({ subscriptions: 'both', runnerName: 'cli' }), false);
+  assert.equal(draftingEnabled({ subscriptions: 'chatgpt-only', runnerName: 'codex' }), false);
+});
+
+test('the structured prompt without drafting leaves Claude to write, and drafting_blocked null', () => {
+  const p = portalPrompt('Sam', { structured: true });
+  assert.doesNotMatch(p, /chatgpt-draft|WRITING THE CV AND COVER LETTER COPY/);
+  assert.match(p, /"drafting_blocked": always null/);
+});
+
+test('runAgentTurn drafts through ChatGPT under both and not under claude-only', async () => {
+  const seen = {};
+  const runners = { 'claude-sdk': async a => { seen.p = a.systemPrompt; return { sessionId: 's', text: '' }; } };
+  const args = { prompt: 'x', resumeSessionId: null, user: { name: 'Sam', projectDir: '/tmp' } };
+  await runAgentTurn(args, { runners, runnerName: 'claude-sdk', subscriptions: 'both' });
+  assert.match(seen.p, /chatgpt-draft/);
+  await runAgentTurn(args, { runners, runnerName: 'claude-sdk', subscriptions: 'claude-only' });
+  assert.doesNotMatch(seen.p, /chatgpt-draft/);
 });

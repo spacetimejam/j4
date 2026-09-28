@@ -659,9 +659,34 @@ test('delivering a CV with no ChatGPT draft behind it alerts the admins but stil
       text: '',
     }),
     send: async e => { sent.push(e); },
+    drafting: true,
   });
   assert.ok(sent.some(e => e.subject === 'Your CV'), 'the user still gets the CV');
   const alert = sent.find(e => /without a ChatGPT draft/.test(e.subject));
   assert.ok(alert, 'admins are told');
   assert.ok(alert.text.includes(cv));
+});
+
+test('under claude-only a CV with no ChatGPT draft is delivered with no admin alert', async () => {
+  const { mkdtempSync, mkdirSync } = await import('node:fs');
+  const dir = join(mkdtempSync(join(tmpdir(), 'prov-')), 'applications', 'acme');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'brief.md'), 'brief');
+  const cv = join(dir, 'CV - Test - Designer.pdf');
+  writeFileSync(cv, 'pdf');
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'yes, apply' });
+  const sent = [];
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-solo',
+      structured: { reply: 'Here it is.', title: 'Designer at Acme', awaiting_user: false,
+        email: { subject: 'Your CV', body: 'b', attachments: [cv] }, drafting_blocked: null },
+      text: '',
+    }),
+    send: async e => { sent.push(e); },
+    drafting: false,
+  });
+  assert.ok(sent.some(e => e.subject === 'Your CV'), 'the user still gets the CV');
+  assert.equal(sent.filter(e => /without a ChatGPT draft/.test(e.subject)).length, 0);
 });
