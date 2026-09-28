@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getDb, newId } from './db.js';
 import { config } from './config.js';
 import { getUser } from './users.js';
+import { isLocal, localUserEmail } from './local.js';
 
 const TOKEN_TTL_MIN = 15;
 const COOKIE_TTL_DAYS = 90;
@@ -50,6 +51,13 @@ export function verifyCookie(value) {
 }
 
 export function requireAuth(req, res, next) {
+  // Local mode has no sign-in: the one registered user is the only user.
+  if (isLocal()) {
+    const email = localUserEmail();
+    if (!email) return res.status(503).json({ error: 'local mode needs exactly one registered user' });
+    req.userEmail = email;
+    return next();
+  }
   const raw = (req.headers.cookie || '').split(';').map(s => s.trim())
     .find(s => s.startsWith('jskit='));
   const email = raw ? verifyCookie(raw.slice(6)) : null;

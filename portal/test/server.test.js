@@ -558,3 +558,8 @@ test('a blocked draft cannot be retried once a newer message was sent', async ()
   assert.equal((await post(`/api/sessions/${sid}/retry`, ownerCookie)).status, 409);
   assert.equal(getDb().prepare('select status from jobs where id = ?').get(jid).status, 'failed');
 });
+
+test('quit does not exist outside local mode', async () => {
+  const r = await fetch(`${base}/api/quit`, { method: 'POST', headers: { cookie: ownerCookie } });
+  assert.equal(r.status, 404);
+});

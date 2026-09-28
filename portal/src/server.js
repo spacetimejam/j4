@@ -6,8 +6,9 @@ import { config } from './config.js';
 import { checkConfig } from './preflight.js';
 import { issueToken, redeemToken, makeCookie, requireAuth } from './auth.js';
 import { sendEmail } from './email.js';
-import { enqueue, startWorker } from './queue.js';
+import { enqueue, startWorker, stopWorker } from './queue.js';
 import { getUser } from './users.js';
+import { isLocal, localHostGuard } from './local.js';
 import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } from './deletion.js';
 import { readTracker, stageFor } from './tracker.js';
 
@@ -83,36 +84,42 @@ function delayedFor(db, session) {
   };
 }
 
-export function createApp({ send = sendEmail } = {}) {
+export function createApp({ send = sendEmail, quit = null } = {}) {
   const app = express();
+  const local = isLocal();
+  // Before static files: a rebinding attack's first request is for index.html.
+  if (local) app.use(localHostGuard);
   app.use(express.json({ limit: '1mb' }));
   app.use(express.static(new URL('../public', import.meta.url).pathname));
 
-  app.get('/api/meta', (req, res) => res.json({ title: config.portalTitle }));
+  app.get('/api/meta', (req, res) => res.json(local ? { title: config.portalTitle, local: true } : { title: config.portalTitle }));
 
-  app.post('/api/login', async (req, res) => {
-    const token = issueToken(req.body?.email);
-    if (token) {
-      const link = `${config.baseUrl}/auth/${token}`;
-      try {
-        await send({
-          to: String(req.body.email).toLowerCase(),
-          subject: `Your ${config.portalTitle} login link`,
-          text: `Hello! Click to log in (valid for 15 minutes): ${link}`,
-          attachments: [],
-        });
-      } catch (err) { console.error('login email failed:', err); }
-    }
-    res.json({ ok: true }); // same response either way; no allowlist oracle
-  });
+  if (!local) {
+    // Local mode has no sign-in, so the login routes do not exist there.
+    app.post('/api/login', async (req, res) => {
+      const token = issueToken(req.body?.email);
+      if (token) {
+        const link = `${config.baseUrl}/auth/${token}`;
+        try {
+          await send({
+            to: String(req.body.email).toLowerCase(),
+            subject: `Your ${config.portalTitle} login link`,
+            text: `Hello! Click to log in (valid for 15 minutes): ${link}`,
+            attachments: [],
+          });
+        } catch (err) { console.error('login email failed:', err); }
+      }
+      res.json({ ok: true }); // same response either way; no allowlist oracle
+    });
 
-  app.get('/auth/:token', (req, res) => {
-    const email = redeemToken(req.params.token);
-    if (!email) return res.status(400).send('This link has expired. Please request a new one.');
-    res.setHeader('Set-Cookie',
-      `jskit=${makeCookie(email)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${90 * 86400}`);
-    res.redirect('/');
-  });
+    app.get('/auth/:token', (req, res) => {
+      const email = redeemToken(req.params.token);
+      if (!email) return res.status(400).send('This link has expired. Please request a new one.');
+      res.setHeader('Set-Cookie',
+        `jskit=${makeCookie(email)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${90 * 86400}`);
+      res.redirect('/');
+    });
+  }
 
   app.get('/api/me', requireAuth, (req, res) => res.json({ email: req.userEmail }));
 
@@ -289,6 +296,15 @@ export function createApp({ send = sendEmail } = {}) {
     res.json({ ok: true });
   });
 
+  // Local only: the page's Quit Jawbs link. Answers first, then stops, so the
+  // page can say goodbye; the worker finishes any turn in hand before exit.
+  if (local && quit) {
+    app.post('/api/quit', requireAuth, (req, res) => {
+      res.json({ ok: true });
+      setImmediate(() => { quit(); });
+    });
+  }
+
   return app;
 }
 
@@ -303,7 +319,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error('Setup guidance: docs/portal.md and docs/portal-remote-access.md');
     process.exit(1);
   }
-  createApp().listen(config.port, config.bindHost, () =>
+  const server = createApp({
+    quit: async () => {
+      console.log('Quit requested: finishing any reply in progress, then stopping.');
+      await stopWorker();
+      server.close(() => process.exit(0));
+    },
+  }).listen(config.port, config.bindHost, () =>
     console.log(`${config.portalTitle} on ${config.bindHost}:${config.port}`));
   startWorker();
 }

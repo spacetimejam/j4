@@ -203,14 +203,27 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
   return true;
 }
 
+let workerTimer = null;
+let workerIdle = Promise.resolve();
+
 export function startWorker(deps = {}) {
   const pollMs = deps.pollMs ?? 3000;
   // recover jobs stuck in 'running' from a crash/reboot
   getDb().prepare("update jobs set status = 'queued' where status = 'running'").run();
   let busy = false;
-  setInterval(async () => {
+  workerTimer = setInterval(async () => {
     if (busy) return;
     busy = true;
-    try { await processOneJob(deps); } finally { busy = false; }
+    let done;
+    workerIdle = new Promise(r => { done = r; });
+    try { await processOneJob(deps); } finally { busy = false; done(); }
   }, pollMs);
+}
+
+// Stop taking jobs and wait for the one in hand, if any. Queued jobs stay
+// queued; startWorker picks them up on the next start.
+export async function stopWorker() {
+  clearInterval(workerTimer);
+  workerTimer = null;
+  await workerIdle;
 }

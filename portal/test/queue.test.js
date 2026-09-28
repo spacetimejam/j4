@@ -690,3 +690,21 @@ test('under claude-only a CV with no ChatGPT draft is delivered with no admin al
   assert.ok(sent.some(e => e.subject === 'Your CV'), 'the user still gets the CV');
   assert.equal(sent.filter(e => /without a ChatGPT draft/.test(e.subject)).length, 0);
 });
+
+test('stopWorker resolves once the running job has finished and starts no more', async () => {
+  const { startWorker, stopWorker } = await import('../src/queue.js');
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'first' });
+  enqueue({ sessionId: sid, prompt: 'second' });
+  let release;
+  const gate = new Promise(r => { release = r; });
+  let turns = 0;
+  const runTurn = async () => { turns++; await gate; return { sessionId: 'x', text: 'ok' }; };
+  startWorker({ runTurn, send: async () => {}, pollMs: 5 });
+  while (turns === 0) await new Promise(r => setTimeout(r, 5));
+  const stopped = stopWorker();
+  release();
+  await stopped;
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(turns, 1);
+});
