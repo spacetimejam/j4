@@ -21,10 +21,12 @@ rest of the kit works without it.
 - **Node 18 or newer.** Every dependency, including the Claude Agent SDK,
   requires only 18, and the full test suite passes on it. Check with
   `node --version`.
-- **API access for your AI tool.** By default the portal drives Claude via
-  the Claude Agent SDK, which needs either a logged-in Claude Code install or
-  an `ANTHROPIC_API_KEY`. Other tools can be wired in; see "Using a different
-  LLM" below.
+- **Claude and ChatGPT, or one of them.** By default the portal drives Claude
+  via the Claude Agent SDK (a logged-in Claude Code install or an
+  `ANTHROPIC_API_KEY`) and has ChatGPT write the CV and cover letter copy
+  through the Codex CLI, signed in with `codex login`. If you have only one of
+  the two, say so with `SUBSCRIPTIONS`; see "Running on one subscription"
+  below.
 - **An email provider** for sending you the finished PDFs: Brevo, any SMTP
   account, or a webhook you run yourself.
 
@@ -111,6 +113,8 @@ Then edit `.env`, field by field:
   below).
 - `AGENT_RUNNER`, `AGENT_CMD`, `AGENT_CMD_RESUME`: see "Using a different
   LLM" below. Leave at the defaults to use the Claude Agent SDK.
+- `SUBSCRIPTIONS`: `both` (the default), `claude-only` or `chatgpt-only`. See
+  "Running on one subscription" below.
 - `EMAIL_PROVIDER` and the provider fields: see "Choosing an email provider"
   next.
 
@@ -262,6 +266,29 @@ Create `~/Library/LaunchAgents/com.job-search.portal.plist`:
 
 Then `launchctl load ~/Library/LaunchAgents/com.job-search.portal.plist`.
 
+## Running on one subscription
+
+Out of the box the portal uses two subscriptions: Claude runs the
+conversation, and ChatGPT (through the Codex CLI) writes the prose in each CV
+and cover letter, which Claude then fits and checks. If you only have one,
+tell the portal so in `.env`. It never switches on its own.
+
+| `SUBSCRIPTIONS` | Who does what | Needs |
+|---|---|---|
+| `both` (default) | Claude runs the portal; ChatGPT writes the CV and letter copy | Claude, plus Codex installed and signed in |
+| `claude-only` | Claude writes everything | Claude only |
+| `chatgpt-only` | ChatGPT runs everything | `AGENT_RUNNER=codex` (see "Using Codex") |
+
+At startup the portal checks the setting. With `both` and no Codex installed
+it refuses to start and says so, rather than leaving every draft waiting.
+Codex installed but signed out only prints a warning, because logins lapse on
+their own: drafts then wait with a Retry button, and admins are emailed, until
+someone runs `codex login` as the user the portal runs as. Settings that
+contradict `AGENT_RUNNER` also stop startup.
+
+ChatGPT cannot be used without an account: `codex login` accepts a ChatGPT
+login, an API key or an access token, and nothing else.
+
 ## Using a different LLM
 
 The portal is Claude-first but not Claude-only. `AGENT_RUNNER` selects how
@@ -328,8 +355,12 @@ Install the Codex CLI and log in per its own instructions, then:
 
 ```bash
 AGENT_RUNNER=codex
+SUBSCRIPTIONS=chatgpt-only
 # AGENT_MODEL left unset on purpose: see below
 ```
+
+`SUBSCRIPTIONS=chatgpt-only` confirms the portal runs on ChatGPT alone;
+preflight refuses the codex runner without it.
 
 Leave `AGENT_MODEL` unset unless you want a specific Codex model. It defaults
 to a Claude model id, and the codex runner omits `--model` altogether when it
