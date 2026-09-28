@@ -152,6 +152,31 @@ a.card:hover {
   text-transform: uppercase;
 }
 
+/* Quieter than the Reply badge: nothing is being asked of the reader, the
+   account is simply out of usage for now. */
+.badge-delayed {
+  position: absolute;
+  top: -6px;
+  right: 12px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--tint);
+  color: var(--ink-soft);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.notice-delayed {
+  border-left: 3px solid var(--amber);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.notice-delayed p { margin: 0 0 10px; }
+
 /* Conversation thread */
 .msg {
   border-radius: 14px;
