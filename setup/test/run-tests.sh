@@ -409,6 +409,32 @@ check "linux arm64 asset" test "$(asset Linux aarch64)" = "typst-aarch64-unknown
 check "mac arm64 asset" test "$(asset Darwin arm64)" = "typst-aarch64-apple-darwin"
 check "mac intel asset" test "$(asset Darwin x86_64)" = "typst-x86_64-apple-darwin"
 
+# --- JAWBS_MODE ---------------------------------------------------------------
+MWORK="$(mktemp -d)"
+run_mode() { # run_mode <answers> <target>
+  PORTAL_REGISTRY="$MWORK/users.json" JAWBS_SKIP_LOCAL=yes \
+    bash "$SETUP_DIR/setup.sh" --answers "$1" --target "$2" --skip-deps >"$2.out" 2>&1
+}
+run_mode "$TEST_DIR/answers-terminal.env" "$MWORK/t" || fail "terminal mode exited non-zero"
+check "terminal mode registers nobody" test ! -f "$MWORK/users.json"
+check "terminal mode has no portal task" sh -c "! grep -q 'If you chose the portal' '$MWORK/t/SETUP.md'"
+check "SETUP.md records the mode" grep -q "How Jawbs is used: terminal" "$MWORK/t/SETUP.md"
+
+run_mode "$TEST_DIR/answers-local.env" "$MWORK/l" || fail "local mode exited non-zero"
+check "local mode has no remote-access task" sh -c "! grep -q 'If you chose the portal' '$MWORK/l/SETUP.md'"
+check "SETUP.md records local" grep -q "How Jawbs is used: local" "$MWORK/l/SETUP.md"
+
+# PORTAL=yes still means shared, PORTAL=no still means terminal.
+run_mode "$TEST_DIR/answers-portal.env" "$MWORK/s" || fail "PORTAL=yes alias exited non-zero"
+check "PORTAL=yes is shared" grep -q "How Jawbs is used: shared" "$MWORK/s/SETUP.md"
+check "shared keeps the portal task" grep -q "If you chose the portal" "$MWORK/s/SETUP.md"
+run_mode "$TEST_DIR/answers.env" "$MWORK/n" || fail "PORTAL=no alias exited non-zero"
+check "PORTAL=no is terminal" grep -q "How Jawbs is used: terminal" "$MWORK/n/SETUP.md"
+
+printf 'JAWBS_MODE="sideways"\n' | cat "$TEST_DIR/answers-terminal.env" - > "$MWORK/bad.env"
+if run_mode "$MWORK/bad.env" "$MWORK/b"; then fail "an unknown JAWBS_MODE should stop setup"; else pass; fi
+rm -rf "$MWORK"
+
 # --- Summary ----------------------------------------------------------------
 
 rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"

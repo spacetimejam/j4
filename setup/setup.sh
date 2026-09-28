@@ -61,10 +61,25 @@ else
   ask SENIORITY "Seniority (e.g. mid-weight, senior)" "senior"
   ask_menu EMPLOYMENT_STATUS "Current employment status:" "employed" "between roles"
   ask_menu AI_TOOL "Which AI assistant will you use?" "claude-code" "other"
-  ask PORTAL "Register with the shared submission portal (submit job descriptions from your phone)? [y/N]" "no"
-  case "$PORTAL" in
-    y|Y|yes|Yes|YES)
-      ask PORTAL_ADMIN "Should this person receive portal failure alerts? [y/N]" "no" ;;
+  echo
+  echo "How would you like to work with Jawbs?"
+  echo
+  echo "  1) In your web browser, on this computer (recommended)"
+  echo "     Jawbs opens like an app. You chat with it in a browser window."
+  echo
+  echo "  2) In a terminal, with Claude Code"
+  echo "     For people comfortable typing commands. Nothing extra is installed."
+  echo
+  echo "  3) On a shared Jawbs that someone else runs"
+  echo "     Only choose this if the person who runs it asked you to."
+  echo "     They will send you the web address."
+  echo
+  ask_menu --quiet JAWBS_CHOICE "" browser terminal shared
+  case "$JAWBS_CHOICE" in
+    browser) JAWBS_MODE="local" ;;
+    terminal) JAWBS_MODE="terminal" ;;
+    shared) JAWBS_MODE="shared"
+      ask PORTAL_ADMIN "Should this person receive failure alerts? [y/N]" "no" ;;
   esac
 fi
 
@@ -100,12 +115,19 @@ if [ -z "${TARGET_DIR:-}" ]; then
   esac
 fi
 
-# Normalise the creative answer like PORTAL below.
-CREATIVE="${CREATIVE:-no}"
-case "$CREATIVE" in
-  y|Y|yes|Yes|YES) CREATIVE="yes" ;;
-  n|N|no|No|NO) CREATIVE="no" ;;
+# JAWBS_MODE is the current answer; PORTAL=yes/no in older answers files maps
+# onto it so they keep working. PORTAL stays in step for substitute_all.
+if [ -z "${JAWBS_MODE:-}" ]; then
+  case "${PORTAL:-no}" in
+    y|Y|yes|Yes|YES) JAWBS_MODE="shared" ;;
+    *) JAWBS_MODE="terminal" ;;
+  esac
+fi
+case "$JAWBS_MODE" in
+  local|terminal|shared) ;;
+  *) echo "Unknown JAWBS_MODE: $JAWBS_MODE (expected local, terminal or shared)" >&2; exit 1 ;;
 esac
+if [ "$JAWBS_MODE" = "shared" ]; then PORTAL="yes"; else PORTAL="no"; fi
 
 # Normalise the creative answer like PORTAL below.
 CREATIVE="${CREATIVE:-no}"
@@ -119,7 +141,7 @@ case "$PORTAL_ADMIN" in
   n|N|no|No|NO) PORTAL_ADMIN="no" ;;
 esac
 
-for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL PORTAL CREATIVE; do
+for v in USER_NAME USER_EMAIL USER_PHONE USER_LOCATION FIELD SENIORITY EMPLOYMENT_STATUS AI_TOOL CREATIVE; do
   eval "val=\${$v:-}"
   if [ -z "$val" ]; then
     echo "Missing answer: $v" >&2
@@ -184,8 +206,8 @@ if [ "$SKIP_DEPS" = "no" ]; then
     esac
   fi
 
-  case "$PORTAL" in
-    y|Y|yes|Yes|YES)
+  case "$JAWBS_MODE" in
+    shared|local)
       if command -v node >/dev/null 2>&1; then
         echo "  node: found ($(node --version)); needed by the portal"
       else
@@ -262,11 +284,7 @@ Keep case studies accurate: build them only from what the user actually did.
 EOF
 fi
 
-case "$PORTAL" in
-  y|Y|yes|Yes|YES) PORTAL="yes" ;;
-  n|N|no|No|NO) PORTAL="no" ;;
-esac
-if [ "$PORTAL" = "yes" ]; then
+if [ "$JAWBS_MODE" = "shared" ]; then
   # Register this person with the shared portal run from the kit checkout.
   # The registry is re-read by the portal on every lookup, so the new user
   # can log in as soon as this entry lands; no restart needed.
@@ -307,7 +325,7 @@ if [ "$CREATIVE" = "yes" ]; then
     { print }
   ' "$TARGET_DIR/SETUP.md" > "$setup_tmp" && mv "$setup_tmp" "$TARGET_DIR/SETUP.md"
 fi
-if [ "$PORTAL" = "yes" ]; then
+if [ "$JAWBS_MODE" = "shared" ]; then
   # Insert the portal task into the numbered Tasks list, before the
   # "Delete this file" step, mirroring the creative-module insertion above.
   setup_tmp="$TARGET_DIR/SETUP.md.portal.$$"
@@ -343,16 +361,26 @@ else
   echo "git not found: skipping repository initialisation for the project."
 fi
 
+if [ "$JAWBS_MODE" = "local" ] && [ "${JAWBS_SKIP_LOCAL:-no}" != "yes" ] && [ -f "$SETUP_DIR/jawbs-local.sh" ]; then
+  echo
+  bash "$SETUP_DIR/jawbs-local.sh" "$(cd "$TARGET_DIR" && pwd)" || true
+fi
+
 echo
 echo "Done. Your project is at: $TARGET_DIR"
 echo
-echo "Next step: start your AI assistant from inside the project folder"
-if [ "$AI_TOOL" = "claude-code" ]; then
-  echo "  cd $TARGET_DIR"
-  echo "  claude"
+if [ "$JAWBS_MODE" = "local" ]; then
+  echo "Jawbs should now be open in your web browser, ready to start."
+  echo "Next time, double-click Jawbs on your Desktop or in your Applications."
 else
-  echo "  cd $TARGET_DIR   (then launch your AI tool there)"
+  echo "Next step: start your AI assistant from inside the project folder"
+  if [ "$AI_TOOL" = "claude-code" ]; then
+    echo "  cd $TARGET_DIR"
+    echo "  claude"
+  else
+    echo "  cd $TARGET_DIR   (then launch your AI tool there)"
+  fi
+  echo "and ask it to read SETUP.md. It stages setup over a few short sessions,"
+  echo "from intake through to a test render, with research and CV synthesis"
+  echo "running between sessions; it deletes itself when setup is complete."
 fi
-echo "and ask it to read SETUP.md. It stages setup over a few short sessions,"
-echo "from intake through to a test render, with research and CV synthesis"
-echo "running between sessions; it deletes itself when setup is complete."

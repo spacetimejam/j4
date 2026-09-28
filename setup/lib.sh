@@ -12,7 +12,7 @@ sed_escape() {
 # <dir> with the value of the matching shell variable. Uses a temp file per
 # file for portability (no sed -i).
 # Full token list: USER_NAME, USER_EMAIL, USER_PHONE, USER_LOCATION, FIELD,
-# SENIORITY, EMPLOYMENT_STATUS, AI_TOOL, DATE, PORTAL, CREATIVE, KIT_DIR.
+# SENIORITY, EMPLOYMENT_STATUS, AI_TOOL, DATE, PORTAL, JAWBS_MODE, CREATIVE, KIT_DIR.
 # KIT_DIR resolves to the kit checkout, so a project can point at shared kit
 # files (the email sign-off bank) wherever the project itself was created.
 substitute_all() {
@@ -26,6 +26,7 @@ substitute_all() {
   employment_esc="$(sed_escape "$EMPLOYMENT_STATUS")"
   ai_tool_esc="$(sed_escape "$AI_TOOL")"
   portal_esc="$(sed_escape "$PORTAL")"
+  mode_esc="$(sed_escape "${JAWBS_MODE:-}")"
   creative_esc="$(sed_escape "${CREATIVE:-no}")"
   date_esc="$(sed_escape "$(date +%Y-%m-%d)")"
   kit_esc="$(sed_escape "${KIT_DIR:-}")"
@@ -42,6 +43,7 @@ substitute_all() {
         -e "s/{{EMPLOYMENT_STATUS}}/$employment_esc/g" \
         -e "s/{{AI_TOOL}}/$ai_tool_esc/g" \
         -e "s/{{PORTAL}}/$portal_esc/g" \
+        -e "s/{{JAWBS_MODE}}/$mode_esc/g" \
         -e "s/{{CREATIVE}}/$creative_esc/g" \
         -e "s/{{DATE}}/$date_esc/g" \
         -e "s/{{KIT_DIR}}/$kit_esc/g" \
@@ -105,18 +107,26 @@ ask() {
   eval "$var=\$reply"
 }
 
-# ask_menu <varname> <prompt> <opt1> <opt2> [...]
-# Numbered menu; default is option 1.
+# ask_menu [--quiet] <varname> <prompt> <opt1> <opt2> [...]
+# Numbered menu; default is option 1. --quiet skips printing the prompt and
+# the numbered options, for callers that already printed their own menu text.
 ask_menu() {
+  quiet=no
+  if [ "$1" = "--quiet" ]; then
+    quiet=yes
+    shift
+  fi
   var="$1"
   prompt="$2"
   shift 2
-  echo "$prompt"
-  i=1
-  for opt in "$@"; do
-    echo "  $i) $opt"
-    i=$((i + 1))
-  done
+  if [ "$quiet" = "no" ]; then
+    echo "$prompt"
+    i=1
+    for opt in "$@"; do
+      echo "  $i) $opt"
+      i=$((i + 1))
+    done
+  fi
   choice=""
   while :; do
     read -r -p "Choose a number [1]: " choice
