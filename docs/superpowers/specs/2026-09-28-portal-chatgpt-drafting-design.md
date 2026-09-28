@@ -89,9 +89,12 @@ page, the letter fills most of a page with the user's agreed paragraph count.
 
 **Output schema** (JSON, via `--output-schema`):
 
-- `cv`: the prose fields of the real `cv.yaml`: `position` (the headline line),
-  `tagline`, `jobs` (array of `{company, position, bullets[]}`, matched to the
-  jobs in the profile) and `capabilities` (array of `{name, note}`).
+- `cv`: `sections`, an array of `{target, text[]}`. CV layouts differ between
+  projects (one has `tagline` and `capabilities`, others `about`, `key_skills` and
+  per-job `intro`), so each section's `target` names a field in that project's own
+  `render/templates/configuration.yaml` (for a role, `jobs: <company>: intro` or
+  `jobs: <company>: description`), and Claude maps it into `cv.yaml`. (Amended
+  during implementation: the first version fixed one project's fields.)
 - `cover_letter`: `paragraphs` (the body paragraphs; greeting, sign-off, dates
   and contacts stay with Claude, since they are formulaic or factual).
 

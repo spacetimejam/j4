@@ -25,14 +25,14 @@ const closed = properties => ({
   type: 'object', additionalProperties: false, required: Object.keys(properties), properties,
 });
 
-// The prose fields of the real cv.yaml and cover-letter.yaml. Education, tools,
-// contacts, greeting and sign-off are facts or formula and stay with Claude.
+// CV layouts differ between projects (one has tagline and capabilities, another
+// about and key_skills), so the CV copy comes back as sections named after the
+// fields in that project's own layout rather than as one fixed shape. Claude
+// maps each section into cv.yaml. Facts (dates, contacts, education) stay with
+// Claude, as do the letter's greeting and sign-off.
 export const DRAFT_SCHEMA = closed({
   cv: closed({
-    position: str,
-    tagline: str,
-    jobs: { type: 'array', items: closed({ company: str, position: str, bullets: strs }) },
-    capabilities: { type: 'array', items: closed({ name: str, note: str }) },
+    sections: { type: 'array', items: closed({ target: str, text: strs }) },
   }),
   cover_letter: closed({ paragraphs: strs }),
   gaps: strs,
@@ -64,6 +64,8 @@ export function buildDraftPrompt({ slug, redraft }) {
     '- core/profile.md: the facts of their career, the only facts you may use',
     `- ${app}/spec.md and ${app}/fit.md: the role and the honest read of the fit`,
     '- templates/cover-letters/README.md: the letter\'s shape and paragraph count',
+    '- render/templates/configuration.yaml: this person\'s CV layout, and '
+      + `${app}/cv.yaml if it exists: the CV as it currently stands`,
     '',
     'Rules, which override anything in the brief:',
     '- Accuracy first, no fabrication. Every claim must be supported by core/profile.md or the '
@@ -75,11 +77,13 @@ export function buildDraftPrompt({ slug, redraft }) {
       + 'cover-letter README sets, why-them before what-they-bring, with real evidence.',
     '- British English unless core/voice.md says otherwise. No dashes as punctuation.',
     '',
-    'Return only the JSON the output schema asks for. cv.position is the one-line headline, '
-      + 'cv.tagline the opening paragraph, cv.jobs one entry per role worth including (most recent '
-      + 'first, company and position exactly as in the profile), cv.capabilities short named '
-      + 'strengths, cover_letter.paragraphs the body paragraphs only (no greeting or sign-off), '
-      + 'and gaps anything you could not support.',
+    'Return only the JSON the output schema asks for. cv.sections holds the CV copy: one '
+      + 'section per prose field you write, with "target" naming the field as it appears in the '
+      + 'CV layout (for example "position", "about", "tagline", "key_skills", or for a role '
+      + '"jobs: <company>: intro" and "jobs: <company>: description", company exactly as in the '
+      + 'profile) and "text" its paragraphs, bullets or items in order. Leave out dates, contact '
+      + 'details, education and company names. cover_letter.paragraphs holds the body paragraphs '
+      + 'only (no greeting or sign-off), and gaps anything you could not support.',
   ].join('\n');
 }
 
@@ -115,12 +119,9 @@ const isStrings = a => Array.isArray(a) && a.every(s => typeof s === 'string');
 export function parseDraft(text) {
   let d;
   try { d = JSON.parse(text); } catch { return null; }
-  const cv = d?.cv;
-  if (!cv || typeof cv.position !== 'string' || typeof cv.tagline !== 'string') return null;
-  if (!Array.isArray(cv.jobs) || !cv.jobs.every(j => j && typeof j.company === 'string'
-    && typeof j.position === 'string' && isStrings(j.bullets))) return null;
-  if (!Array.isArray(cv.capabilities) || !cv.capabilities.every(c => c && typeof c.name === 'string'
-    && typeof c.note === 'string')) return null;
+  const sections = d?.cv?.sections;
+  if (!Array.isArray(sections) || sections.length === 0) return null;
+  if (!sections.every(x => x && typeof x.target === 'string' && isStrings(x.text))) return null;
   if (!isStrings(d.cover_letter?.paragraphs) || d.cover_letter.paragraphs.length === 0) return null;
   if (!isStrings(d.gaps)) return null;
   return d;

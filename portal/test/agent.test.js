@@ -286,3 +286,30 @@ test('runAgentTurn gives the claude-sdk runner the structured prompt', async () 
   assert.doesNotMatch(seen.systemPrompt, /```session-title/);
   assert.match(seen.systemPrompt, /"awaiting_user"/);
 });
+
+test('the reply schema requires a nullable drafting_blocked with the three kinds', async () => {
+  const { REPLY_SCHEMA } = await import('../src/reply-schema.js');
+  assert.ok(REPLY_SCHEMA.required.includes('drafting_blocked'));
+  const [obj, nul] = REPLY_SCHEMA.properties.drafting_blocked.anyOf;
+  assert.deepEqual(nul, { type: 'null' });
+  assert.deepEqual(obj.properties.kind.enum, ['usage_limit', 'auth', 'error']);
+  assert.deepEqual([...obj.required].sort(), ['detail', 'kind', 'resets_at']);
+  assert.equal(obj.additionalProperties, false);
+});
+
+test('the structured prompt hands the copy to the drafting script with a long enough timeout', async () => {
+  const { DRAFT_TIMEOUT_MS } = await import('../src/drafting.js');
+  const p = portalPrompt('Sam', { structured: true });
+  assert.match(p, /WRITING THE CV AND COVER LETTER COPY/);
+  assert.match(p, /bin\/chatgpt-draft/);
+  assert.match(p, /600000/);
+  assert.ok(DRAFT_TIMEOUT_MS < 600000);
+  assert.match(p, /drafting_blocked/);
+  assert.match(p, /do not rewrite the prose/i);
+  assert.match(p, /gaps/);
+  assert.match(p, /"target"/);
+});
+
+test('the fenced prompt, for runners that are not Claude, has no drafting subagent', () => {
+  assert.doesNotMatch(portalPrompt('Sam'), /chatgpt-draft|drafting_blocked/);
+});

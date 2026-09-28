@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { runClaudeSdk } from './runners/claude-sdk.js';
 import { runCli } from './runners/cli.js';
@@ -36,7 +37,7 @@ false. Include the block with "awaiting_user" in every reply, even before you kn
 company, leaving "title" out until you do.`;
 
 const structuredProtocol = (userName) => `
-YOUR REPLY IS STRUCTURED DATA. The portal reads four fields from you, not prose:
+YOUR REPLY IS STRUCTURED DATA. The portal reads five fields from you, not prose:
 
 - "reply": everything ${userName} should read, as markdown. This is the only text
   they see; anything you write outside this field is discarded.
@@ -47,6 +48,8 @@ YOUR REPLY IS STRUCTURED DATA. The portal reads four fields from you, not prose:
   ${userName}, set it to false.
 - "email": null, or {"subject": ..., "body": ..., "attachments": [absolute paths]}
   when you have documents to deliver.
+- "drafting_blocked": null, except when the drafting script could not run (see
+  WRITING THE CV AND COVER LETTER COPY).
 
 Do all the work first. Write nothing to ${userName} until every file is written
 and every check is done. Then reply once, in "reply":
@@ -60,6 +63,35 @@ ${userName}, and no narrating what you are about to do. They want one confident
 answer, not your working.
 `;
 
+// The kit checkout's copy of the script, resolved from this file so a project
+// created outside the kit root still finds it.
+const DRAFT_SCRIPT = fileURLToPath(new URL('../../bin/chatgpt-draft', import.meta.url));
+
+const draftingProtocol = (userName) => `
+WRITING THE CV AND COVER LETTER COPY. The prose in cv.yaml and cover-letter.yaml is
+written by a separate writer, not by you. Whenever stage 2 or a redraft needs CV or
+cover letter copy:
+
+1. Decide the emphasis as WORKFLOW.md section 3 describes, then write the brief to
+   brief.md in the application folder: what to lead with, which evidence to use, the
+   role's key asks, and on a redraft ${userName}'s notes, quoted.
+2. Run, with the Bash tool's timeout set to 600000:
+   node "${DRAFT_SCRIPT}" <absolute path to the application folder>
+3. On exit 0 it prints the copy and saves it as draft.json. Put each CV section into
+   the cv.yaml field its "target" names, and the paragraphs into cover-letter.yaml. You may fit it to the YAML structure, cut to meet the one-page rule,
+   and correct a claim that contradicts core/profile.md, noting each correction in
+   log.md. Do not rewrite the prose. If it needs more than that, sharpen brief.md and
+   run the script once more; if it is still unusable, ask ${userName} instead of
+   writing it yourself. Every entry in the draft's "gaps" becomes a numbered question
+   for ${userName}, never something you fill in.
+4. Exit 2 means you called it wrongly: fix the call and run it again.
+5. Exit 3, 4 or 5 means the writer is unavailable. Write no copy yourself. Set
+   "drafting_blocked" to the JSON line the script printed ({"kind", "detail",
+   "resets_at"}), leave "email" null, and tell ${userName} in a sentence or two that
+   the draft is waiting on the writing service and will carry on when they press
+   Retry. In every other turn "drafting_blocked" is null.
+`;
+
 export const portalPrompt = (userName, { structured = false } = {}) => {
   const emailPhrase = structured ? 'the email field' : 'an email-to-user block';
   const blockPhrase = structured ? 'the email field' : 'the block above';
@@ -67,7 +99,9 @@ export const portalPrompt = (userName, { structured = false } = {}) => {
   // field" reads as an instruction to omit a required field. Both protocols
   // have to give a live agent an unambiguous sentence here.
   const noSendPhrase = structured ? 'leave the email field null' : 'send no email-to-user block';
-  const protocol = structured ? structuredProtocol(userName) : fencedProtocol(userName);
+  const protocol = structured
+    ? `${structuredProtocol(userName)}\n${draftingProtocol(userName)}`
+    : fencedProtocol(userName);
   return `
 You are working inside a job-search project on ${userName}'s behalf, driven from the
 ${config.portalTitle} web app. The person you are talking to IS ${userName}. Address them
@@ -210,7 +244,7 @@ export function parseTitleDirective(text) {
 // null for a new session, cwd and the userName baked into systemPrompt come
 // from the session's user, and the returned sessionId is passed back on resume.
 // Only a runner that can enforce REPLY_SCHEMA populates `structured`, and its
-// presence is what tells queue.js to read the four fields rather than parse
+// presence is what tells queue.js to read the structured fields rather than parse
 // fenced directives out of `text`; portalPrompt gives every other runner the
 // fenced protocol, so the two always agree.
 const RUNNERS = { 'claude-sdk': runClaudeSdk, cli: runCli, codex: runCodex };

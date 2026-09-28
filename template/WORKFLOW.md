@@ -36,6 +36,7 @@ Decide, for this role, letting the brief steer emphasis (what leads, how much sp
 - **[STOP]** The user confirms the dials.
 
 ## 4. Tailor the CV  →  `cv.yaml`  →  named PDF
+Through the portal, the CV and cover letter prose is written by a ChatGPT subagent (`bin/chatgpt-draft` in the kit) from a brief Claude writes; Claude fits, trims and fact-checks it rather than rewriting it. In a Claude Code session in this folder, Claude drafts as below.
 - Copy the schema from `render/templates/configuration.yaml`; set the top-level `role:` (names the output file and the PDF title).
 - Levers, in rough order of effect: job `intro` lines re-angled to the job description; bullets reordered so the relevant lead, cut to fit; `key_skills` order; `about` paragraphs.
 - Jobs stay chronological. Don't drop a role without asking.

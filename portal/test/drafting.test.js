@@ -7,10 +7,10 @@ const {
 
 const GOOD = {
   cv: {
-    position: 'Strategy, made measurable',
-    tagline: 'A strategist of fourteen years.',
-    jobs: [{ company: 'Purpose', position: 'Associate Director', bullets: ['Led the programme.'] }],
-    capabilities: [{ name: 'Strategy', note: 'Setting strategy.' }],
+    sections: [
+      { target: 'position', text: ['Strategy, made measurable'] },
+      { target: 'jobs: Purpose: description', text: ['Led the programme.'] },
+    ],
   },
   cover_letter: { paragraphs: ['First.', 'Second.'] },
   gaps: [],
@@ -36,8 +36,10 @@ test('prompt names the files to read and the redraft input only on a redraft', (
   const first = buildDraftPrompt({ slug: 'acme-designer', redraft: false });
   for (const f of ['applications/acme-designer/brief.md', 'core/voice.md', 'core/profile.md',
     'applications/acme-designer/spec.md', 'applications/acme-designer/fit.md',
-    'templates/cover-letters/README.md']) assert.ok(first.includes(f), f);
+    'templates/cover-letters/README.md', 'render/templates/configuration.yaml',
+    'applications/acme-designer/cv.yaml']) assert.ok(first.includes(f), f);
   assert.ok(!first.includes('draft.json'));
+  assert.match(first, /target/);
   assert.match(first, /no fabrication/i);
   assert.ok(buildDraftPrompt({ slug: 'acme-designer', redraft: true }).includes('applications/acme-designer/draft.json'));
 });
@@ -59,7 +61,8 @@ test('parseDraft accepts the schema shape and rejects anything else', () => {
   assert.equal(parseDraft('not json'), null);
   assert.equal(parseDraft(JSON.stringify({ ...GOOD, gaps: 'none' })), null);
   assert.equal(parseDraft(JSON.stringify({ ...GOOD, cover_letter: { paragraphs: [] } })), null);
-  assert.equal(parseDraft(JSON.stringify({ ...GOOD, cv: { ...GOOD.cv, jobs: [{ company: 'X' }] } })), null);
+  assert.equal(parseDraft(JSON.stringify({ ...GOOD, cv: { sections: [{ target: 'about' }] } })), null);
+  assert.equal(parseDraft(JSON.stringify({ ...GOOD, cv: { sections: [] } })), null);
 });
 
 test('a 401 is auth', () => {

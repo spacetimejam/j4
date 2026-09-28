@@ -13,7 +13,7 @@
 export const REPLY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['reply', 'title', 'awaiting_user', 'email'],
+  required: ['reply', 'title', 'awaiting_user', 'email', 'drafting_blocked'],
   properties: {
     reply: { type: 'string' },
     title: { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -28,6 +28,23 @@ export const REPLY_SCHEMA = {
             subject: { type: 'string' },
             body: { type: 'string' },
             attachments: { type: 'array', items: { type: 'string' } },
+          },
+        },
+        { type: 'null' },
+      ],
+    },
+    // Set only when the ChatGPT drafting subagent could not write the copy, so
+    // queue.js can hold the session with a Retry button instead of a draft.
+    drafting_blocked: {
+      anyOf: [
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['kind', 'detail', 'resets_at'],
+          properties: {
+            kind: { type: 'string', enum: ['usage_limit', 'auth', 'error'] },
+            detail: { type: 'string' },
+            resets_at: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           },
         },
         { type: 'null' },
