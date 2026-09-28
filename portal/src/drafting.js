@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { createCodexEventSink } from './runners/codex.js';
@@ -222,20 +222,41 @@ export async function runDraft({ appDir }, deps = {}) {
     if (!draft) {
       return { failure: { kind: 'error', detail: 'the writer returned copy that did not match the draft schema', resets_at: null } };
     }
+    const draftText = `${JSON.stringify(draft, null, 2)}\n`;
     const provenance = {
       model: DRAFT_MODEL,
       effort: DRAFT_EFFORT,
       codex_version: await codexVersion(codexBin, spawnImpl),
       drafted_at: now().toISOString(),
       brief_sha256: sha256(readFileSync(briefPath)),
+      draft_sha256: sha256(draftText),
       thread_id: r.threadId,
     };
-    writeFileSync(join(where.abs, 'draft.json'), `${JSON.stringify(draft, null, 2)}\n`);
+    writeFileSync(join(where.abs, 'draft.json'), draftText);
     writeFileSync(join(where.abs, 'draft-provenance.json'), `${JSON.stringify(provenance, null, 2)}\n`);
     return { draft, provenance };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+// CV and cover letter deliverables, as render.sh names the PDFs and as the
+// render-failure fallback names the plain-text copies.
+const DRAFTED_COPY = /^(cv|cover[ _-]?letter)\b/i;
+
+// The delivered CVs and letters whose folder holds no draft written since its
+// brief: copy that did not come through the writer, or came from an older
+// brief. queue.js reports these to the admins rather than blocking delivery,
+// since the person is waiting on the documents either way.
+export function unprovenancedDeliveries(attachments) {
+  const mtime = p => { try { return statSync(p).mtimeMs; } catch { return null; } };
+  return attachments.filter(file => {
+    if (!DRAFTED_COPY.test(basename(file))) return false;
+    const dir = dirname(file);
+    const drafted = mtime(join(dir, 'draft-provenance.json'));
+    const briefed = mtime(join(dir, 'brief.md'));
+    return drafted === null || briefed === null || drafted < briefed;
+  });
 }
 
 export async function main(argv, deps = {}) {

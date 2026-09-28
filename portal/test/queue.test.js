@@ -65,7 +65,9 @@ test('attachments are passed through with their original filenames', async () =>
     sessionId: 'c3',
     text: `Done!\n\`\`\`email-to-user\n${directive}\n\`\`\``,
   });
-  await processOneJob({ runTurn, send: async e => { sent = e; } });
+  // The first send is the user's email; an admin alert about the fake cv file
+  // having no ChatGPT draft behind it follows.
+  await processOneJob({ runTurn, send: async e => { sent ??= e; } });
   assert.equal(sent.attachments.length, 2);
   // any provider-specific renaming (e.g. Brevo's .md rejection) happens in the provider, not here
   assert.equal(sent.attachments[0].filename, basename(mdPath));
@@ -637,4 +639,29 @@ test('a null drafting_blocked leaves an ordinary turn untouched', async () => {
   await processOneJob({ runTurn: blockedTurn(null), send: async () => {} });
   assert.equal(getDb().prepare('select status from jobs where session_id = ?').get(sid).status, 'done');
   assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'active');
+});
+
+test('delivering a CV with no ChatGPT draft behind it alerts the admins but still delivers', async () => {
+  const { mkdtempSync, mkdirSync } = await import('node:fs');
+  const dir = join(mkdtempSync(join(tmpdir(), 'prov-')), 'applications', 'acme');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'brief.md'), 'brief');
+  const cv = join(dir, 'CV - Test - Designer.pdf');
+  writeFileSync(cv, 'pdf');
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'yes, apply' });
+  const sent = [];
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-prov',
+      structured: { reply: 'Here it is.', title: 'Designer at Acme', awaiting_user: false,
+        email: { subject: 'Your CV', body: 'b', attachments: [cv] }, drafting_blocked: null },
+      text: '',
+    }),
+    send: async e => { sent.push(e); },
+  });
+  assert.ok(sent.some(e => e.subject === 'Your CV'), 'the user still gets the CV');
+  const alert = sent.find(e => /without a ChatGPT draft/.test(e.subject));
+  assert.ok(alert, 'admins are told');
+  assert.ok(alert.text.includes(cv));
 });

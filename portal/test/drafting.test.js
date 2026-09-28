@@ -239,3 +239,32 @@ test('an unexpected throw while drafting still prints a JSON error line and exit
   assert.equal(line.kind, 'error');
   assert.match(line.detail, /disk full/);
 });
+
+test('provenance carries the hash of the draft it describes', async () => {
+  const { createHash } = await import('node:crypto');
+  const { appDir } = mkApp();
+  await runDraft({ appDir }, deps({ spawnImpl: fakeSpawn({ lines: okLines(GOOD) }) }));
+  const prov = JSON.parse(readFileSync(join(appDir, 'draft-provenance.json'), 'utf8'));
+  assert.equal(prov.draft_sha256, createHash('sha256').update(readFileSync(join(appDir, 'draft.json'))).digest('hex'));
+});
+
+test('a delivered CV or letter without a draft newer than its brief is reported', async () => {
+  const { utimesSync } = await import('node:fs');
+  const { unprovenancedDeliveries } = await import('../src/drafting.js');
+  const { appDir } = mkApp();
+  const cv = join(appDir, 'CV - Sam Jackson - Designer.pdf');
+  const letter = join(appDir, 'Cover Letter - Sam Jackson - Designer.pdf');
+  const prep = join(appDir, 'interview-1-prep.md');
+  for (const f of [cv, letter, prep]) writeFileSync(f, 'x');
+  assert.deepEqual(unprovenancedDeliveries([prep]), [], 'prep files are not drafted copy');
+  assert.deepEqual(unprovenancedDeliveries([cv, letter]), [cv, letter], 'no provenance at all');
+  writeFileSync(join(appDir, 'draft-provenance.json'), '{}');
+  const old = new Date('2026-01-01T00:00:00Z');
+  utimesSync(join(appDir, 'draft-provenance.json'), old, old);
+  assert.deepEqual(unprovenancedDeliveries([cv]), [cv], 'brief rewritten after the last draft');
+  const later = new Date(Date.now() + 60000);
+  utimesSync(join(appDir, 'draft-provenance.json'), later, later);
+  assert.deepEqual(unprovenancedDeliveries([cv, letter, prep]), []);
+  const fallback = join(mkApp().appDir, 'cv-tailored.md');
+  assert.deepEqual(unprovenancedDeliveries([fallback]), [fallback], 'the plain-text fallback counts as copy');
+});

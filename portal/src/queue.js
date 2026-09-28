@@ -6,6 +6,7 @@ import { runAgentTurn, parseEmailDirective, parseTitleDirective } from './agent.
 import { sendEmail } from './email.js';
 import { getUser, adminEmails } from './users.js';
 import { UsageLimitError, toSqlUtc } from './usage-limit.js';
+import { unprovenancedDeliveries } from './drafting.js';
 
 export function enqueue({ sessionId, prompt }) {
   getDb().prepare('insert into jobs (id, session_id, prompt) values (?, ?, ?)')
@@ -169,6 +170,15 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
         contentBase64: readFileSync(p).toString('base64'),
       }));
       await send({ to: session.user_email, subject: email.subject, text: email.body, attachments });
+      // The writer's provenance is how the owner knows ChatGPT wrote the copy.
+      // Delivery has already happened; this only makes a bypass visible.
+      const unproven = unprovenancedDeliveries(email.attachments);
+      if (unproven.length) {
+        await alertAdmins(send,
+          `${config.portalTitle}: CV or cover letter delivered without a ChatGPT draft on "${newTitle || session.title}"`,
+          'These files were delivered, but their folder has no draft-provenance.json written since its '
+          + `brief.md, so the copy may not have come from the ChatGPT writer:\n\n${unproven.join('\n')}`);
+      }
     }
     db.prepare("update sessions set status = ?, updated_at = datetime('now') where id = ?")
       .run(sessionStatus({ email: Boolean(email), awaitingUser }), job.session_id);
