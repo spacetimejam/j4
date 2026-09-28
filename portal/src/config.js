@@ -23,6 +23,10 @@ export const config = {
   // codex command line. Same pattern as emailProviderExplicit below.
   agentModelExplicit: Boolean(process.env.AGENT_MODEL),
   agentRunner: process.env.AGENT_RUNNER || 'claude-sdk',
+  // Which subscriptions this host has: both (Claude runs the portal, ChatGPT
+  // writes the CV and letter copy), claude-only or chatgpt-only. An explicit
+  // opt-in; preflight.js checks it against AGENT_RUNNER and the Codex install.
+  subscriptions: (process.env.SUBSCRIPTIONS || 'both').trim().toLowerCase(),
   agentCmd: process.env.AGENT_CMD || '',
   agentCmdResume: process.env.AGENT_CMD_RESUME || '',
   emailProvider: process.env.EMAIL_PROVIDER || 'webhook',

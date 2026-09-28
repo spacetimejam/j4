@@ -26,21 +26,29 @@ function valid(overrides = {}) {
     agentRunner: 'claude-sdk',
     agentModel: 'claude-opus-5',
     agentModelExplicit: false,
+    // The codex runner has to be confirmed as ChatGPT-only, so the valid
+    // baseline for it says so; the subscriptions tests below break this.
+    subscriptions: overrides.agentRunner === 'codex' ? 'chatgpt-only' : 'both',
     ...overrides,
   };
 }
 
 const alwaysExists = () => true;
+const CODEX = '/opt/test/codex';
+const signedIn = () => true;
+const signedOut = () => false;
+// Every call goes through these so no test runs the real codex binary.
+const ok = { exists: alwaysExists, codexBin: CODEX, codexSignedIn: signedIn };
 const errors = issues => issues.filter(i => i.level === 'error');
 const warns = issues => issues.filter(i => i.level === 'warn');
 
 test('a valid config produces no issues', () => {
-  assert.deepEqual(checkConfig(valid(), { exists: alwaysExists }), []);
+  assert.deepEqual(checkConfig(valid(), { ...ok }), []);
 });
 
 test('placeholder or short COOKIE_SECRET is an error', () => {
   for (const secret of ['', PLACEHOLDER_SECRET, 'dev-secret', 'short']) {
-    const issues = checkConfig(valid({ cookieSecret: secret }), { exists: alwaysExists });
+    const issues = checkConfig(valid({ cookieSecret: secret }), { ...ok });
     assert.equal(errors(issues).length, 1, `expected an error for ${JSON.stringify(secret)}`);
     assert.match(errors(issues)[0].message, /COOKIE_SECRET/);
   }
@@ -48,31 +56,31 @@ test('placeholder or short COOKIE_SECRET is an error', () => {
 
 test('32-character secret passes when private and fails when public', () => {
   const asPrivate = checkConfig(
-    valid({ cookieSecret: OK_PRIVATE_SECRET, exposure: 'private' }), { exists: alwaysExists });
+    valid({ cookieSecret: OK_PRIVATE_SECRET, exposure: 'private' }), { ...ok });
   assert.deepEqual(errors(asPrivate), []);
 
   const asPublic = checkConfig(
-    valid({ cookieSecret: OK_PRIVATE_SECRET, exposure: 'public' }), { exists: alwaysExists });
+    valid({ cookieSecret: OK_PRIVATE_SECRET, exposure: 'public' }), { ...ok });
   assert.equal(errors(asPublic).length, 1);
   assert.match(errors(asPublic)[0].message, /64/);
 });
 
 test('64-character secret passes under both exposures', () => {
   for (const exposure of ['private', 'public']) {
-    const issues = checkConfig(valid({ exposure }), { exists: alwaysExists });
+    const issues = checkConfig(valid({ exposure }), { ...ok });
     assert.deepEqual(errors(issues), [], `expected no errors for ${exposure}`);
   }
 });
 
 test('unset EXPOSURE warns and is treated as private', () => {
   const issues = checkConfig(
-    valid({ exposure: '', cookieSecret: OK_PRIVATE_SECRET }), { exists: alwaysExists });
+    valid({ exposure: '', cookieSecret: OK_PRIVATE_SECRET }), { ...ok });
   assert.deepEqual(errors(issues), []);
   assert.equal(warns(issues).filter(w => /EXPOSURE/.test(w.message)).length, 1);
 });
 
 test('unrecognised EXPOSURE is an error', () => {
-  const issues = checkConfig(valid({ exposure: 'funnel' }), { exists: alwaysExists });
+  const issues = checkConfig(valid({ exposure: 'funnel' }), { ...ok });
   assert.match(errors(issues)[0].message, /EXPOSURE/);
 });
 
@@ -88,7 +96,7 @@ test('unrecognised EXPOSURE also applies the stricter public secret bar', () => 
   // checkConfig runs the exposure check before the secret check, so the
   // order below is deterministic.
   const issues = checkConfig(
-    valid({ exposure: 'funnel', cookieSecret: OK_PRIVATE_SECRET }), { exists: alwaysExists });
+    valid({ exposure: 'funnel', cookieSecret: OK_PRIVATE_SECRET }), { ...ok });
   const issueErrors = errors(issues);
   assert.equal(issueErrors.length, 2);
   assert.match(issueErrors[0].message, /EXPOSURE/);
@@ -97,33 +105,33 @@ test('unrecognised EXPOSURE also applies the stricter public secret bar', () => 
 
 test('EXPOSURE is matched case-insensitively', () => {
   for (const exposure of ['PUBLIC', 'Public', 'PRIVATE', 'Private']) {
-    const issues = checkConfig(valid({ exposure }), { exists: alwaysExists });
+    const issues = checkConfig(valid({ exposure }), { ...ok });
     assert.deepEqual(errors(issues), [], `expected no errors for ${exposure}`);
   }
 });
 
 test('EXPOSURE tolerates surrounding whitespace', () => {
-  const issues = checkConfig(valid({ exposure: '  private  ' }), { exists: alwaysExists });
+  const issues = checkConfig(valid({ exposure: '  private  ' }), { ...ok });
   assert.deepEqual(errors(issues), []);
 });
 
 test('uppercase PUBLIC still applies the stricter public secret bar', () => {
   const issues = checkConfig(
-    valid({ exposure: 'PUBLIC', cookieSecret: OK_PRIVATE_SECRET }), { exists: alwaysExists });
+    valid({ exposure: 'PUBLIC', cookieSecret: OK_PRIVATE_SECRET }), { ...ok });
   assert.equal(errors(issues).length, 1);
   assert.match(errors(issues)[0].message, /EXPOSURE=public requires at least 64/);
 });
 
 test('http BASE_URL on a non-local host is an error naming the Secure cookie', () => {
   const issues = checkConfig(
-    valid({ baseUrl: 'http://192.168.1.10:8710' }), { exists: alwaysExists });
+    valid({ baseUrl: 'http://192.168.1.10:8710' }), { ...ok });
   assert.equal(errors(issues).length, 1);
   assert.match(errors(issues)[0].message, /Secure/);
 });
 
 test('http BASE_URL on localhost is allowed', () => {
   for (const baseUrl of ['http://localhost:8710', 'http://127.0.0.1:8710']) {
-    const issues = checkConfig(valid({ baseUrl }), { exists: alwaysExists });
+    const issues = checkConfig(valid({ baseUrl }), { ...ok });
     assert.deepEqual(errors(issues), [], `expected ${baseUrl} to be allowed`);
   }
 });
@@ -135,14 +143,14 @@ test('a provider with no credential is an error', () => {
     { emailProvider: 'webhook', webhookUrl: '' },
   ];
   for (const override of cases) {
-    const issues = checkConfig(valid(override), { exists: alwaysExists });
+    const issues = checkConfig(valid(override), { ...ok });
     assert.equal(errors(issues).length, 1, `expected an error for ${override.emailProvider}`);
   }
 });
 
 test('the log provider needs no credential', () => {
   const issues = checkConfig(
-    valid({ emailProvider: 'log', smtpUrl: '' }), { exists: alwaysExists });
+    valid({ emailProvider: 'log', smtpUrl: '' }), { ...ok });
   assert.deepEqual(errors(issues), []);
 });
 
@@ -154,7 +162,7 @@ test('a blank EMAIL_FROM is an error for smtp and brevo, but not webhook or log'
     { emailProvider: 'log', needsFrom: false },
   ];
   for (const { needsFrom, ...override } of cases) {
-    const issues = checkConfig(valid({ ...override, emailFrom: '' }), { exists: alwaysExists });
+    const issues = checkConfig(valid({ ...override, emailFrom: '' }), { ...ok });
     if (needsFrom) {
       assert.equal(errors(issues).filter(e => /EMAIL_FROM/.test(e.message)).length, 1,
         `expected an EMAIL_FROM error for ${override.emailProvider}`);
@@ -166,36 +174,36 @@ test('a blank EMAIL_FROM is an error for smtp and brevo, but not webhook or log'
 });
 
 test('an unknown provider is an error', () => {
-  const issues = checkConfig(valid({ emailProvider: 'carrier-pigeon' }), { exists: alwaysExists });
+  const issues = checkConfig(valid({ emailProvider: 'carrier-pigeon' }), { ...ok });
   assert.match(errors(issues)[0].message, /carrier-pigeon/);
 });
 
 test('unset EMAIL_PROVIDER warns about the silent webhook default', () => {
   const issues = checkConfig(
     valid({ emailProviderExplicit: false, emailProvider: 'webhook', webhookUrl: 'http://h/x' }),
-    { exists: alwaysExists });
+    { ...ok });
   assert.deepEqual(errors(issues), []);
   assert.equal(warns(issues).filter(w => /EMAIL_PROVIDER/.test(w.message)).length, 1);
 });
 
 test('no users file and no allowlist is an error', () => {
-  const issues = checkConfig(valid(), { exists: () => false });
+  const issues = checkConfig(valid(), { exists: () => false, codexBin: CODEX, codexSignedIn: signedIn });
   assert.equal(errors(issues).filter(e => /users/i.test(e.message)).length, 1);
 });
 
 test('a missing projectDir is an error only in legacy allowlist mode', () => {
   // Registry mode: projectDir comes per-user from users.json, and config's
   // default ($HOME/job-search) usually does not exist. Must not error.
-  const registry = checkConfig(valid(), { exists: p => p !== '/home/u/job-search' });
+  const registry = checkConfig(valid(), { exists: p => p !== '/home/u/job-search', codexBin: CODEX, codexSignedIn: signedIn });
   assert.deepEqual(errors(registry), []);
 
   const legacy = checkConfig(
-    valid({ allowedEmails: ['a@b.com'] }), { exists: p => p !== '/home/u/job-search' });
+    valid({ allowedEmails: ['a@b.com'] }), { exists: p => p !== '/home/u/job-search', codexBin: CODEX, codexSignedIn: signedIn });
   assert.equal(errors(legacy).filter(e => /PROJECT_DIR/.test(e.message)).length, 1);
 });
 
 test('a non-loopback BIND_HOST warns but does not error', () => {
-  const issues = checkConfig(valid({ bindHost: '0.0.0.0' }), { exists: alwaysExists });
+  const issues = checkConfig(valid({ bindHost: '0.0.0.0' }), { ...ok });
   assert.deepEqual(errors(issues), []);
   assert.equal(warns(issues).filter(w => /BIND_HOST/.test(w.message)).length, 1);
 });
@@ -218,14 +226,14 @@ const binPresent = () => true;
 const binAbsent = () => false;
 
 test('an unknown AGENT_RUNNER is an error naming the valid values', () => {
-  const issues = checkConfig(valid({ agentRunner: 'gemini' }), { exists: alwaysExists });
+  const issues = checkConfig(valid({ agentRunner: 'gemini' }), { ...ok });
   assert.equal(errors(issues).length, 1);
   assert.match(errors(issues)[0].message, /AGENT_RUNNER/);
   assert.match(errors(issues)[0].message, /claude-sdk, cli, codex/);
 });
 
 test('an empty AGENT_RUNNER is an error', () => {
-  const issues = checkConfig(valid({ agentRunner: '' }), { exists: alwaysExists });
+  const issues = checkConfig(valid({ agentRunner: '' }), { ...ok });
   assert.equal(errors(issues).length, 1);
   assert.match(errors(issues)[0].message, /AGENT_RUNNER/);
 });
@@ -233,14 +241,14 @@ test('an empty AGENT_RUNNER is an error', () => {
 test('each valid AGENT_RUNNER passes', () => {
   for (const agentRunner of ['claude-sdk', 'cli', 'codex']) {
     const issues = checkConfig(
-      valid({ agentRunner }), { exists: alwaysExists, lookupBin: binPresent });
+      valid({ agentRunner }), { ...ok, lookupBin: binPresent });
     assert.deepEqual(errors(issues), [], `expected no errors for ${agentRunner}`);
   }
 });
 
 test('AGENT_RUNNER=codex with no codex on PATH is an error', () => {
   const issues = checkConfig(
-    valid({ agentRunner: 'codex' }), { exists: alwaysExists, lookupBin: binAbsent });
+    valid({ agentRunner: 'codex' }), { ...ok, lookupBin: binAbsent });
   assert.equal(errors(issues).length, 1);
   assert.match(errors(issues)[0].message, /codex/);
   assert.match(errors(issues)[0].message, /PATH/);
@@ -249,7 +257,7 @@ test('AGENT_RUNNER=codex with no codex on PATH is an error', () => {
 test('the PATH check applies only to the codex runner', () => {
   for (const agentRunner of ['claude-sdk', 'cli']) {
     const issues = checkConfig(
-      valid({ agentRunner }), { exists: alwaysExists, lookupBin: binAbsent });
+      valid({ agentRunner }), { ...ok, lookupBin: binAbsent });
     assert.deepEqual(errors(issues), [], `expected no errors for ${agentRunner}`);
   }
 });
@@ -257,7 +265,7 @@ test('the PATH check applies only to the codex runner', () => {
 test('AGENT_RUNNER=codex with an explicit Claude AGENT_MODEL is an error', () => {
   const issues = checkConfig(
     valid({ agentRunner: 'codex', agentModel: 'claude-opus-5', agentModelExplicit: true }),
-    { exists: alwaysExists, lookupBin: binPresent });
+    { ...ok, lookupBin: binPresent });
   assert.equal(errors(issues).length, 1);
   assert.match(errors(issues)[0].message, /AGENT_MODEL/);
 });
@@ -265,21 +273,21 @@ test('AGENT_RUNNER=codex with an explicit Claude AGENT_MODEL is an error', () =>
 test('AGENT_RUNNER=codex with an unset AGENT_MODEL is fine, even though the default is a Claude id', () => {
   const issues = checkConfig(
     valid({ agentRunner: 'codex', agentModel: 'claude-opus-5', agentModelExplicit: false }),
-    { exists: alwaysExists, lookupBin: binPresent });
+    { ...ok, lookupBin: binPresent });
   assert.deepEqual(errors(issues), []);
 });
 
 test('AGENT_RUNNER=codex with an explicit codex model is fine', () => {
   const issues = checkConfig(
     valid({ agentRunner: 'codex', agentModel: 'gpt-5-codex', agentModelExplicit: true }),
-    { exists: alwaysExists, lookupBin: binPresent });
+    { ...ok, lookupBin: binPresent });
   assert.deepEqual(errors(issues), []);
 });
 
 test('AGENT_RUNNER=codex always warns that calibration has not been run, even when otherwise valid', () => {
   const issues = checkConfig(
     valid({ agentRunner: 'codex', agentModel: 'gpt-5-codex', agentModelExplicit: true }),
-    { exists: alwaysExists, lookupBin: binPresent });
+    { ...ok, lookupBin: binPresent });
   assert.deepEqual(errors(issues), []);
   const calibrationWarnings = warns(issues).filter(w => /calibrate/.test(w.message));
   assert.equal(calibrationWarnings.length, 1);
@@ -288,7 +296,7 @@ test('AGENT_RUNNER=codex always warns that calibration has not been run, even wh
 
 test('other runners do not get the codex calibration warning', () => {
   for (const agentRunner of ['claude-sdk', 'cli']) {
-    const issues = checkConfig(valid({ agentRunner }), { exists: alwaysExists, lookupBin: binPresent });
+    const issues = checkConfig(valid({ agentRunner }), { ...ok, lookupBin: binPresent });
     assert.equal(warns(issues).filter(w => /calibrate/.test(w.message)).length, 0);
   }
 });
@@ -307,4 +315,97 @@ test('onPath (the real default lookup, not an injected fake) finds a real binary
   } finally {
     process.env.PATH = originalPath;
   }
+});
+
+// --- Subscriptions ---------------------------------------------------------
+
+const onlyCodexMissing = p => p !== CODEX;
+
+test('beep: both, claude-sdk, Codex installed and signed in, adds nothing', () => {
+  assert.deepEqual(checkConfig(valid(), ok), []);
+});
+
+test('an unknown SUBSCRIPTIONS value is an error naming the valid values', () => {
+  const issues = checkConfig(valid({ subscriptions: 'openai' }), ok);
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /both, claude-only, chatgpt-only/);
+});
+
+test('both with the Claude runner and no Codex installed refuses to start and names both ways out', () => {
+  const issues = checkConfig(valid(), { ...ok, exists: onlyCodexMissing });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, new RegExp(CODEX));
+  assert.match(errors(issues)[0].message, /codex login/);
+  assert.match(errors(issues)[0].message, /SUBSCRIPTIONS=claude-only/);
+});
+
+test('both with Codex installed but signed out only warns', () => {
+  const issues = checkConfig(valid(), { ...ok, codexSignedIn: signedOut });
+  assert.deepEqual(errors(issues), []);
+  const w = warns(issues).filter(i => /codex login/.test(i.message));
+  assert.equal(w.length, 1);
+});
+
+test('the sign-in probe is given the configured Codex path', () => {
+  let asked;
+  checkConfig(valid(), { ...ok, codexSignedIn: bin => { asked = bin; return true; } });
+  assert.equal(asked, CODEX);
+});
+
+test('claude-only needs no Codex at all', () => {
+  let probed = false;
+  const issues = checkConfig(valid({ subscriptions: 'claude-only' }),
+    { ...ok, exists: onlyCodexMissing, codexSignedIn: () => { probed = true; return false; } });
+  assert.deepEqual(issues, []);
+  assert.equal(probed, false);
+});
+
+test('claude-only with the codex runner contradicts itself', () => {
+  const issues = checkConfig(valid({ agentRunner: 'codex', subscriptions: 'claude-only' }),
+    { ...ok, lookupBin: binPresent });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /claude-only/);
+  assert.match(errors(issues)[0].message, /AGENT_RUNNER/);
+});
+
+test('the codex runner must be confirmed with chatgpt-only', () => {
+  const issues = checkConfig(valid({ agentRunner: 'codex', subscriptions: 'both' }),
+    { ...ok, lookupBin: binPresent });
+  assert.equal(errors(issues).length, 1);
+  assert.match(errors(issues)[0].message, /SUBSCRIPTIONS=chatgpt-only/);
+});
+
+test('chatgpt-only needs the codex runner', () => {
+  for (const agentRunner of ['claude-sdk', 'cli']) {
+    const issues = checkConfig(valid({ agentRunner, subscriptions: 'chatgpt-only' }), ok);
+    assert.equal(errors(issues).length, 1, agentRunner);
+    assert.match(errors(issues)[0].message, /AGENT_RUNNER=codex/);
+  }
+});
+
+test('the cli runner under both is not checked for Codex', () => {
+  const issues = checkConfig(valid({ agentRunner: 'cli' }),
+    { ...ok, exists: onlyCodexMissing, codexSignedIn: signedOut });
+  assert.deepEqual(errors(issues), []);
+  assert.equal(warns(issues).filter(i => /codex|Codex/.test(i.message)).length, 0);
+});
+
+test('codexLoggedIn is false for a binary that does not exist', async () => {
+  const { codexLoggedIn } = await import('../src/preflight.js');
+  assert.equal(codexLoggedIn('/nonexistent/codex'), false);
+});
+
+async function configSubscriptions(value) {
+  const { execFileSync } = await import('node:child_process');
+  return String(execFileSync(process.execPath, ['--input-type=module', '-e',
+    "import('./src/config.js').then(m => process.stdout.write(m.config.subscriptions))"],
+    { cwd: new URL('..', import.meta.url).pathname, env: { ...process.env, SUBSCRIPTIONS: value } }));
+}
+
+test('SUBSCRIPTIONS defaults to both', async () => {
+  assert.equal(await configSubscriptions(''), 'both');
+});
+
+test('SUBSCRIPTIONS is trimmed and lowercased', async () => {
+  assert.equal(await configSubscriptions(' Claude-Only '), 'claude-only');
 });

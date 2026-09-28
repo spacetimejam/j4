@@ -1,5 +1,7 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
+import { CODEX_BIN } from './drafting.js';
 
 // The value shipped in .env.example. Treated as absent, because a user who
 // copied the example and never edited it has no secret at all.
@@ -49,10 +51,23 @@ export function onPath(bin) {
     .some(dir => dir && existsSync(join(dir, bin)));
 }
 
+// The values SUBSCRIPTIONS accepts. `both` is the default when it is unset.
+export const SUBSCRIPTIONS = ['both', 'claude-only', 'chatgpt-only'];
+
+// Is Codex signed in? `codex login status` exits 0 when it is, in about 50 ms.
+// stdin is closed because codex waits on an open one, and the timeout keeps a
+// wedged binary from holding up startup; either failure reads as signed out.
+export function codexLoggedIn(bin) {
+  const r = spawnSync(bin, ['login', 'status'], { stdio: 'ignore', timeout: 5000 });
+  return r.status === 0;
+}
+
 // Validate configuration before the server binds. Errors are conditions that
 // cannot work and so abort startup; warnings are conditions that merely
 // deserve saying out loud. `exists` is injected so tests need no filesystem.
-export function checkConfig(cfg, { exists = existsSync, lookupBin = onPath } = {}) {
+export function checkConfig(cfg, {
+  exists = existsSync, lookupBin = onPath, codexBin = CODEX_BIN, codexSignedIn = codexLoggedIn,
+} = {}) {
   const issues = [];
   const err = message => issues.push({ level: 'error', message });
   const warn = message => issues.push({ level: 'warn', message });
@@ -143,6 +158,29 @@ export function checkConfig(cfg, { exists = existsSync, lookupBin = onPath } = {
     // an admin sees anything), so this is the one place to say out loud that
     // calibration is the way to find out before that happens.
     warn('AGENT_RUNNER is "codex". This runner is written to the documented codex exec --json event stream and has not been verified against a live binary. Run `npm run calibrate` once before first use.');
+  }
+
+  // --- Subscriptions -------------------------------------------------------
+  // Opting down to one subscription is always explicit: nothing here falls
+  // back on its own. Only claude-sdk drafts through ChatGPT (it is the one
+  // runner in agent.js's STRUCTURED_RUNNERS; agent.test.js pins the two), so
+  // only it needs Codex. Signed out is a warning because logins lapse on their
+  // own, and refusing to start would turn a routine restart into an outage.
+  const subs = cfg.subscriptions || 'both';
+  if (!SUBSCRIPTIONS.includes(subs)) {
+    err(`SUBSCRIPTIONS is "${subs}", which is not one of: ${SUBSCRIPTIONS.join(', ')}.`);
+  } else if (runner === 'codex' && subs === 'claude-only') {
+    err('SUBSCRIPTIONS is "claude-only" but AGENT_RUNNER is "codex", which runs the portal on ChatGPT. Set AGENT_RUNNER=claude-sdk, or SUBSCRIPTIONS=chatgpt-only if ChatGPT is the one you have.');
+  } else if (runner === 'codex' && subs === 'both') {
+    err('AGENT_RUNNER is "codex", which runs the whole portal on ChatGPT alone. Confirm that with SUBSCRIPTIONS=chatgpt-only in .env.');
+  } else if (subs === 'chatgpt-only' && runner !== 'codex' && AGENT_RUNNERS.includes(runner)) {
+    err(`SUBSCRIPTIONS is "chatgpt-only" but AGENT_RUNNER is "${runner}". Running on ChatGPT alone needs AGENT_RUNNER=codex (run \`npm run calibrate\` before first use).`);
+  } else if (subs === 'both' && runner === 'claude-sdk') {
+    if (!exists(codexBin)) {
+      err(`SUBSCRIPTIONS is "both" (the default), so ChatGPT writes the CV and cover letter copy, but Codex is not installed at ${codexBin}. Install the Codex CLI and sign in with \`codex login\` (or set CODEX_BIN to where it lives). If you only have a Claude subscription, set SUBSCRIPTIONS=claude-only in .env and Claude will write the copy itself.`);
+    } else if (!codexSignedIn(codexBin)) {
+      warn(`Codex is installed at ${codexBin} but not signed in to ChatGPT, so CV and cover letter drafts will wait until someone runs \`codex login\` as the user this portal runs as.`);
+    }
   }
 
   // --- Bind ----------------------------------------------------------------
