@@ -52,6 +52,22 @@ function withStage(session, rows) {
   return { ...session, stage: age > INACTIVE_DAYS * 86400000 ? 'inactive' : 'applying' };
 }
 
+// The failed turn a usage-limited session is waiting on, or null. Only the
+// latest job counts: once the user sends something newer, the notice is stale.
+// rowid breaks ties between jobs created in the same second.
+function delayedFor(db, session) {
+  if (session.status !== 'usage_limited') return null;
+  const job = db.prepare('select * from jobs where session_id = ? order by created_at desc, rowid desc limit 1')
+    .get(session.id);
+  if (!job || job.status !== 'failed' || job.failure_kind !== 'usage_limit') return null;
+  return {
+    jobId: job.id,
+    resetsAt: job.resets_at,
+    exact: job.resets_at_exact === 1,
+    limitType: job.limit_type || 'unknown',
+  };
+}
+
 export function createApp({ send = sendEmail } = {}) {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -178,7 +194,7 @@ export function createApp({ send = sendEmail } = {}) {
         available: resolveOwnedFile(d.path, user) !== null,
       })) };
     });
-    res.json({ ...withStage(session, tracker), messages: enriched, files });
+    res.json({ ...withStage(session, tracker), messages: enriched, files, delayed: delayedFor(db, session) });
   });
 
   app.get('/api/sessions/:id/files/:idx', requireAuth, (req, res) => {
@@ -234,6 +250,24 @@ export function createApp({ send = sendEmail } = {}) {
     db.prepare("update sessions set status = 'working', updated_at = datetime('now') where id = ?").run(session.id);
     const userName = getUser(req.userEmail)?.name || 'the user';
     enqueue({ sessionId: session.id, prompt: `${userName} replies via the portal:\n\n${body}` });
+    res.json({ ok: true });
+  });
+
+  // Sends the waiting message again. The same job is requeued rather than a new
+  // one added, so the user's message is not duplicated in the history.
+  app.post('/api/sessions/:id/retry', requireAuth, (req, res) => {
+    const db = getDb();
+    const session = getOwnSession(db, req.params.id, req.userEmail);
+    if (!session) return res.status(404).json({ error: 'not found' });
+    const retried = db.transaction(() => {
+      const delayed = delayedFor(db, session);
+      if (!delayed) return false;
+      db.prepare(`update jobs set status = 'queued', error = null, failure_kind = null,
+          resets_at = null, resets_at_exact = null, limit_type = null where id = ?`).run(delayed.jobId);
+      db.prepare("update sessions set status = 'working', updated_at = datetime('now') where id = ?").run(session.id);
+      return true;
+    })();
+    if (!retried) return res.status(409).json({ error: 'nothing to retry' });
     res.json({ ok: true });
   });
 

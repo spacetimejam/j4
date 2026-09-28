@@ -455,3 +455,68 @@ test('session detail still includes the files field', async () => {
 });
 
 test.after(() => server.close());
+
+// A session whose latest turn failed on the usage limit, as queue.js leaves it.
+function mkLimited(email = 'owner@test.com') {
+  const db = getDb();
+  const sid = `lim-${Math.random().toString(16).slice(2)}`;
+  const jid = `job-${sid}`;
+  db.prepare("insert into sessions (id, user_email, title, status) values (?, ?, 'Designer at Lush', 'usage_limited')").run(sid, email);
+  db.prepare("insert into messages (id, session_id, role, body) values (?, ?, 'user', 'JD text')").run(`m-${sid}`, sid);
+  db.prepare(`insert into jobs (id, session_id, prompt, status, error, failure_kind, resets_at, resets_at_exact, limit_type)
+    values (?, ?, 'the prompt', 'failed', 'limit', 'usage_limit', '2026-09-28 00:10:00', 1, 'session')`).run(jid, sid);
+  return { sid, jid };
+}
+const post = (path, cookie) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', cookie } });
+const detail = async (sid, cookie = ownerCookie) => (await fetch(`${base}/api/sessions/${sid}`, { headers: { cookie } })).json();
+
+test('session detail reports the delay only while usage-limited', async () => {
+  const { sid, jid } = mkLimited();
+  assert.deepEqual((await detail(sid)).delayed, {
+    jobId: jid, resetsAt: '2026-09-28 00:10:00', exact: true, limitType: 'session',
+  });
+  getDb().prepare("update sessions set status = 'active' where id = ?").run(sid);
+  assert.equal((await detail(sid)).delayed, null);
+});
+
+test('retry requeues the same job, adds no message and sets working', async () => {
+  const { sid, jid } = mkLimited();
+  const r = await post(`/api/sessions/${sid}/retry`, ownerCookie);
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true });
+  const job = getDb().prepare('select * from jobs where id = ?').get(jid);
+  assert.equal(job.status, 'queued');
+  assert.equal(job.prompt, 'the prompt');
+  for (const c of ['error', 'failure_kind', 'resets_at', 'resets_at_exact', 'limit_type']) assert.equal(job[c], null, c);
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'working');
+  assert.equal(getDb().prepare('select count(*) c from messages where session_id = ?').get(sid).c, 1);
+  assert.equal(getDb().prepare('select count(*) c from jobs where session_id = ?').get(sid).c, 1);
+});
+
+test('a second retry, as from a double click, is refused and changes nothing', async () => {
+  const { sid } = mkLimited();
+  assert.equal((await post(`/api/sessions/${sid}/retry`, ownerCookie)).status, 200);
+  const again = await post(`/api/sessions/${sid}/retry`, ownerCookie);
+  assert.equal(again.status, 409);
+  assert.equal(getDb().prepare("select count(*) c from jobs where session_id = ? and status = 'queued'").get(sid).c, 1);
+});
+
+test('retry after a newer message was sent is refused and leaves the new job alone', async () => {
+  const { sid, jid } = mkLimited();
+  const reply = await fetch(`${base}/api/sessions/${sid}/reply`, {
+    method: 'POST', headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    body: JSON.stringify({ body: 'any news?' }),
+  });
+  assert.equal(reply.status, 200);
+  const r = await post(`/api/sessions/${sid}/retry`, ownerCookie);
+  assert.equal(r.status, 409);
+  assert.equal(getDb().prepare('select status from jobs where id = ?').get(jid).status, 'failed');
+  assert.equal((await detail(sid)).delayed, null);
+});
+
+test('users cannot retry each other\'s sessions', async () => {
+  const { sid, jid } = mkLimited('owner@test.com');
+  const r = await post(`/api/sessions/${sid}/retry`, operatorCookie);
+  assert.equal(r.status, 404);
+  assert.equal(getDb().prepare('select status from jobs where id = ?').get(jid).status, 'failed');
+});
