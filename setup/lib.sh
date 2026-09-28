@@ -187,3 +187,58 @@ register_portal_user() {
     console.log((existed ? "Updated " : "Registered ") + email + " in " + file);
   '
 }
+
+# detect_subscriptions
+# Sets SUBSCRIPTIONS_FOUND to "both" when a signed-in Codex is found, else
+# "claude-only", and CODEX_BIN_FOUND to the binary's path (empty when there is
+# none). Call it directly, not in $(...): a subshell would lose both variables. The portal
+# only drafts through ChatGPT under "both", and refuses to start under "both"
+# without Codex, so guessing high would stop the portal.
+detect_subscriptions() {
+  CODEX_BIN_FOUND=""
+  if command -v codex >/dev/null 2>&1; then
+    CODEX_BIN_FOUND="$(command -v codex)"
+  elif [ -x "$HOME/.local/bin/codex" ]; then
+    CODEX_BIN_FOUND="$HOME/.local/bin/codex"
+  fi
+  if [ -n "$CODEX_BIN_FOUND" ] && "$CODEX_BIN_FOUND" login status </dev/null >/dev/null 2>&1; then
+    SUBSCRIPTIONS_FOUND="both"
+  else
+    SUBSCRIPTIONS_FOUND="claude-only"
+  fi
+}
+
+# write_local_env <env_file> <subscriptions> [codex_bin]
+# Writes the portal .env for EXPOSURE=local. Never overwrites: returns 1 and
+# writes nothing when the file exists.
+write_local_env() {
+  wle_file="$1"; wle_subs="$2"; wle_codex="${3:-}"
+  [ -e "$wle_file" ] && return 1
+  {
+    echo "# Written by the setup wizard for Jawbs on this computer. See docs/portal.md."
+    echo "EXPOSURE=local"
+    echo "BIND_HOST=127.0.0.1"
+    echo "PORT=8710"
+    echo "BASE_URL=http://localhost:8710"
+    echo "EMAIL_PROVIDER=log"
+    echo "PORTAL_TITLE=Jawbs"
+    echo "AGENT_RUNNER=claude-sdk"
+    echo "SUBSCRIPTIONS=$wle_subs"
+    if [ -n "$wle_codex" ] && [ "$wle_codex" != "$HOME/.local/bin/codex" ]; then
+      echo "CODEX_BIN=$wle_codex"
+    fi
+  } > "$wle_file"
+}
+
+# registry_has_other <registry> <email>
+# True when the registry holds anyone other than <email>. No node, no file or
+# an unreadable file all count as "no one else".
+registry_has_other() {
+  [ -f "$1" ] || return 1
+  command -v node >/dev/null 2>&1 || return 1
+  RHO_FILE="$1" RHO_EMAIL="$2" node -e '
+    const u = JSON.parse(require("fs").readFileSync(process.env.RHO_FILE, "utf8"));
+    const me = process.env.RHO_EMAIL.trim().toLowerCase();
+    process.exit(Object.keys(u).some(k => k !== me) ? 0 : 1);
+  ' 2>/dev/null
+}

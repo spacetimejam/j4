@@ -435,6 +435,56 @@ printf 'JAWBS_MODE="sideways"\n' | cat "$TEST_DIR/answers-terminal.env" - > "$MW
 if run_mode "$MWORK/bad.env" "$MWORK/b"; then fail "an unknown JAWBS_MODE should stop setup"; else pass; fi
 rm -rf "$MWORK"
 
+# --- jawbs-local.sh -----------------------------------------------------------
+LWORK="$(mktemp -d)"
+PORTAL_REGISTRY="$LWORK/users.json" JAWBS_SKIP_LOCAL=yes \
+  bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-local.env" --target "$LWORK/proj" --skip-deps >/dev/null 2>&1
+mkdir -p "$LWORK/fakebin"
+# A codex that is signed in.
+printf '#!/bin/sh\n[ "$1 $2" = "login status" ] && exit 0\nexit 1\n' > "$LWORK/fakebin/codex"
+chmod +x "$LWORK/fakebin/codex"
+run_local() { # run_local <env-file> [PATH]
+  HOME="$LWORK/home" PORTAL_REGISTRY="$LWORK/users.json" JAWBS_ENV_FILE="$1" \
+  JAWBS_SKIP_NPM=yes JAWBS_SKIP_LAUNCH=yes PATH="${2:-$PATH}" \
+    bash "$SETUP_DIR/jawbs-local.sh" "$LWORK/proj" >"$1.out" 2>&1
+}
+mkdir -p "$LWORK/home"
+# A fake claude, so the test does not depend on the host having one.
+printf '#!/bin/sh\nexit 0\n' > "$LWORK/fakebin/claude"; chmod +x "$LWORK/fakebin/claude"
+
+run_local "$LWORK/env1" "$LWORK/fakebin:$PATH" || fail "jawbs-local.sh exited non-zero"
+check ".env written" test -f "$LWORK/env1"
+check ".env is local" grep -q '^EXPOSURE=local$' "$LWORK/env1"
+check ".env binds loopback" grep -q '^BIND_HOST=127.0.0.1$' "$LWORK/env1"
+check ".env base url" grep -q '^BASE_URL=http://localhost:8710$' "$LWORK/env1"
+check ".env logs email" grep -q '^EMAIL_PROVIDER=log$' "$LWORK/env1"
+check "signed-in codex means both" grep -q '^SUBSCRIPTIONS=both$' "$LWORK/env1"
+check "codex path recorded" grep -q "^CODEX_BIN=$LWORK/fakebin/codex$" "$LWORK/env1"
+check "user registered" grep -q 'alex@example.com' "$LWORK/users.json"
+
+printf 'EXPOSURE=private\n' > "$LWORK/env2"
+run_local "$LWORK/env2" "$LWORK/fakebin:$PATH"
+check "existing .env left alone" test "$(cat "$LWORK/env2")" = "EXPOSURE=private"
+check "existing .env explained" grep -q "already has settings" "$LWORK/env2.out"
+
+# Signed-out codex means claude-only.
+printf '#!/bin/sh\nexit 1\n' > "$LWORK/fakebin/codex"
+run_local "$LWORK/env3" "$LWORK/fakebin:$PATH"
+check "signed-out codex means claude-only" grep -q '^SUBSCRIPTIONS=claude-only$' "$LWORK/env3"
+
+# Someone else already registered: stop politely, exit 0.
+printf '{ "someone@else.com": { "name": "S", "projectDir": "/x" } }\n' > "$LWORK/users.json"
+run_local "$LWORK/env4" "$LWORK/fakebin:$PATH" || fail "registry clash should still exit 0"
+check "clash writes no .env" test ! -f "$LWORK/env4"
+check "clash explained" grep -q "another person" "$LWORK/env4.out"
+rm -f "$LWORK/users.json"
+
+# No node: instructions, exit 0.
+JAWBS_NODE=definitely-not-node run_local "$LWORK/env5" "$LWORK/fakebin:$PATH" || fail "missing node should still exit 0"
+check "missing node explained" grep -q "Node" "$LWORK/env5.out"
+check "missing node writes no .env" test ! -f "$LWORK/env5"
+rm -rf "$LWORK"
+
 # --- Summary ----------------------------------------------------------------
 
 rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"
