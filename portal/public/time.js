@@ -67,7 +67,11 @@ export function formatResetLondon(stored, { exact = false, limitType = 'unknown'
   return `${time} on ${part.weekday} ${part.day} ${part.month}`;
 }
 
-export function resetHasPassed(stored, now = new Date()) {
+// An estimated weekly reset stores only the right time of day, on a
+// placeholder date within the next 24 hours, so its passing says nothing about
+// whether the weekly limit has actually reset.
+export function resetHasPassed(stored, { exact = false, limitType = 'unknown' } = {}, now = new Date()) {
+  if (!exact && limitType === 'weekly') return false;
   const date = parseStoredUtc(stored);
   return Boolean(date) && date <= now;
 }

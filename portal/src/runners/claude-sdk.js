@@ -50,6 +50,10 @@ export async function runClaudeSdk(
       }
       if (msg.type === 'result') {
         if (msg.subtype !== 'success') throw new Error(`agent turn failed: ${msg.subtype}`);
+        // A usage limit arrives as a "success" marked is_error, carrying the
+        // limit text. Fail here rather than rely on the SDK throwing afterwards,
+        // which it does only when the CLI exits non-zero.
+        if (msg.is_error) throw new Error(`agent turn failed: ${msg.result || 'error result'}`);
         result = msg.result || '';
         structured = msg.structured_output ?? null;
       }

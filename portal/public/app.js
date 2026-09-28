@@ -23,7 +23,7 @@ const pill = s => (STAGES[s.stage] ? `<span class="pill ${s.stage}">${STAGES[s.s
    from fixed strings and the formatted time, never from the error text. */
 function delayedNotice(d) {
   let when = '';
-  if (resetHasPassed(d.resetsAt)) {
+  if (resetHasPassed(d.resetsAt, d)) {
     when = ' The limit should have reset by now, so a retry should work.';
   } else {
     const at = formatResetLondon(d.resetsAt, d);

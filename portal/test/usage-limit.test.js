@@ -98,3 +98,9 @@ test('toSqlUtc writes the SQLite shape and passes null through', () => {
   assert.equal(toSqlUtc(new Date('2026-09-28T00:10:00.000Z')), '2026-09-28 00:10:00');
   assert.equal(toSqlUtc(null), null);
 });
+
+test('a session reset read at the stated minute is the one just passed, not a day away', () => {
+  // The session window is five hours, so a reset 24 hours out is always wrong.
+  const r = parseUsageLimitText(SESSION_TEXT, new Date('2026-09-28T00:10:00Z'));
+  assert.equal(r.resetsAt.toISOString(), '2026-09-28T00:10:00.000Z');
+});

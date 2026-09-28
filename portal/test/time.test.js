@@ -94,7 +94,13 @@ test('no reset time gives an empty string', () => {
 });
 
 test('resetHasPassed compares the stored UTC time with now', () => {
-  assert.equal(resetHasPassed('2026-09-27 19:00:00', SUN_EVENING), true);
-  assert.equal(resetHasPassed('2026-09-28 00:10:00', SUN_EVENING), false);
-  assert.equal(resetHasPassed(null, SUN_EVENING), false);
+  assert.equal(resetHasPassed('2026-09-27 19:00:00', exactSession, SUN_EVENING), true);
+  assert.equal(resetHasPassed('2026-09-28 00:10:00', exactSession, SUN_EVENING), false);
+  assert.equal(resetHasPassed(null, exactSession, SUN_EVENING), false);
+});
+
+test('an estimated weekly reset is never taken to have passed, because its day is unknown', () => {
+  assert.equal(resetHasPassed('2026-09-27 07:00:00', { exact: false, limitType: 'weekly' }, SUN_EVENING), false);
+  assert.equal(resetHasPassed('2026-09-27 07:00:00', { exact: true, limitType: 'weekly' }, SUN_EVENING), true);
+  assert.equal(resetHasPassed('2026-09-27 19:00:00', { exact: false, limitType: 'session' }, SUN_EVENING), true);
 });

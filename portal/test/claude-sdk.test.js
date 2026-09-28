@@ -195,3 +195,16 @@ test('an unrelated failure is rethrown unchanged', async () => {
   const original = new Error('socket hang up');
   await assert.rejects(runFailing([init], original), err => err === original);
 });
+
+test('an is_error result carrying the limit text is a usage limit, even if the SDK never throws', async () => {
+  // How 0.3.283 reports it: a "success" result marked is_error, whose text is
+  // the limit message. The SDK's own throw only follows if the CLI exits non-zero.
+  const limitResult = {
+    type: 'result', subtype: 'success', is_error: true,
+    result: "You've hit your session limit · resets 12:10am (UTC)",
+  };
+  await assert.rejects(
+    run([init, limitResult]),
+    err => err instanceof UsageLimitError && err.limitType === 'session' && err.resetsAt instanceof Date,
+  );
+});
