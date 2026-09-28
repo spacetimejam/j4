@@ -2,6 +2,7 @@ import { renderMarkdown } from './markdown.js';
 import { isSubmitChord } from './keys.js';
 import { formatLondon } from './time.js';
 import { delayedNotice } from './notices.js';
+import { attachNote, appendNote } from './setup.js';
 
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
@@ -27,17 +28,29 @@ const isMac = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)
 const SUBMIT_HINT = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
 
 let TITLE = 'Job Search Portal';
+let LOCAL = false;
 
 async function main() {
   try {
     const meta = await (await api('/meta')).json();
     if (meta.title) TITLE = meta.title;
+    LOCAL = meta.local === true;
   } catch { /* keep the neutral default */ }
   document.title = TITLE;
   const me = await api('/me');
   if (me.status === 401) return renderLogin();
-  route();
   window.onhashchange = route;
+  // While SETUP.md exists, the landing page is the Getting started chat.
+  if (!location.hash) {
+    try {
+      const setup = await (await api('/setup')).json();
+      if (setup.pending) {
+        const id = setup.sessionId || (await (await api('/setup/start', { method: 'POST' })).json()).id;
+        if (id) { location.hash = id; return; } // onhashchange renders it
+      }
+    } catch { /* fall through to the list */ }
+  }
+  route();
 }
 
 function route() {
@@ -165,6 +178,21 @@ function bindSubmit(textarea, button, run) {
   };
 }
 
+/* Local mode only. The server answers, then exits once any reply in progress
+   has finished, so the page says goodbye rather than showing a dead tab. */
+function quitLink() {
+  return LOCAL ? '<button id="quit" class="linkish">Quit Jawbs</button>' : '';
+}
+function bindQuit() {
+  const b = document.getElementById('quit');
+  if (!b) return;
+  b.onclick = async () => {
+    if (!confirm('Quit Jawbs? Anything Jawbs is working on will finish first. Open Jawbs again from its icon.')) return;
+    await api('/quit', { method: 'POST' }).catch(() => {});
+    app.innerHTML = `<h1>${esc(TITLE)}</h1><p>Jawbs is closing. You can close this tab.</p>`;
+  };
+}
+
 function renderLogin() {
   app.innerHTML = `<h1>${esc(TITLE)}</h1>
     <p>Enter your email and we will send you a login link.</p>
@@ -179,24 +207,32 @@ function renderLogin() {
 }
 
 async function renderList() {
-  const sessions = await (await api('/sessions')).json();
+  const [sessions, setup] = await Promise.all([
+    api('/sessions').then(r => r.json()),
+    api('/setup').then(r => r.json()).catch(() => ({ pending: false })),
+  ]);
   app.innerHTML = `<div class="topbar"><h1>${esc(TITLE)}</h1>
+      ${quitLink()}
       <button id="cog" class="icon-btn" title="Options" aria-label="Options"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>
-    <div class="new-app"><strong>New application</strong>
+    ${setup.pending
+      ? `<p class="muted">Finish <a href="#${setup.sessionId || ''}">Getting started</a> first, then you can send Jawbs job descriptions here.</p>`
+      : `<div class="new-app"><strong>New application</strong>
       <textarea id="jd" placeholder="Paste the job description, or just a link to it"></textarea>
-      <button id="submit" title="Send to Claude (${SUBMIT_HINT})">Send to Claude</button></div>
+      <button id="submit" title="Send to Claude (${SUBMIT_HINT})">Send to Claude</button></div>`}
     <div id="list">${sessions.map(s => `
       <a class="card has-menu" href="#${s.id}"><strong>${esc(s.title)}</strong>
       <div class="meta"><span class="muted">${formatLondon(s.updated_at)}</span>${pill(s)}</div>
       ${NEEDS_REPLY.has(s.status) ? `<span class="badge-reply" aria-label="${esc(s.title)}: waiting for your reply">Reply</span>` : ''}
       ${s.status === 'usage_limited' || s.status === 'drafting_blocked' ? `<span class="badge-delayed" aria-label="${esc(s.title)}: ${s.status === 'drafting_blocked' ? 'draft waiting' : 'reply delayed by the usage limit'}">Delayed</span>` : ''}
       <button class="dots" data-id="${s.id}" aria-label="Options for ${esc(s.title)}">&#8942;</button></a>`).join('')}</div>`;
-  bindSubmit(document.getElementById('jd'), document.getElementById('submit'), async () => {
-    const jd = document.getElementById('jd').value;
-    if (!jd.trim()) return alert('Please paste the job description or a link to it.');
-    const { id } = await (await api('/sessions', { method: 'POST', body: JSON.stringify({ jd }) })).json();
-    location.hash = id;
-  });
+  if (!setup.pending) {
+    bindSubmit(document.getElementById('jd'), document.getElementById('submit'), async () => {
+      const jd = document.getElementById('jd').value;
+      if (!jd.trim()) return alert('Please paste the job description or a link to it.');
+      const { id } = await (await api('/sessions', { method: 'POST', body: JSON.stringify({ jd }) })).json();
+      location.hash = id;
+    });
+  }
   document.getElementById('cog').onclick = () => openSheet([
     { label: 'View archived applications', run: () => { location.hash = 'archived'; } },
   ]);
@@ -210,6 +246,7 @@ async function renderList() {
       } },
     ]);
   });
+  bindQuit();
 }
 
 async function renderArchived() {
@@ -247,9 +284,10 @@ async function renderSession(id, scrollToLatest = false) {
   const s = await sRes.json();
   const docs = dRes.ok ? await dRes.json() : [];
   app.innerHTML = `<div class="chat-bar">
-      <a class="back" href="#" aria-label="All applications">&larr;</a>
+      <a class="back" href="#" aria-label="${s.kind === 'setup' ? 'All conversations' : 'All applications'}">&larr;</a>
       <h1 class="chat-title" title="${esc(s.title)}">${esc(s.title)}</h1>
       ${pill(s)}
+      ${quitLink()}
       ${docs.length ? `<button id="doc-btn" class="icon-btn" title="Documents" aria-label="Documents (${docs.length})"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="doc-count">${docs.length}</span></button>` : ''}
     </div>
     ${s.messages.map(m => {
@@ -265,13 +303,44 @@ async function renderSession(id, scrollToLatest = false) {
     }).join('')}
     ${s.status === 'working' ? '<p class="muted">Jawbs is working on this. You can close the page; it will be here when you come back.</p>' : ''}
     ${s.delayed ? delayedNotice(s.delayed) : ''}
-    <textarea id="reply" placeholder="Your reply"></textarea><button id="send" title="Send (${SUBMIT_HINT})">Send</button>`;
+    <textarea id="reply" placeholder="Your reply"></textarea>
+    ${s.kind === 'setup' ? `<input id="file" type="file" accept=".pdf,.doc,.docx,.odt,.rtf,.pages,.txt,.md" hidden>
+      <button id="attach" class="secondary" title="Attach your CV">&#128206; Attach a file</button>` : ''}
+    <button id="send" title="Send (${SUBMIT_HINT})">Send</button>`;
   bindSubmit(document.getElementById('reply'), document.getElementById('send'), async () => {
     const body = document.getElementById('reply').value;
     if (!body.trim()) return;
     await api(`/sessions/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
     renderSession(id, true);
   });
+  const attach = document.getElementById('attach');
+  if (attach) {
+    const input = document.getElementById('file');
+    attach.onclick = () => input.click();
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return;
+      attach.disabled = true;
+      attach.textContent = 'Uploading...';
+      try {
+        const r = await fetch(`/api/sessions/${id}/upload`, {
+          method: 'POST', headers: { 'x-filename': encodeURIComponent(file.name) }, body: file,
+        });
+        const out = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(out.error || `upload failed (${r.status})`);
+        const box = document.getElementById('reply');
+        box.value = appendNote(box.value, attachNote(out.path));
+        box.focus();
+      } catch (e) {
+        alert(/\b413\b/.test(e.message) ? 'That file is too big. The limit is 15 MB.' : `Sorry, that did not upload: ${e.message}`);
+      } finally {
+        input.value = '';
+        attach.disabled = false;
+        attach.innerHTML = '&#128206; Attach a file';
+      }
+    };
+  }
+  bindQuit();
   document.getElementById('doc-btn')?.addEventListener('click', () => openDocPanel(id, docs));
   const retry = document.getElementById('retry');
   if (retry) retry.onclick = async () => {

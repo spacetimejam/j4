@@ -457,3 +457,6 @@ button.danger:hover { background: var(--red); filter: brightness(0.9); }
    now that no float sits beside it. */
 .card strong { overflow-wrap: break-word; }
 h1 { overflow-wrap: anywhere; }
+
+.linkish { background: none; border: none; color: inherit; text-decoration: underline; padding: 0; font: inherit; cursor: pointer; opacity: .7; }
+#attach { margin-right: .5rem; }
