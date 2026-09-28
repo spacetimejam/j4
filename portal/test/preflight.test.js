@@ -409,3 +409,46 @@ test('SUBSCRIPTIONS defaults to both', async () => {
 test('SUBSCRIPTIONS is trimmed and lowercased', async () => {
   assert.equal(await configSubscriptions(' Claude-Only '), 'claude-only');
 });
+
+// --- EXPOSURE=local -------------------------------------------------------
+function localCfg(overrides = {}) {
+  return valid({
+    exposure: 'local', bindHost: '127.0.0.1', baseUrl: 'http://localhost:8710', port: 8710,
+    cookieSecret: '', emailProvider: 'log', emailProviderExplicit: true, subscriptions: 'claude-only',
+    ...overrides,
+  });
+}
+const oneUser = () => 1;
+
+test('a valid local config produces no issues and needs no cookie secret', () => {
+  assert.deepEqual(checkConfig(localCfg(), { ...ok, countUsers: oneUser }), []);
+});
+
+test('local refuses a non-loopback bind', () => {
+  const e = errors(checkConfig(localCfg({ bindHost: '0.0.0.0' }), { ...ok, countUsers: oneUser }));
+  assert.equal(e.length, 1);
+  assert.match(e[0].message, /EXPOSURE=local.*BIND_HOST/);
+});
+
+test('local refuses zero or several users', () => {
+  for (const n of [0, 2]) {
+    const e = errors(checkConfig(localCfg(), { ...ok, countUsers: () => n }));
+    assert.ok(e.some(i => /exactly one/.test(i.message)), `expected a one-user error for ${n}`);
+  }
+});
+
+test('local refuses a BASE_URL that is not localhost on PORT', () => {
+  for (const baseUrl of ['https://box.example.com', 'http://localhost:9999', 'http://192.168.1.4:8710']) {
+    const e = errors(checkConfig(localCfg({ baseUrl }), { ...ok, countUsers: oneUser }));
+    assert.ok(e.some(i => /BASE_URL/.test(i.message)), `expected a BASE_URL error for ${baseUrl}`);
+  }
+  assert.deepEqual(errors(checkConfig(localCfg({ baseUrl: 'http://127.0.0.1:8710' }), { ...ok, countUsers: oneUser })), []);
+});
+
+test('local does not warn about the loopback bind or a missing EXPOSURE', () => {
+  assert.deepEqual(warns(checkConfig(localCfg(), { ...ok, countUsers: oneUser })), []);
+});
+
+test('EXPOSURE accepts local case-insensitively', () => {
+  assert.deepEqual(errors(checkConfig(localCfg({ exposure: 'LOCAL' }), { ...ok, countUsers: oneUser })), []);
+});

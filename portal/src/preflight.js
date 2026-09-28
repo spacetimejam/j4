@@ -1,7 +1,18 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { CODEX_BIN } from './drafting.js';
+
+// How many people this portal serves: the registry's entries, or the legacy
+// allowlist when there is no registry. Local mode serves exactly one.
+export function countRegisteredUsers(cfg) {
+  try {
+    return Object.keys(JSON.parse(readFileSync(cfg.usersFile, 'utf8'))).length;
+  } catch (err) {
+    if (err.code === 'ENOENT') return (cfg.allowedEmails || []).length;
+    return 0; // unreadable or malformed: the users section below reports it
+  }
+}
 
 // The value shipped in .env.example. Treated as absent, because a user who
 // copied the example and never edited it has no secret at all.
@@ -67,6 +78,7 @@ export function codexLoggedIn(bin) {
 // deserve saying out loud. `exists` is injected so tests need no filesystem.
 export function checkConfig(cfg, {
   exists = existsSync, lookupBin = onPath, codexBin = CODEX_BIN, codexSignedIn = codexLoggedIn,
+  countUsers = countRegisteredUsers,
 } = {}) {
   const issues = [];
   const err = message => issues.push({ level: 'error', message });
@@ -83,22 +95,27 @@ export function checkConfig(cfg, {
   if (!exposure) {
     warn('EXPOSURE is not set, so this portal is being treated as private. If it is reachable from the public internet, set EXPOSURE=public in .env so the stronger COOKIE_SECRET rule applies.');
     exposure = 'private';
-  } else if (exposure !== 'private' && exposure !== 'public') {
-    err(`EXPOSURE is "${exposure}", which is not one of: private, public.`);
+  } else if (!['private', 'public', 'local'].includes(exposure)) {
+    err(`EXPOSURE is "${exposure}", which is not one of: private, public, local.`);
     // Assume the stricter reading while we are already failing, so the secret
     // check below cannot be softened by a typo.
     exposure = 'public';
   }
+  const local = exposure === 'local';
 
   // --- Cookie secret -------------------------------------------------------
-  const secret = cfg.cookieSecret || '';
-  const minSecret = exposure === 'public' ? MIN_SECRET_PUBLIC : MIN_SECRET_PRIVATE;
-  if (!secret || secret === PLACEHOLDER_SECRET || secret === DEV_SECRET) {
-    err('COOKIE_SECRET is unset or still the example value. Generate one with: openssl rand -hex 32');
-  } else if (secret.length < minSecret) {
-    err(exposure === 'public'
-      ? `COOKIE_SECRET is ${secret.length} characters, but EXPOSURE=public requires at least ${MIN_SECRET_PUBLIC}. This portal's login page is reachable from the internet, and the session cookie is the only thing between a stranger and an agent running with bypassPermissions inside your project. Generate a new one with: openssl rand -hex 32 (this logs everyone out), or stop exposing the portal publicly.`
-      : `COOKIE_SECRET is ${secret.length} characters, but at least ${MIN_SECRET_PRIVATE} are required. Generate one with: openssl rand -hex 32`);
+  // Local mode reads no cookie (requireAuth serves the one registered user),
+  // so a secret would guard nothing.
+  if (!local) {
+    const secret = cfg.cookieSecret || '';
+    const minSecret = exposure === 'public' ? MIN_SECRET_PUBLIC : MIN_SECRET_PRIVATE;
+    if (!secret || secret === PLACEHOLDER_SECRET || secret === DEV_SECRET) {
+      err('COOKIE_SECRET is unset or still the example value. Generate one with: openssl rand -hex 32');
+    } else if (secret.length < minSecret) {
+      err(exposure === 'public'
+        ? `COOKIE_SECRET is ${secret.length} characters, but EXPOSURE=public requires at least ${MIN_SECRET_PUBLIC}. This portal's login page is reachable from the internet, and the session cookie is the only thing between a stranger and an agent running with bypassPermissions inside your project. Generate a new one with: openssl rand -hex 32 (this logs everyone out), or stop exposing the portal publicly.`
+        : `COOKIE_SECRET is ${secret.length} characters, but at least ${MIN_SECRET_PRIVATE} are required. Generate one with: openssl rand -hex 32`);
+    }
   }
 
   // --- Base URL ------------------------------------------------------------
@@ -184,8 +201,27 @@ export function checkConfig(cfg, {
   }
 
   // --- Bind ----------------------------------------------------------------
-  if (!LOOPBACK_BINDS.includes(cfg.bindHost)) {
+  if (!local && !LOOPBACK_BINDS.includes(cfg.bindHost)) {
     warn(`BIND_HOST is ${cfg.bindHost}, so the portal is reachable from your local network. Tailscale setups should use 127.0.0.1; a reverse proxy on another host needs the wider bind.`);
+  }
+
+  // --- Local ----------------------------------------------------------------
+  // No sign-in is safe only for one person on this machine: loopback bind, one
+  // user, and a BASE_URL the Host guard in local.js will accept.
+  if (local) {
+    if (!LOOPBACK_BINDS.includes(cfg.bindHost)) {
+      err(`EXPOSURE=local has no sign-in, so it must listen on this computer only, but BIND_HOST is ${cfg.bindHost}. Set BIND_HOST=127.0.0.1.`);
+    }
+    const n = countUsers(cfg);
+    if (n !== 1) {
+      err(`EXPOSURE=local serves exactly one person, but ${n} are registered in ${cfg.usersFile}. A second person needs their own copy of the kit.`);
+    }
+    const port = String(cfg.port ?? 8710);
+    const okBase = url && url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)
+      && (url.port || '80') === port;
+    if (!okBase) {
+      err(`EXPOSURE=local needs BASE_URL=http://localhost:${port}, but it is ${cfg.baseUrl}.`);
+    }
   }
 
   return issues;
