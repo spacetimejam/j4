@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { runAgentTurn, parseEmailDirective, parseTitleDirective } from './agent.js';
 import { sendEmail } from './email.js';
 import { getUser, adminEmails } from './users.js';
+import { UsageLimitError, toSqlUtc } from './usage-limit.js';
 
 export function enqueue({ sessionId, prompt }) {
   getDb().prepare('insert into jobs (id, session_id, prompt) values (?, ?, ?)')
@@ -61,7 +62,9 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
       // A resumed turn can fail because the Claude transcript was pruned.
       // Retry once in a fresh session with context rebuilt from our own
       // history; a fresh turn's failure is not retryable this way.
-      if (!session.claude_session_id) throw err;
+      // A usage limit is not a pruned transcript: a fresh session would hit
+      // the same limit, so it goes straight to the handler below.
+      if (err instanceof UsageLimitError || !session.claude_session_id) throw err;
       const history = db.prepare('select role, body from messages where session_id = ? order by created_at')
         .all(session.id);
       turn = await runTurn({
@@ -128,6 +131,16 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail }
       .run(sessionStatus({ email: Boolean(email), awaitingUser }), job.session_id);
     db.prepare("update jobs set status = 'done' where id = ?").run(job.id);
   } catch (err) {
+    // An expected condition the user can act on: record when the limit resets
+    // so the page can say so and offer a retry, and leave admins alone.
+    if (err instanceof UsageLimitError) {
+      db.prepare(`update jobs set status = 'failed', error = ?, failure_kind = 'usage_limit',
+          resets_at = ?, resets_at_exact = ?, limit_type = ? where id = ?`)
+        .run(String(err.message), toSqlUtc(err.resetsAt), err.exact ? 1 : 0, err.limitType, job.id);
+      db.prepare("update sessions set status = 'usage_limited', updated_at = datetime('now') where id = ?")
+        .run(job.session_id);
+      return true;
+    }
     db.prepare("update jobs set status = 'failed', error = ? where id = ?").run(String(err), job.id);
     db.prepare("update sessions set status = 'needs_attention', updated_at = datetime('now') where id = ?")
       .run(job.session_id);

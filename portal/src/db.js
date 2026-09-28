@@ -14,7 +14,7 @@ create table if not exists sessions (
   user_email text not null,
   title text not null,
   claude_session_id text,
-  status text not null default 'active', -- active | working | awaiting_reply | done | needs_attention
+  status text not null default 'active', -- active | working | awaiting_reply | done | needs_attention | usage_limited
   created_at text not null default (datetime('now')),
   updated_at text not null default (datetime('now'))
 );
@@ -65,6 +65,14 @@ export function getDb() {
     }
     if (!cols.some(c => c.name === 'archived')) {
       db.exec('alter table sessions add column archived integer not null default 0');
+    }
+    // Usage-limit failures are recorded on the job so the notice and the retry
+    // both read from the one row that holds the waiting prompt.
+    const jobCols = db.prepare('pragma table_info(jobs)').all();
+    for (const [name, type] of [
+      ['failure_kind', 'text'], ['resets_at', 'text'], ['resets_at_exact', 'integer'], ['limit_type', 'text'],
+    ]) {
+      if (!jobCols.some(c => c.name === name)) db.exec(`alter table jobs add column ${name} ${type}`);
     }
     // One-time backfill for databases that predate the documents table: the
     // files column holds only the most recent delivery, so this is the whole

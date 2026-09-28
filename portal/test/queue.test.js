@@ -11,6 +11,7 @@ process.env.ALLOWED_EMAILS = 'owner@test.com,operator@test.com';
 process.env.PROJECT_DIR = process.env.PROJECT_DIR || '/tmp/queue-test-project';
 const { getDb, newId } = await import('../src/db.js');
 const { enqueue, processOneJob, buildRecoveryPrompt, sessionStatus } = await import('../src/queue.js');
+const { UsageLimitError } = await import('../src/usage-limit.js');
 
 function mkSession() {
   const id = newId();
@@ -503,4 +504,69 @@ test('a non-string reply fails with the empty-reply message, not a TypeError', a
   assert.equal(job.status, 'failed');
   assert.match(job.error, /empty reply/);
   assert.doesNotMatch(job.error, /TypeError/);
+});
+
+const limitError = () => new UsageLimitError(
+  "Claude Code returned an error result: You've hit your session limit · resets 12:10am (UTC)",
+  { resetsAt: new Date('2026-09-28T00:10:00Z'), exact: true, limitType: 'session' },
+);
+
+test('a usage limit marks the session usage_limited and records the reset on the job', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  const sent = [];
+  await processOneJob({ runTurn: async () => { throw limitError(); }, send: async e => sent.push(e) });
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'usage_limited');
+  const job = getDb().prepare('select * from jobs where session_id = ?').get(sid);
+  assert.equal(job.status, 'failed');
+  assert.equal(job.failure_kind, 'usage_limit');
+  assert.equal(job.resets_at, '2026-09-28 00:10:00');
+  assert.equal(job.resets_at_exact, 1);
+  assert.equal(job.limit_type, 'session');
+  assert.match(job.error, /session limit/);
+  assert.equal(sent.length, 0, 'no admin email for an expected limit');
+});
+
+test('a usage limit on a resumed turn is not retried in a fresh session', async () => {
+  const sid = mkSession();
+  getDb().prepare("update sessions set claude_session_id = 'live-id' where id = ?").run(sid);
+  enqueue({ sessionId: sid, prompt: 'x' });
+  let count = 0;
+  await processOneJob({ runTurn: async () => { count++; throw limitError(); }, send: async () => {} });
+  assert.equal(count, 1);
+  assert.equal(getDb().prepare('select claude_session_id from sessions where id = ?').get(sid).claude_session_id, 'live-id');
+});
+
+test('a usage limit with no known reset stores nulls, not a bad date', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  const err = new UsageLimitError('limit', { resetsAt: null, exact: false, limitType: 'unknown' });
+  await processOneJob({ runTurn: async () => { throw err; }, send: async () => {} });
+  const job = getDb().prepare('select * from jobs where session_id = ?').get(sid);
+  assert.equal(job.resets_at, null);
+  assert.equal(job.resets_at_exact, 0);
+  assert.equal(job.limit_type, 'unknown');
+});
+
+test('several queued turns hitting the limit each get their own notice and no email', async () => {
+  const sids = [mkSession(), mkSession(), mkSession()];
+  for (const sid of sids) enqueue({ sessionId: sid, prompt: 'x' });
+  const sent = [];
+  for (let i = 0; i < 3; i++) {
+    await processOneJob({ runTurn: async () => { throw limitError(); }, send: async e => sent.push(e) });
+  }
+  for (const sid of sids) {
+    assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'usage_limited');
+  }
+  assert.equal(sent.length, 0);
+});
+
+test('an ordinary failure still goes to needs_attention and emails admins', async () => {
+  const sid = mkSession();
+  enqueue({ sessionId: sid, prompt: 'x' });
+  const sent = [];
+  await processOneJob({ runTurn: async () => { throw new Error('boom'); }, send: async e => sent.push(e) });
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'needs_attention');
+  assert.equal(getDb().prepare('select failure_kind from jobs where session_id = ?').get(sid).failure_kind, null);
+  assert.ok(sent.length >= 1);
 });
