@@ -12,6 +12,7 @@ import { isLocal, localHostGuard } from './local.js';
 import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } from './deletion.js';
 import { readTracker, stageFor } from './tracker.js';
 import { setupPending, findSetupSession, startSetupSession } from './setup-session.js';
+import { saveUpload, MAX_UPLOAD_BYTES } from './upload.js';
 
 // Look up a session only if it belongs to the requesting user. Missing and
 // forbidden are deliberately the same answer (404) so the API never confirms
@@ -307,6 +308,26 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
     if (!retried) return res.status(409).json({ error: 'nothing to retry' });
     res.json({ ok: true });
   });
+
+  // Setup sessions only: the CV that SETUP.md asks for. Raw body rather than
+  // multipart, so no new dependency; the name travels in X-Filename.
+  app.post('/api/sessions/:id/upload', requireAuth,
+    express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
+    (req, res) => {
+      const session = getOwnSession(getDb(), req.params.id, req.userEmail);
+      if (!session) return res.status(404).json({ error: 'not found' });
+      if (session.kind !== 'setup') return res.status(409).json({ error: 'uploads are for Getting started only' });
+      if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'empty file' });
+      let name;
+      try { name = decodeURIComponent(String(req.headers['x-filename'] || '')); } catch { name = ''; }
+      try {
+        res.json({ path: saveUpload(getUser(req.userEmail).projectDir, name, req.body) });
+      } catch (err) {
+        if (err.code === 'bad_type') return res.status(415).json({ error: err.message });
+        if (err.code === 'outside') return res.status(400).json({ error: err.message });
+        throw err;
+      }
+    });
 
   // Local only: the page's Quit Jawbs link. Answers first, then stops, so the
   // page can say goodbye; the worker finishes any turn in hand before exit.
