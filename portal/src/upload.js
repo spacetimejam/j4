@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 
 export const UPLOAD_EXTENSIONS = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'pages', 'txt', 'md'];
@@ -34,11 +34,18 @@ export function saveUpload(projectDir, rawName, buffer) {
   const root = realpathSync(projectDir);
   const real = realpathSync(dir);
   if (!real.startsWith(root + sep)) throw refuse('outside', 'core/source is outside the project');
+  // wx fails atomically on an existing file, so a clash is discovered by
+  // trying the write rather than by checking first: two uploads racing to
+  // the same candidate can't both see it free and both "win".
   const dot = name.lastIndexOf('.');
   let candidate = name;
-  for (let n = 2; existsSync(join(real, candidate)); n++) {
-    candidate = `${name.slice(0, dot)}-${n}${name.slice(dot)}`;
+  for (let n = 2; ; n++) {
+    try {
+      writeFileSync(join(real, candidate), buffer, { flag: 'wx' });
+      return `core/source/${candidate}`;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      candidate = `${name.slice(0, dot)}-${n}${name.slice(dot)}`;
+    }
   }
-  writeFileSync(join(real, candidate), buffer, { flag: 'wx' });
-  return `core/source/${candidate}`;
 }

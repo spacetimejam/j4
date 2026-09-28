@@ -318,10 +318,15 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
       if (!session) return res.status(404).json({ error: 'not found' });
       if (session.kind !== 'setup') return res.status(409).json({ error: 'uploads are for Getting started only' });
       if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'empty file' });
+      // A signed cookie can outlive its registry entry (registry is re-read
+      // per lookup, so a removal takes effect with no matching session
+      // cleanup); treat that the same as no session, not a crash.
+      const user = getUser(req.userEmail);
+      if (!user) return res.status(404).json({ error: 'not found' });
       let name;
       try { name = decodeURIComponent(String(req.headers['x-filename'] || '')); } catch { name = ''; }
       try {
-        res.json({ path: saveUpload(getUser(req.userEmail).projectDir, name, req.body) });
+        res.json({ path: saveUpload(user.projectDir, name, req.body) });
       } catch (err) {
         if (err.code === 'bad_type') return res.status(415).json({ error: err.message });
         if (err.code === 'outside') return res.status(400).json({ error: err.message });

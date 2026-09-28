@@ -72,3 +72,14 @@ test('upload route refusals', async () => {
   assert.equal((await upload(mk('setup'), 'cv.pdf', Buffer.alloc(0))).status, 400);
   assert.equal((await upload(mk('setup'), 'big.pdf', Buffer.alloc(15 * 1024 * 1024 + 1))).status, 413);
 });
+
+test('upload route 404s for a valid cookie whose email has left the registry', async () => {
+  // ALLOWED_EMAILS is only owner@test.com and other@test.com, so getUser()
+  // returns null for this email even though makeCookie signs it happily and
+  // getOwnSession finds the session by user_email alone (it does not consult
+  // the registry). This is the getUser guard's own test, not getOwnSession's:
+  // the session is inserted directly under the missing user's email so
+  // ownership matches and the 404 can only come from the registry check.
+  const r = await upload(mk('setup', 'ghost@test.com'), 'cv.pdf', Buffer.from('x'), 'ghost@test.com');
+  assert.equal(r.status, 404);
+});
