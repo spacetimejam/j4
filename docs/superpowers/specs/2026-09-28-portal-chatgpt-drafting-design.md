@@ -51,9 +51,11 @@ substantial surgery on `queue.js` and resume for one step).
 `bin/chatgpt-draft` at the kit root is a thin Node entry point. The logic lives
 in `portal/src/drafting.js` so `node:test` can import it.
 
-**Usage:** `chatgpt-draft <application folder> <brief file>`. Claude writes the
-brief as `brief.md` in the application folder: what to lead with, which evidence
-to use, the role's key asks, and on a redraft the user's notes.
+**Usage:** `chatgpt-draft <application folder>`. Claude first writes the brief as
+`brief.md` in that folder: what to lead with, which evidence to use, the role's
+key asks, and on a redraft the user's notes. The brief always lives there, so the
+script takes no second argument. A folder that is not `<project>/applications/<slug>`,
+or has no `brief.md`, is a usage error (exit 2), not a blocked draft.
 
 **Call**, with the user's project folder as working directory:
 
@@ -73,7 +75,11 @@ codex exec --json --ephemeral --ignore-user-config --sandbox read-only \
   `DRAFT_MODEL` / `DRAFT_EFFORT` env vars.
 - Read-only sandbox: ChatGPT reads the project files but writes nothing. The
   script writes the output files itself.
-- Timeout: 10 minutes, after which the child is killed and the run is an `error`.
+- Codex is spawned with stdin closed: with an open stdin `codex exec` waits for
+  more prompt and never starts (found in the live probe).
+- Timeout: 9 minutes, after which the child is killed and the run is an `error`.
+  Claude's Bash tool stops any command at 10 minutes, so the script must give up
+  first and say why; the prompt tells Claude to run it with a 600000 ms timeout.
 
 **Prompt** directs ChatGPT to read `core/voice.md`, `core/profile.md`, the
 application's `spec.md` and `fit.md`, `templates/cover-letters/README.md` and the
@@ -83,9 +89,13 @@ page, the letter fills most of a page with the user's agreed paragraph count.
 
 **Output schema** (JSON, via `--output-schema`):
 
-- `cv`: `summary` (string), `roles` (array of `{organisation, title, bullets[]}`),
-  `highlights` (array of strings).
-- `cover_letter`: `paragraphs` (array of strings).
+- `cv`: the prose fields of the real `cv.yaml`: `position` (the headline line),
+  `tagline`, `jobs` (array of `{company, position, bullets[]}`, matched to the
+  jobs in the profile) and `capabilities` (array of `{name, note}`).
+- `cover_letter`: `paragraphs` (the body paragraphs; greeting, sign-off, dates
+  and contacts stay with Claude, since they are formulaic or factual).
+
+Education, tools and contact details are facts, not copy, and stay with Claude.
 - `gaps`: array of strings, anything the brief asked for that the files could
   not support.
 
@@ -99,6 +109,7 @@ UTC timestamp, SHA-256 of the brief.
 | Exit | Kind | Meaning |
 |---|---|---|
 | 0 | | success |
+| 2 | | usage error: wrong arguments, not an application folder, no `brief.md` |
 | 3 | `usage_limit` | subscription limit reached |
 | 4 | `auth` | not signed in, or the login has expired |
 | 5 | `error` | anything else, including timeout and malformed output |
@@ -108,9 +119,13 @@ On failure the script prints one JSON line to stdout,
 and writes no `draft.json`.
 
 **Parsing** reuses `createCodexEventSink` from `runners/codex.js` for the thread
-and final message. Classification of limit and auth failures is written from
-real captured output where it can be obtained (auth: run with `CODEX_HOME`
-pointing at an empty directory). A usage limit cannot be produced on demand, so
+and final message. Success is exit 0 with a final message that parses
+against the schema; reconnect `error` events earlier in a successful stream are
+ignored. Classification is written from real captured output: with no login,
+Codex retries for about 30 seconds and ends in `turn.failed` carrying
+`401 Unauthorized`, exit 1 (captured 2026-09-28). Status codes are matched as
+whole words, because request ids in the same message are hex and can contain
+`401` or `429`. A usage limit cannot be produced on demand, so
 its detection matches the documented wording; anything unrecognised is `error`,
 which still blocks and emails the owner, so a wrong guess fails safe.
 
