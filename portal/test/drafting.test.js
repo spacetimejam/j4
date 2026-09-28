@@ -225,3 +225,17 @@ test('main maps outcomes to exit codes and prints one JSON document', async () =
   assert.equal(await main([appDir], deps({ stdout, spawnImpl: fakeSpawn({ lines: authLines(), exitCode: 1 }) })), 4);
   assert.equal(JSON.parse(out.at(-1)).kind, 'auth');
 });
+
+test('an unexpected throw while drafting still prints a JSON error line and exits 5', async () => {
+  const out = [];
+  const { appDir } = mkApp();
+  const code = await main([appDir], deps({
+    stdout: s => out.push(s),
+    spawnImpl: fakeSpawn({ lines: okLines(GOOD) }),
+    codexVersion: async () => { throw new Error('disk full'); },
+  }));
+  assert.equal(code, 5);
+  const line = JSON.parse(out.at(-1));
+  assert.equal(line.kind, 'error');
+  assert.match(line.detail, /disk full/);
+});

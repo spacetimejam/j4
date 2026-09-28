@@ -308,6 +308,7 @@ test('the structured prompt hands the copy to the drafting script with a long en
   assert.match(p, /do not rewrite the prose/i);
   assert.match(p, /gaps/);
   assert.match(p, /"target"/);
+  assert.match(p, /any other non-zero exit/i);
 });
 
 test('the fenced prompt, for runners that are not Claude, has no drafting subagent', () => {

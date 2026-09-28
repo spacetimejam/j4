@@ -242,7 +242,15 @@ export async function main(argv, deps = {}) {
   const out = deps.stdout ?? (s => process.stdout.write(s));
   const print = obj => out(`${JSON.stringify(obj, null, 2)}\n`);
   if (argv.length !== 1) { print({ usage: 'usage: chatgpt-draft <application folder>' }); return EXIT.usage; }
-  const r = await runDraft({ appDir: argv[0] }, deps);
+  let r;
+  // Anything unexpected (a full disk, a file that vanished) still ends in a
+  // JSON error line and exit 5, so Claude holds the draft rather than being
+  // left with a stack trace and no instruction.
+  try {
+    r = await runDraft({ appDir: argv[0] }, deps);
+  } catch (err) {
+    r = { failure: { kind: 'error', detail: `the drafting script failed: ${err?.message || err}`, resets_at: null } };
+  }
   if (r.usage) { print({ usage: r.usage }); return EXIT.usage; }
   if (r.failure) { out(`${JSON.stringify(r.failure)}\n`); return EXIT[r.failure.kind]; }
   print(r.draft);

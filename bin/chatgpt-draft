@@ -7,4 +7,8 @@ const { pathToFileURL } = require('node:url');
 
 import(pathToFileURL(join(__dirname, '..', 'portal', 'src', 'drafting.js')).href)
   .then(m => m.main(process.argv.slice(2)))
-  .then(code => { process.exitCode = code; });
+  .then(code => { process.exitCode = code; })
+  .catch(err => {
+    process.stdout.write(`${JSON.stringify({ kind: 'error', detail: `chatgpt-draft could not start: ${err.message}`, resets_at: null })}\n`);
+    process.exitCode = 5;
+  });

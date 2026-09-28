@@ -85,9 +85,11 @@ cover letter copy:
    writing it yourself. Every entry in the draft's "gaps" becomes a numbered question
    for ${userName}, never something you fill in.
 4. Exit 2 means you called it wrongly: fix the call and run it again.
-5. Exit 3, 4 or 5 means the writer is unavailable. Write no copy yourself. Set
-   "drafting_blocked" to the JSON line the script printed ({"kind", "detail",
-   "resets_at"}), leave "email" null, and tell ${userName} in a sentence or two that
+5. Exit 3, 4 or 5, any other non-zero exit, a timeout, or no JSON line at all means
+   the writer is unavailable. Write no copy yourself. Set "drafting_blocked" to the
+   JSON line the script printed ({"kind", "detail", "resets_at"}), or, when there is
+   none, to {"kind": "error", "detail": <what happened>, "resets_at": null}. Leave
+   "email" null, and tell ${userName} in a sentence or two that
    the draft is waiting on the writing service and will carry on when they press
    Retry. In every other turn "drafting_blocked" is null.
 `;
