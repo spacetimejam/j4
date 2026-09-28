@@ -325,8 +325,13 @@ test('draftingEnabled is on only for both with the structured runner', async () 
 
 test('the structured prompt without drafting leaves Claude to write, and drafting_blocked null', () => {
   const p = portalPrompt('Sam', { structured: true });
-  assert.doesNotMatch(p, /chatgpt-draft|WRITING THE CV AND COVER LETTER COPY/);
+  // None of the ChatGPT route's steps: no brief, no long script timeout.
+  assert.doesNotMatch(p, /brief\.md|600000|drafting script/);
   assert.match(p, /"drafting_blocked": always null/);
+  // WORKFLOW.md says portal drafting goes through ChatGPT, so the prompt has
+  // to say positively that on this host Claude writes the copy.
+  assert.match(p, /You write the CV and cover letter copy yourself/);
+  assert.match(p, /do not run bin\/chatgpt-draft/);
 });
 
 test('runAgentTurn drafts through ChatGPT under both and not under claude-only', async () => {
@@ -336,5 +341,6 @@ test('runAgentTurn drafts through ChatGPT under both and not under claude-only',
   await runAgentTurn(args, { runners, runnerName: 'claude-sdk', subscriptions: 'both' });
   assert.match(seen.p, /chatgpt-draft/);
   await runAgentTurn(args, { runners, runnerName: 'claude-sdk', subscriptions: 'claude-only' });
-  assert.doesNotMatch(seen.p, /chatgpt-draft/);
+  assert.doesNotMatch(seen.p, /brief\.md|600000/);
+  assert.match(seen.p, /You write the CV and cover letter copy yourself/);
 });

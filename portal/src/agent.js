@@ -103,6 +103,14 @@ cover letter copy:
    Retry. In every other turn "drafting_blocked" is null.
 `;
 
+// A project's WORKFLOW.md may say portal drafting goes through ChatGPT, so a
+// host running on one subscription has to say positively who writes the copy.
+const soloDraftingProtocol = `WRITING THE CV AND COVER LETTER COPY: this portal runs on one subscription.
+You write the CV and cover letter copy yourself, as WORKFLOW.md describes for a
+Claude Code session in the project folder; do not run bin/chatgpt-draft, even
+where WORKFLOW.md mentions it.
+`;
+
 export const portalPrompt = (userName, { structured = false, drafting = false } = {}) => {
   const emailPhrase = structured ? 'the email field' : 'an email-to-user block';
   const blockPhrase = structured ? 'the email field' : 'the block above';
@@ -114,7 +122,7 @@ export const portalPrompt = (userName, { structured = false, drafting = false } 
     ? fencedProtocol(userName)
     : drafting
       ? `${structuredProtocol(userName, true)}\n${draftingProtocol(userName)}`
-      : structuredProtocol(userName, false);
+      : `${structuredProtocol(userName, false)}\n${soloDraftingProtocol}`;
   return `
 You are working inside a job-search project on ${userName}'s behalf, driven from the
 ${config.portalTitle} web app. The person you are talking to IS ${userName}. Address them
