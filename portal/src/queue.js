@@ -177,7 +177,9 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
       // The writer's provenance is how the owner knows ChatGPT wrote the copy.
       // Delivery has already happened; this only makes a bypass visible. With
       // one subscription Claude writes the copy, so there is nothing to bypass.
-      const unproven = drafting ? unprovenancedDeliveries(email.attachments) : [];
+      // Setup sessions never draft through ChatGPT either (setupPrompt says so),
+      // so a session-C test CV must not trip this alert.
+      const unproven = drafting && session.kind !== 'setup' ? unprovenancedDeliveries(email.attachments) : [];
       if (unproven.length) {
         await alertAdmins(send,
           `${config.portalTitle}: CV or cover letter delivered without a ChatGPT draft on "${newTitle || session.title}"`,

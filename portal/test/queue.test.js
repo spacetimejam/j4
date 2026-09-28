@@ -734,3 +734,27 @@ test('a setup turn never renames the session', async () => {
   });
   assert.equal(getDb().prepare('select title from sessions where id = ?').get(id).title, 'Getting started');
 });
+
+test('a setup session delivering a CV never triggers the no-ChatGPT-draft admin alert', async () => {
+  const { mkdtempSync, mkdirSync } = await import('node:fs');
+  const dir = join(mkdtempSync(join(tmpdir(), 'prov-setup-')), 'core');
+  mkdirSync(dir, { recursive: true });
+  const cv = join(dir, 'CV - Alex - Role.pdf');
+  writeFileSync(cv, 'pdf');
+  const id = newId();
+  getDb().prepare("insert into sessions (id, user_email, title, kind) values (?, 'owner@test.com', 'Getting started', 'setup')").run(id);
+  enqueue({ sessionId: id, prompt: 'render the test CV' });
+  const sent = [];
+  await processOneJob({
+    runTurn: async () => ({
+      sessionId: 'c-setup-prov',
+      structured: { reply: 'Here is your test CV.', title: null, awaiting_user: false,
+        email: { subject: 'Your test CV', body: 'b', attachments: [cv] }, drafting_blocked: null },
+      text: '',
+    }),
+    send: async e => { sent.push(e); },
+    drafting: true,
+  });
+  assert.ok(sent.some(e => e.subject === 'Your test CV'), 'the user still gets the CV');
+  assert.equal(sent.filter(e => /without a ChatGPT draft/.test(e.subject)).length, 0, 'no admin alert for a setup session');
+});
