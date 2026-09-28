@@ -41,9 +41,13 @@
   )) <letter-end>
 ]
 #context {
-  let pos = query(<letter-end>).last().location().position()
+  let pos = locate(<letter-end>).position()
   if pos.page == 1 and pos.y < 297mm * 0.66 {
     panic("cover letter too short: it ends " + repr(calc.round(pos.y / 297mm * 100, digits: 1))
       + "% down the page. It must reach at least 66% (aim for 75%). Extend or add paragraphs in cover-letter.yaml.")
+  }
+  if pos.page > 1 {
+    panic("cover letter too long: it runs to " + str(pos.page)
+      + " pages. It must fit one A4 page; cut or tighten paragraphs in cover-letter.yaml.")
   }
 }

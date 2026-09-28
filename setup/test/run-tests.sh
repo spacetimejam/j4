@@ -182,6 +182,22 @@ if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1;
   bash "$RWORK_T/p/render/render.sh" demo >"$RWORK_T/out.txt" 2>&1
   check "CV pdf produced" test -f "$RWORK_T/p/applications/demo/CV - Alex Example - Senior Widget Analyst.pdf"
   check "short letter refused by the page-fill rule" grep -q "cover letter too short" "$RWORK_T/out.txt"
+
+  # A letter with far too many paragraphs must overflow to a second page and
+  # be refused, not silently reported as 100% filled.
+  mkdir -p "$RWORK_T/p/applications/overflow"
+  cp "$RWORK_T/p/render/templates/configuration.yaml" "$RWORK_T/p/applications/overflow/cv.yaml"
+  python3 -c "
+import yaml
+d = yaml.safe_load(open('$RWORK_T/p/render/templates/cover-letter.yaml')) or {}
+d['paragraphs'] = list(d.get('paragraphs', [])) + [
+    'Overflow padding paragraph to force a second page of the letter. ' * 60
+    for _ in range(6)
+]
+yaml.safe_dump(d, open('$RWORK_T/p/applications/overflow/cover-letter.yaml', 'w'), sort_keys=False)
+"
+  bash "$RWORK_T/p/render/render.sh" overflow >"$RWORK_T/out2.txt" 2>&1
+  check "overflowing letter refused as too long" grep -q "cover letter too long" "$RWORK_T/out2.txt"
   rm -rf "$RWORK_T"
 fi
 

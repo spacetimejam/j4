@@ -70,9 +70,10 @@ screenshots is slow and inaccurate.
 - **One page.** Each document must fit a single A4 page. If content overflows,
   cut or tighten the content; do not shrink the type or margins to force a fit.
 - **Cover letters fill the page.** As rendered, a letter must end at least three
-  quarters of the way down the page; below 66% of the page it must not ship. Enforce
-  this in your vendored `cover-letter.typ` by emitting a `<letter-end>` marker
-  after the sign-off and panicking below 66%:
+  quarters of the way down the page; below 66% of the page it must not ship, and
+  it must not run to a second page either. Enforce this in your vendored
+  `cover-letter.typ` by emitting a `<letter-end>` marker after the sign-off and
+  panicking below 66% or past page one:
 
   ```typst
   #context [
@@ -85,6 +86,9 @@ screenshots is slow and inaccurate.
     let pos = locate(<letter-end>).position()
     if pos.page == 1 and pos.y < 297mm * 0.66 {
       panic("cover letter too short: it must reach at least 66% of the page (aim for 75%).")
+    }
+    if pos.page > 1 {
+      panic("cover letter too long: it runs to " + str(pos.page) + " pages. It must fit one A4 page.")
     }
   }
   ```
