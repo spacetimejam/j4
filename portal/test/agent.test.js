@@ -73,6 +73,7 @@ function fakeSpawn({ stdout = '', code = 0 } = {}) {
       stderr: { on: () => {} },
       on: (ev, fn) => { handlers[ev] = fn; },
       stdin: {
+        on: () => {},
         end: input => {
           calls.push({ bin, args, opts, input });
           queueMicrotask(() => {
@@ -117,6 +118,22 @@ test('cli runner rejects on a non-zero exit code', async () => {
   await assert.rejects(
     runCli({ prompt: 'x', systemPrompt: 'S', resumeSessionId: null, cwd: '/tmp', model: 'm' }, { spawnImpl }),
     /exited 1/,
+  );
+});
+
+test('cli runner survives a command that exits without reading its input', async () => {
+  // A real process that exits at once, and a prompt too big for the pipe
+  // buffer, so the write hits a closed pipe. Unhandled, that EPIPE crashed
+  // the whole portal.
+  const { spawn } = await import('node:child_process');
+  const spawnImpl = (_bin, _args, opts) =>
+    spawn(process.execPath, ['-e', 'process.stderr.write("bad config"); process.exit(2)'], opts);
+  await assert.rejects(
+    runCli(
+      { prompt: 'x'.repeat(4 * 1024 * 1024), systemPrompt: 'S', resumeSessionId: null, cwd: '/tmp', model: 'm' },
+      { spawnImpl },
+    ),
+    /exited 2: bad config/,
   );
 });
 

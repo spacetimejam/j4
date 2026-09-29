@@ -36,6 +36,11 @@ export async function runCli(
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { errOut += d; });
     child.on('error', reject);
+    // A command that exits without reading its input (a typo in AGENT_CMD, a
+    // crash on start) closes the pipe under us. Node raises that as an
+    // unhandled 'error' on stdin, which would take the whole portal down. The
+    // exit code and stderr below already say what went wrong.
+    child.stdin.on('error', () => {});
     child.on('close', code => {
       if (code !== 0) reject(new Error(`agent CLI exited ${code}: ${errOut.trim()}`));
       else resolve(out);
