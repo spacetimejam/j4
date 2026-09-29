@@ -35,21 +35,38 @@ else can go straight to Installation.
 
 ## Installation
 
-Clone the kit and run the setup wizard:
+**1. Choose a folder for it.** The kit, and everything it makes for your job
+search, lives in one folder, so pick where that goes first. The simplest
+choice is a new folder called `Jobs` in your home folder. In the terminal:
+
+```bash
+mkdir -p ~/Jobs
+cd ~/Jobs
+```
+
+(`~` means your home folder. The first line makes the `Jobs` folder, and does
+nothing if it already exists; the second moves you into it.) Prefer somewhere
+else? Type `cd ` with a space after it, drag the folder you want from Finder or
+your file manager into the terminal window, and press Enter.
+
+**2. Download the kit and run the setup wizard**, from inside that folder:
 
 ```bash
 git clone https://github.com/spacetimejam/j4 && cd j4 && ./setup/setup.sh
 ```
 
+This puts the kit in a `j4` folder inside the one you chose (for example
+`~/Jobs/j4`).
+
 The wizard will:
 - Create your project structure (core documents, templates, application folders)
 - Set up your application tracker, a CSV file with no external connection to configure
-- Initialise an optional Typst render pipeline for polished CV and cover-letter PDFs (you pick your own template from Typst Universe; the kit does not ship a design)
+- Set up the Typst render pipeline for polished CV and cover-letter PDFs, with a default design you can swap for any Typst Universe CV template
 - Seed template documents with your information
 
 ## Getting started
 
-First run the setup wizard from the kit folder (see Installation above). Then start your AI tool from inside the newly created project folder (the target directory you chose during the wizard), for example `cd ~/j4/ae` then `claude`, and say: **"run setup"**
+First run the setup wizard from the kit folder (see Installation above). Then start your AI tool from inside the newly created project folder (the target directory you chose during the wizard), for example `cd ~/Jobs/j4/ae` then `claude`, and say: **"run setup"**
 
 If you chose Jawbs in your browser, the wizard opens it for you on a Getting started conversation instead, and you can skip the terminal step; next time, double-click the Jawbs icon.
 

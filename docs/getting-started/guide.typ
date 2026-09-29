@@ -79,14 +79,23 @@ The kit includes an optional web portal that lets you submit job adverts from yo
 
 == Step 5: fetch the kit and hand over to the wizard
 
-From here the kit guides you itself. Back in the terminal, run these two commands, one at a time (the first downloads the kit, the second starts the wizard):
+First, choose a folder for the kit. It, and everything it makes for your job search, lives in one folder. The simplest choice is a new folder called `Jobs` in your home folder. Back in the terminal, run these two commands, one at a time:
+
+```
+mkdir -p ~/Jobs
+cd ~/Jobs
+```
+
+(`~` means your home folder. The first command makes the `Jobs` folder, and does nothing if it is already there; the second moves you into it.) If you would rather use a different folder, type `cd ` with a space after it, drag that folder from Finder or your file manager into the terminal window, and press Enter.
+
+From here the kit guides you itself. Still in the terminal, run these two commands, one at a time (the first downloads the kit into a `j4` folder inside the one you chose, the second starts the wizard):
 
 ```
 git clone https://github.com/spacetimejam/j4
 cd j4 && ./setup/setup.sh
 ```
 
-The wizard checks your machine, asks a short set of questions about you and your search (including whether to register you with the shared submission portal, if your household runs one, and if so whether you should receive failure alerts from it), and builds your personal project folder inside the kit, named with your initials (for example `j4/sj`). When it finishes, it tells you the final step: move into that new folder in the terminal and start your AI assistant from inside it, for example `cd ~/j4/sj` and then `claude`. Starting it from inside the folder is what lets the assistant see your project. Once it is running, say *"run setup"*. The assistant then interviews you properly, builds your profile and CV materials, and from that point on you are running your search together.
+The wizard checks your machine, asks a short set of questions about you and your search (including whether to register you with the shared submission portal, if your household runs one, and if so whether you should receive failure alerts from it), and builds your personal project folder inside the kit, named with your initials (for example `j4/sj`). When it finishes, it tells you the final step: move into that new folder in the terminal and start your AI assistant from inside it, for example `cd ~/Jobs/j4/sj` and then `claude`. Starting it from inside the folder is what lets the assistant see your project. Once it is running, say *"run setup"*. The assistant then interviews you properly, builds your profile and CV materials, and from that point on you are running your search together.
 
 == Using a different AI assistant
 
