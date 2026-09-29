@@ -33,9 +33,11 @@ while [ -e "$dest" ]; do
 done
 mkdir -p "$PREV"
 mv "$LIVE" "$dest"
+trap 'mv "$dest" "$LIVE" 2>/dev/null; exit 1' INT TERM HUP
 if ! mv "$NEW" "$LIVE"; then
   mv "$dest" "$LIVE"
   die "Could not move the new design into place, so the old one was put back."
 fi
+trap - INT TERM HUP
 echo "Now using: $(sed -n 's/^Package: *//p' "$LIVE/SOURCE.md" | head -1)"
-echo "The previous design is kept in ${dest#$ROOT/}/"
+echo "The previous design is kept in ${dest#"$ROOT"/}/"

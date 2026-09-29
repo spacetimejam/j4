@@ -793,13 +793,29 @@ if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1;
     printf '# Design source\nPackage: %s 1.0.0\nLicence: MIT (LICENSE)\nAdopted: 2026-09-29\nChanges: none\n' "$1" \
       > "$RP/render/templates-candidate/SOURCE.md"
   }
+
+  # A design without SOURCE.md is refused with the expected message.
   trial_candidate trial-cv
   rm -f "$RP/render/templates-candidate/SOURCE.md"
-  if bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >/dev/null 2>&1; then
+  cp -R "$RP/render/templates" "$RWORK/live-before"
+  PREV_BEFORE="$(ls -d "$RP/render/templates-previous"/* 2>/dev/null | wc -l)"
+  if bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >"$RWORK/no-source.out" 2>&1; then
     fail "a design without SOURCE.md should be refused"
   else
     pass
   fi
+  check "missing-SOURCE.md message is present" grep -q "Record where this design came from" "$RWORK/no-source.out"
+  check "missing-SOURCE.md leaves templates unchanged" diff -r "$RWORK/live-before" "$RP/render/templates" >/dev/null
+  check "missing-SOURCE.md adds no entry to templates-previous" test "$(ls -d "$RP/render/templates-previous"/* 2>/dev/null | wc -l)" = "$PREV_BEFORE"
+  rm -rf "$RWORK/live-before"
+
+  # Passing the live folder itself is refused.
+  if bash "$RP/render/switch-design.sh" "$RP/render/templates" >"$RWORK/live-itself.out" 2>&1; then
+    fail "passing the live folder should be refused"
+  else
+    pass
+  fi
+  check "live-folder message says it's already the live design" grep -q "already the live design" "$RWORK/live-itself.out"
 
   trial_candidate trial-cv
   bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >"$RWORK/sw1.out" 2>&1
@@ -823,15 +839,19 @@ if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1;
   check "restoring says what is in use" grep -q "^Now using: vantage-cv" "$RWORK/sw2.out"
 
   # A failing design is refused and nothing moves.
+  cp -R "$RP/render/templates" "$RWORK/live-before"
   cp -R "$RP/render/templates" "$RP/render/templates-candidate"
   printf '\n#pagebreak()\nSecond page.\n' >> "$RP/render/templates-candidate/main.typ"
-  LIVE_SUM="$(cat "$RP/render/templates"/* | cksum)"
-  if bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >/dev/null 2>&1; then
+  PREV_BEFORE="$(ls -d "$RP/render/templates-previous"/* 2>/dev/null | wc -l)"
+  if bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >"$RWORK/fail-design.out" 2>&1; then
     fail "a failing design should not be switched in"
   else
     pass
   fi
-  check "a refused switch leaves the live design byte-identical" test "$(cat "$RP/render/templates"/* | cksum)" = "$LIVE_SUM"
+  check "failing-design message says it did not pass" grep -q "did not pass, so the live design was left as it is" "$RWORK/fail-design.out"
+  check "failing-design leaves templates unchanged" diff -r "$RWORK/live-before" "$RP/render/templates" >/dev/null
+  check "failing-design adds no entry to templates-previous" test "$(ls -d "$RP/render/templates-previous"/* 2>/dev/null | wc -l)" = "$PREV_BEFORE"
+  rm -rf "$RWORK/live-before"
 
   # Tasks 2 and 4 add their checks here, above this line.
   rm -rf "$RWORK"
