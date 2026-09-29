@@ -470,6 +470,18 @@ function mkLimited(email = 'owner@test.com') {
 const post = (path, cookie) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', cookie } });
 const detail = async (sid, cookie = ownerCookie) => (await fetch(`${base}/api/sessions/${sid}`, { headers: { cookie } })).json();
 
+test('a signed-out session reports the delay and can be retried', async () => {
+  const db = getDb();
+  const sid = `so-${Math.random().toString(16).slice(2)}`;
+  db.prepare("insert into sessions (id, user_email, title, status, kind) values (?, 'owner@test.com', 'Getting started', 'signed_out', 'setup')").run(sid);
+  db.prepare(`insert into jobs (id, session_id, prompt, status, error, failure_kind)
+    values (?, ?, 'opening', 'failed', 'Not logged in', 'signed_out')`).run(`job-${sid}`, sid);
+  assert.deepEqual((await detail(sid)).delayed, { jobId: `job-${sid}`, kind: 'signed_out' });
+  assert.equal((await post(`/api/sessions/${sid}/retry`, ownerCookie)).status, 200);
+  assert.equal(db.prepare('select status from jobs where id = ?').get(`job-${sid}`).status, 'queued');
+  assert.equal(db.prepare('select status from sessions where id = ?').get(sid).status, 'working');
+});
+
 test('session detail reports the delay only while usage-limited', async () => {
   const { sid, jid } = mkLimited();
   assert.deepEqual((await detail(sid)).delayed, {

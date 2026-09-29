@@ -12,6 +12,7 @@ process.env.PROJECT_DIR = process.env.PROJECT_DIR || '/tmp/queue-test-project';
 const { getDb, newId } = await import('../src/db.js');
 const { enqueue, processOneJob, buildRecoveryPrompt, sessionStatus } = await import('../src/queue.js');
 const { UsageLimitError } = await import('../src/usage-limit.js');
+const { SignInError } = await import('../src/sign-in.js');
 
 function mkSession() {
   const id = newId();
@@ -561,6 +562,24 @@ test('several queued turns hitting the limit each get their own notice and no em
     assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'usage_limited');
   }
   assert.equal(sent.length, 0);
+});
+
+test('a signed-out Claude marks the session signed_out, is not retried fresh, and tells admins', async () => {
+  const sid = mkSession();
+  getDb().prepare("update sessions set claude_session_id = 'live-id' where id = ?").run(sid);
+  enqueue({ sessionId: sid, prompt: 'x' });
+  let count = 0;
+  const sent = [];
+  await processOneJob({
+    runTurn: async () => { count++; throw new SignInError('Not logged in · Please run /login'); },
+    send: async e => sent.push(e),
+  });
+  assert.equal(count, 1, 'a fresh session would be signed out too');
+  assert.equal(getDb().prepare('select status from sessions where id = ?').get(sid).status, 'signed_out');
+  const job = getDb().prepare('select * from jobs where session_id = ?').get(sid);
+  assert.equal(job.status, 'failed');
+  assert.equal(job.failure_kind, 'signed_out');
+  assert.ok(sent.length >= 1, 'on a shared portal the owner has to sign Claude in again');
 });
 
 test('an ordinary failure still goes to needs_attention and emails admins', async () => {

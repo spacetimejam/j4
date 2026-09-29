@@ -57,12 +57,97 @@ if ! "$NODE_BIN" -e 'process.exit(Number(process.versions.node.split(".")[0]) >=
   echo "$RERUN"
   exit 0
 fi
-if ! command -v claude >/dev/null 2>&1; then
-  echo "Jawbs uses Claude Code, which is not installed."
-  echo "  Install it from https://claude.com/claude-code, then run: claude"
-  echo "  and sign in once."
+
+# Who writes the CV and letter copy, as chosen in the wizard: both (Claude
+# runs Jawbs, ChatGPT writes), claude-only or chatgpt-only. Anything else
+# (a project from before the question, or "detect") is worked out below from
+# what is signed in, as before.
+WRITER="$(answer Writer)"
+case "$WRITER" in both|claude-only|chatgpt-only) ;; *) WRITER="" ;; esac
+interactive() { [ -t 0 ] && [ -t 1 ]; }
+# Records a changed choice in SETUP.md, so the agent and a re-run both see it.
+set_writer() {
+  WRITER="$1"
+  [ -f "$PROJECT/SETUP.md" ] || return 0
+  sw_tmp="$PROJECT/SETUP.md.writer.$$"
+  awk -v w="$1" '/^- Writer: / { print "- Writer: " w; next } { print }' "$PROJECT/SETUP.md" > "$sw_tmp" \
+    && mv "$sw_tmp" "$PROJECT/SETUP.md"
+}
+
+# Claude, unless ChatGPT does everything. Signed out is not a reason to stop:
+# Jawbs still installs, and its page says how to sign in if the person skips
+# it here. In a terminal, offer the sign-in now, since that is where they are.
+if [ "$WRITER" != "chatgpt-only" ]; then
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "Jawbs uses Claude Code, which is not installed."
+    echo "  Install it from https://claude.com/claude-code, then run: claude"
+    echo "  and sign in once."
+    echo "$RERUN"
+    exit 0
+  fi
+  claude_signed_in() { claude auth status </dev/null >/dev/null 2>&1; }
+  if ! claude_signed_in; then
+    echo "Jawbs works through your Claude account, and Claude Code is not signed in yet."
+    if interactive; then
+      echo "Your browser will open so you can sign in. Come back here when it is done."
+      claude auth login || true
+    fi
+    if claude_signed_in; then
+      echo "Signed in to Claude."
+    else
+      echo "Still not signed in. Jawbs will be set up anyway, but it cannot answer until"
+      echo "you sign in. To do that, open Terminal and run: claude auth login"
+    fi
+  fi
+fi
+
+# ChatGPT (through the Codex program), when it writes or does everything.
+detect_subscriptions
+if [ "$WRITER" = "both" ] && [ -z "$CODEX_BIN_FOUND" ]; then
+  # Jawbs will not start set to use ChatGPT without Codex installed, so this
+  # has to be settled now, and never by quietly switching to Claude.
+  echo "You chose ChatGPT to write your CVs and cover letters, but the Codex program it"
+  echo "works through is not installed."
+  if interactive; then
+    echo
+    echo "  1) Stop here so I can install Codex, then carry on"
+    echo "  2) Let Claude write the CVs and cover letters instead"
+    echo
+    ask_menu --quiet codex_choice "" stop claude
+    if [ "$codex_choice" = "claude" ]; then
+      set_writer claude-only
+      echo "Claude will write your CVs and cover letters."
+    fi
+  fi
+  if [ "$WRITER" = "both" ]; then
+    echo "  Install it with: npm install -g @openai/codex   then sign in with: codex login"
+    echo "$RERUN"
+    exit 0
+  fi
+fi
+if [ "$WRITER" = "chatgpt-only" ] && [ -z "$CODEX_BIN_FOUND" ]; then
+  echo "You chose ChatGPT to run Jawbs, which works through the Codex program, and it is"
+  echo "not installed."
+  echo "  Install it with: npm install -g @openai/codex   then sign in with: codex login"
   echo "$RERUN"
   exit 0
+fi
+if { [ "$WRITER" = "both" ] || [ "$WRITER" = "chatgpt-only" ]; } && [ "$SUBSCRIPTIONS_FOUND" != "both" ]; then
+  echo "Codex, which Jawbs uses to reach ChatGPT, is not signed in yet."
+  if interactive; then
+    echo "Your browser will open so you can sign in. Come back here when it is done."
+    "$CODEX_BIN_FOUND" login || true
+    detect_subscriptions
+  fi
+  if [ "$SUBSCRIPTIONS_FOUND" = "both" ]; then
+    echo "Signed in to ChatGPT."
+  elif [ "$WRITER" = "both" ]; then
+    echo "Still not signed in. Jawbs will be set up anyway, but your CVs and cover letters"
+    echo "will wait until you sign in. To do that, open Terminal and run: codex login"
+  else
+    echo "Still not signed in. Jawbs will be set up anyway, but it cannot answer until"
+    echo "you sign in. To do that, open Terminal and run: codex login"
+  fi
 fi
 
 # 2. A second person on the same kit copy would share one no-sign-in portal.
@@ -84,9 +169,8 @@ if [ "${JAWBS_SKIP_NPM:-no}" != "yes" ]; then
   fi
 fi
 
-# 4. Settings.
-detect_subscriptions
-if write_local_env "$ENV_FILE" "$SUBSCRIPTIONS_FOUND" "$CODEX_BIN_FOUND" "$NODE_BIN"; then
+# 4. Settings. The wizard's choice when there is one, else what is signed in.
+if write_local_env "$ENV_FILE" "${WRITER:-$SUBSCRIPTIONS_FOUND}" "$CODEX_BIN_FOUND" "$NODE_BIN"; then
   echo "Settings written to $ENV_FILE."
 elif grep -q '^EXPOSURE=local' "$ENV_FILE" 2>/dev/null; then
   echo "$ENV_FILE already has settings, so it was left as it is."

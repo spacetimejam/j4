@@ -12,7 +12,8 @@ sed_escape() {
 # <dir> with the value of the matching shell variable. Uses a temp file per
 # file for portability (no sed -i).
 # Full token list: USER_NAME, USER_EMAIL, USER_PHONE, USER_LOCATION, FIELD,
-# SENIORITY, EMPLOYMENT_STATUS, AI_TOOL, DATE, PORTAL, JAWBS_MODE, CREATIVE, KIT_DIR.
+# SENIORITY, EMPLOYMENT_STATUS, AI_TOOL, DATE, PORTAL, JAWBS_MODE, CREATIVE,
+# WRITER, KIT_DIR.
 # KIT_DIR resolves to the kit checkout, so a project can point at shared kit
 # files (the email sign-off bank) wherever the project itself was created.
 substitute_all() {
@@ -28,6 +29,7 @@ substitute_all() {
   portal_esc="$(sed_escape "$PORTAL")"
   mode_esc="$(sed_escape "${JAWBS_MODE:-}")"
   creative_esc="$(sed_escape "${CREATIVE:-no}")"
+  writer_esc="$(sed_escape "${WRITER:-not asked}")"
   date_esc="$(sed_escape "$(date +%Y-%m-%d)")"
   kit_esc="$(sed_escape "${KIT_DIR:-}")"
 
@@ -45,6 +47,7 @@ substitute_all() {
         -e "s/{{PORTAL}}/$portal_esc/g" \
         -e "s/{{JAWBS_MODE}}/$mode_esc/g" \
         -e "s/{{CREATIVE}}/$creative_esc/g" \
+        -e "s/{{WRITER}}/$writer_esc/g" \
         -e "s/{{DATE}}/$date_esc/g" \
         -e "s/{{KIT_DIR}}/$kit_esc/g" \
         "$file" > "$tmp" && mv "$tmp" "$file"
@@ -233,6 +236,7 @@ free_local_port() {
 
 # write_local_env <env_file> <subscriptions> [codex_bin] [node]
 # Writes the portal .env for EXPOSURE=local, on the first free port from 8710.
+# <subscriptions> is both, claude-only or chatgpt-only.
 # Never overwrites: returns 1 and writes nothing when the file exists.
 write_local_env() {
   wle_file="$1"; wle_subs="$2"; wle_codex="${3:-}"; wle_node="${4:-node}"
@@ -246,7 +250,13 @@ write_local_env() {
     echo "BASE_URL=http://localhost:$wle_port"
     echo "EMAIL_PROVIDER=log"
     echo "PORTAL_TITLE=Jawbs"
-    echo "AGENT_RUNNER=claude-sdk"
+    # ChatGPT alone runs the whole service through Codex; preflight requires
+    # the two settings together.
+    if [ "$wle_subs" = "chatgpt-only" ]; then
+      echo "AGENT_RUNNER=codex"
+    else
+      echo "AGENT_RUNNER=claude-sdk"
+    fi
     echo "SUBSCRIPTIONS=$wle_subs"
     if [ -n "$wle_codex" ] && [ "$wle_codex" != "$HOME/.local/bin/codex" ]; then
       echo "CODEX_BIN=$wle_codex"
@@ -351,7 +361,11 @@ state="$(probe)"
 if [ "$state" = "ours" ]; then open_browser; exit 0; fi
 [ "$state" = "other" ] && clash
 mkdir -p "$(dirname "$LOG")"
-PID="$( cd "$KIT/portal" && nohup "$NODE" src/server.js >>"$LOG" 2>&1 & echo $! )"
+# Not PID="$( ... & echo $! )": the backgrounded subshell holds the capture
+# pipe open for as long as the server runs, so that line never returns. exec
+# makes the subshell become the server, so $! is the server's own PID.
+( cd "$KIT/portal" && exec nohup "$NODE" src/server.js >>"$LOG" 2>&1 </dev/null ) &
+PID=$!
 i=0
 while [ "$i" -lt "$WAIT" ]; do
   state="$(probe)"

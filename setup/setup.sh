@@ -76,7 +76,20 @@ else
   echo
   ask_menu --quiet JAWBS_CHOICE "" browser terminal shared
   case "$JAWBS_CHOICE" in
-    browser) JAWBS_MODE="local" ;;
+    browser) JAWBS_MODE="local"
+      echo
+      echo "Who should write your CVs and cover letters?"
+      echo
+      echo "  1) Claude runs Jawbs, ChatGPT writes the CV and letter copy (recommended)"
+      echo "     Needs both a Claude and a ChatGPT subscription."
+      echo
+      echo "  2) Claude does everything"
+      echo "     Needs a Claude subscription only."
+      echo
+      echo "  3) ChatGPT does everything"
+      echo "     Needs a ChatGPT subscription only. Newer and less tested than the others."
+      echo
+      ask_menu --quiet WRITER "" both claude-only chatgpt-only ;;
     terminal) JAWBS_MODE="terminal" ;;
     shared) JAWBS_MODE="shared"
       ask PORTAL_ADMIN "Should this person receive failure alerts? [y/N]" "no" ;;
@@ -128,6 +141,21 @@ case "$JAWBS_MODE" in
   *) echo "Unknown JAWBS_MODE: $JAWBS_MODE (expected local, terminal or shared)" >&2; exit 1 ;;
 esac
 if [ "$JAWBS_MODE" = "shared" ]; then PORTAL="yes"; else PORTAL="no"; fi
+
+# Who writes the CV and letter copy: asked only for Jawbs on this computer,
+# where the choice is the person's own (a shared portal sets it for everyone).
+# A local answers file without WRITER leaves it to jawbs-local.sh to work out
+# from what is signed in, as it did before the question existed.
+WRITER="${WRITER:-}"
+case "$WRITER" in
+  both|claude-only|chatgpt-only|'') ;;
+  *) echo "Unknown WRITER: $WRITER (expected both, claude-only or chatgpt-only)" >&2; exit 1 ;;
+esac
+if [ "$JAWBS_MODE" != "local" ]; then
+  WRITER="not asked"
+elif [ -z "$WRITER" ]; then
+  WRITER="detect"
+fi
 
 # Normalise the creative answer like PORTAL_ADMIN below.
 CREATIVE="${CREATIVE:-no}"

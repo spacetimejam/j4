@@ -19,6 +19,12 @@ const STAGES = Object.assign(Object.create(null), {
   inactive: 'Inactive',
 });
 const NEEDS_REPLY = new Set(['awaiting_reply', 'needs_attention']);
+/* Statuses that wait on a Retry, with what the Delayed badge says to a screen
+   reader. A null-prototype object for the same reason as STAGES. */
+const DELAYED = Object.assign(Object.create(null), {
+  usage_limited: 'reply delayed by the usage limit', drafting_blocked: 'draft waiting',
+  signed_out: 'waiting for Claude to be signed in',
+});
 const pill = s => (STAGES[s.stage] ? `<span class="pill ${s.stage}">${STAGES[s.stage]}</span>` : '');
 
 /* navigator.platform is deprecated but still populated everywhere current; the
@@ -178,19 +184,13 @@ function bindSubmit(textarea, button, run) {
   };
 }
 
-/* Local mode only. The server answers, then exits once any reply in progress
-   has finished, so the page says goodbye rather than showing a dead tab. */
-function quitLink() {
-  return LOCAL ? '<button id="quit" class="linkish">Quit Jawbs</button>' : '';
-}
-function bindQuit() {
-  const b = document.getElementById('quit');
-  if (!b) return;
-  b.onclick = async () => {
-    if (!confirm('Quit Jawbs? Anything Jawbs is working on will finish first. Open Jawbs again from its icon.')) return;
-    await api('/quit', { method: 'POST' }).catch(() => {});
-    app.innerHTML = `<h1>${esc(TITLE)}</h1><p>Jawbs is closing. You can close this tab.</p>`;
-  };
+/* Local mode only, as an item in the cog menu. The server answers, then exits
+   once any reply in progress has finished, so the page says goodbye rather
+   than showing a dead tab. */
+async function quitJawbs() {
+  if (!confirm('Quit Jawbs? Anything Jawbs is working on will finish first. Open Jawbs again from its icon.')) return;
+  await api('/quit', { method: 'POST' }).catch(() => {});
+  app.innerHTML = `<h1>${esc(TITLE)}</h1><p>Jawbs is closing. You can close this tab.</p>`;
 }
 
 function renderLogin() {
@@ -212,10 +212,9 @@ async function renderList() {
     api('/setup').then(r => r.json()).catch(() => ({ pending: false })),
   ]);
   app.innerHTML = `<div class="topbar"><h1>${esc(TITLE)}</h1>
-      ${quitLink()}
       <button id="cog" class="icon-btn" title="Options" aria-label="Options"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>
     ${setup.pending
-      ? `<p class="muted">Finish <a href="#${setup.sessionId || ''}">Getting started</a> first, then you can send Jawbs job descriptions here.</p>`
+      ? `<p class="muted setup-lock">Finish <a href="#${setup.sessionId || ''}">Getting started</a> first, then you can send Jawbs job descriptions here.</p>`
       : `<div class="new-app"><strong>New application</strong>
       <textarea id="jd" placeholder="Paste the job description, or just a link to it"></textarea>
       <button id="submit" title="Send to Claude (${SUBMIT_HINT})">Send to Claude</button></div>`}
@@ -223,7 +222,7 @@ async function renderList() {
       <a class="card has-menu" href="#${s.id}"><strong>${esc(s.title)}</strong>
       <div class="meta"><span class="muted">${formatLondon(s.updated_at)}</span>${pill(s)}</div>
       ${NEEDS_REPLY.has(s.status) ? `<span class="badge-reply" aria-label="${esc(s.title)}: waiting for your reply">Reply</span>` : ''}
-      ${s.status === 'usage_limited' || s.status === 'drafting_blocked' ? `<span class="badge-delayed" aria-label="${esc(s.title)}: ${s.status === 'drafting_blocked' ? 'draft waiting' : 'reply delayed by the usage limit'}">Delayed</span>` : ''}
+      ${DELAYED[s.status] ? `<span class="badge-delayed" aria-label="${esc(s.title)}: ${DELAYED[s.status]}">Delayed</span>` : ''}
       <button class="dots" data-id="${s.id}" aria-label="Options for ${esc(s.title)}">&#8942;</button></a>`).join('')}</div>`;
   if (!setup.pending) {
     bindSubmit(document.getElementById('jd'), document.getElementById('submit'), async () => {
@@ -235,6 +234,7 @@ async function renderList() {
   }
   document.getElementById('cog').onclick = () => openSheet([
     { label: 'View archived applications', run: () => { location.hash = 'archived'; } },
+    ...(LOCAL ? [{ label: 'Quit Jawbs', run: quitJawbs }] : []),
   ]);
   document.querySelectorAll('.dots').forEach(b => b.onclick = e => {
     e.preventDefault();
@@ -246,7 +246,6 @@ async function renderList() {
       } },
     ]);
   });
-  bindQuit();
 }
 
 async function renderArchived() {
@@ -287,7 +286,6 @@ async function renderSession(id, scrollToLatest = false) {
       <a class="back" href="#" aria-label="${s.kind === 'setup' ? 'All conversations' : 'All applications'}">&larr;</a>
       <h1 class="chat-title" title="${esc(s.title)}">${esc(s.title)}</h1>
       ${pill(s)}
-      ${quitLink()}
       ${docs.length ? `<button id="doc-btn" class="icon-btn" title="Documents" aria-label="Documents (${docs.length})"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="doc-count">${docs.length}</span></button>` : ''}
     </div>
     ${s.messages.map(m => {
@@ -302,7 +300,7 @@ async function renderSession(id, scrollToLatest = false) {
       return `<div class="msg ${m.role}">${esc(m.body)}</div>`;
     }).join('')}
     ${s.status === 'working' ? '<p class="muted">Jawbs is working on this. You can close the page; it will be here when you come back.</p>' : ''}
-    ${s.delayed ? delayedNotice(s.delayed) : ''}
+    ${s.delayed ? delayedNotice(s.delayed, new Date(), { local: LOCAL }) : ''}
     <textarea id="reply" placeholder="Your reply"></textarea>
     ${s.kind === 'setup' ? `<input id="file" type="file" accept=".pdf,.doc,.docx,.odt,.rtf,.pages,.txt,.md" hidden>
       <button id="attach" class="secondary" title="Attach your CV">&#128206; Attach a file</button>` : ''}
@@ -340,7 +338,6 @@ async function renderSession(id, scrollToLatest = false) {
       }
     };
   }
-  bindQuit();
   document.getElementById('doc-btn')?.addEventListener('click', () => openDocPanel(id, docs));
   const retry = document.getElementById('retry');
   if (retry) retry.onclick = async () => {

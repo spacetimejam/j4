@@ -11,6 +11,8 @@ export function setupPending(projectDir) {
 
 export const SETUP_OPENING_PROMPT = 'The person has just opened Jawbs for the first time. '
   + 'Greet them warmly, explain in two or three sentences how the next few conversations will go, '
+  + 'say plainly that Jawbs is only as good as what they share about their career, their history and '
+  + 'what they want next (see "Before the first question" in core/intake.md), '
   + 'then ask the first intake question.';
 
 export function findSetupSession(db, email) {

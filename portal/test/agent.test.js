@@ -382,3 +382,24 @@ test('the setup prompt uses fenced blocks for runners without a schema', async (
   assert.match(p, /```session-title/);
   assert.match(p, /Getting started|leave "title" out/);
 });
+
+const { setupPrompt } = await import('../src/agent.js');
+const { SETUP_OPENING_PROMPT } = await import('../src/setup-session.js');
+
+test('setup sets expectations first and interviews each career step', () => {
+  for (const structured of [true, false]) {
+    const p = setupPrompt('Sam', { structured });
+    assert.match(p, /only as good as what Sam shares/);
+    assert.match(p, /career-step interviews/i);
+    assert.match(p, /one role at a time, most recent first/);
+  }
+  assert.match(SETUP_OPENING_PROMPT, /only as good as what they share/);
+});
+
+test('the portal runs a career-step interview on request, titled so it is not an application', () => {
+  for (const structured of [true, false]) {
+    const p = portalPrompt('Sam', { structured });
+    assert.match(p, /career-step interview in core\/intake\.md/);
+    assert.match(p, /Career interview: <role>, <organisation>/);
+  }
+});

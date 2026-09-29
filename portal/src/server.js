@@ -65,7 +65,7 @@ function withStage(session, rows) {
 export const DRAFT_RETRY_PREFIX = 'Retrying after the writer was unavailable: carry on with the draft.\n\n';
 
 // Which failure kind each retryable session status is waiting on.
-const RETRYABLE = { usage_limited: 'usage_limit', drafting_blocked: 'drafting_blocked' };
+const RETRYABLE = { usage_limited: 'usage_limit', drafting_blocked: 'drafting_blocked', signed_out: 'signed_out' };
 
 // The failed turn a delayed session is waiting on, or null. Only the latest
 // job counts: once the user sends something newer, the notice is stale.
@@ -76,6 +76,7 @@ function delayedFor(db, session) {
   const job = db.prepare('select * from jobs where session_id = ? order by created_at desc, rowid desc limit 1')
     .get(session.id);
   if (!job || job.status !== 'failed' || job.failure_kind !== kind) return null;
+  if (kind === 'signed_out') return { jobId: job.id, kind: 'signed_out' };
   if (kind === 'drafting_blocked') {
     return {
       jobId: job.id, kind: 'drafting', draftingKind: job.limit_type || 'error',

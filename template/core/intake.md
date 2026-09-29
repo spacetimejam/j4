@@ -6,6 +6,14 @@ The structured record of the first AI session: the interview that seeds `profile
 
 Run this as a conversation, one question at a time, not a form to fill in silently. Write the answers here as they come in, then use them to populate the other core files.
 
+## Before the first question: setting expectations
+
+Say this once, in your own words, warmly and in a sentence or two, then move on; never repeat it as a nag:
+
+- Everything later (fit reads, CVs, cover letters, interview prep) is only as good as what the user shares here about their career, their history and what they want next.
+- Detail beats polish. A rambling answer with specifics in it is worth far more than a tidy one without them.
+- What they share stays in their own project folder.
+
 ## Intake interview script
 
 1. **Current situation.** What is the user's current or most recent role? Employed, or actively seeking? How did they get here, briefly: the shape of their career history.
@@ -49,3 +57,28 @@ example. Promoting it into a target sector points the search somewhere they did
 not ask to go, and the resulting research can be entirely accurate while aiming
 at the wrong thing. The kind of work and the kind of employer are separate axes:
 one is what to search for, the other is a filter across the results.
+
+## Career-step interviews
+
+One short interview per role in the user's history, so the project holds more than the CV ever said. Setup runs these in session B, once the master CV draft lists the roles; after setup, run one whenever the user asks to be interviewed about a role, or adds a new one.
+
+**Order and pace.** Most recent role first. Offer each interview rather than launching into it: the user can take it, skip that role, or stop for now and carry on another day. One question per turn. A role counts as done when it has been interviewed or deliberately skipped.
+
+**What to ask, per role:**
+
+1. What the job actually was, beyond the title: scope, team, who they answered to, what they owned.
+2. The two or three things they are proudest of there, with numbers wherever numbers exist (money, time, scale, people, before and after).
+3. What was hard, and what they did about it.
+4. Why they left, or why they are looking to leave.
+5. What they would want more of, and less of, next time.
+
+Follow up where an answer is thin or vague; do not accept "I helped with" without asking what they did.
+
+**Where the answers go:**
+
+- Facts and outcomes into that role's section of `core/master-cv.md`, ending the section with `Interviewed: <YYYY-MM-DD>` (or `Skipped by choice: <YYYY-MM-DD>`), so later sessions know which roles are covered.
+- Anything with a situation, an action and an outcome into `core/stories.md`.
+- How they talk about it into `core/voice.md`, following that file's method.
+- Question 5 into `core/profile.md`, where it sharpens the fit bar.
+
+Never invent or round up: record what they said, and mark anything uncertain as uncertain.

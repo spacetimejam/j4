@@ -176,6 +176,8 @@ a.card:hover {
   margin: 12px 0;
 }
 .notice-delayed p { margin: 0 0 10px; }
+.notice-delayed ol { margin: 0 0 12px; padding-left: 1.3em; }
+.notice-delayed li { margin: 4px 0; }
 
 /* Conversation thread */
 .msg {
@@ -258,6 +260,9 @@ a.card:hover {
 .msg-doc.unavailable:hover { background: var(--tint); }
 
 .muted { color: var(--ink-soft); font-size: 0.85rem; }
+/* The line standing in for the new application box while setup is pending:
+   the box's own spacing is gone, so it needs room before the list. */
+.setup-lock { margin-bottom: 40px; }
 a { color: var(--accent); }
 a.back {
   display: inline-block;

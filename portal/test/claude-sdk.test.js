@@ -208,3 +208,24 @@ test('an is_error result carrying the limit text is a usage limit, even if the S
     err => err instanceof UsageLimitError && err.limitType === 'session' && err.resetsAt instanceof Date,
   );
 });
+
+const { SignInError } = await import('../src/sign-in.js');
+
+test('a signed-out Claude Code gives a SignInError, as the SDK reports it', async () => {
+  // Captured from @anthropic-ai/claude-agent-sdk 0.3.283 with no credentials:
+  // the assistant message is marked authentication_failed, then an is_error
+  // "success" result carries the text.
+  const text = 'Not logged in · Please run /login';
+  await assert.rejects(
+    run([init, assistantText(text, { error: 'authentication_failed' }),
+      { type: 'result', subtype: 'success', is_error: true, result: text }]),
+    err => err instanceof SignInError && !(err instanceof UsageLimitError),
+  );
+});
+
+test('the not-logged-in text alone gives a SignInError', async () => {
+  await assert.rejects(
+    runFailing([init], new Error('Claude Code returned an error result: Not logged in · Please run /login')),
+    err => err instanceof SignInError,
+  );
+});

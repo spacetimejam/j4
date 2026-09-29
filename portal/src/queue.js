@@ -6,6 +6,7 @@ import { runAgentTurn, parseEmailDirective, parseTitleDirective, draftingEnabled
 import { sendEmail } from './email.js';
 import { getUser, adminEmails } from './users.js';
 import { UsageLimitError, toSqlUtc } from './usage-limit.js';
+import { SignInError } from './sign-in.js';
 import { unprovenancedDeliveries } from './drafting.js';
 
 export function enqueue({ sessionId, prompt }) {
@@ -90,8 +91,9 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
       // Retry once in a fresh session with context rebuilt from our own
       // history; a fresh turn's failure is not retryable this way.
       // A usage limit is not a pruned transcript: a fresh session would hit
-      // the same limit, so it goes straight to the handler below.
-      if (err instanceof UsageLimitError || !session.claude_session_id) throw err;
+      // the same limit, so it goes straight to the handler below. So does
+      // signed out: every session shares the one sign-in.
+      if (err instanceof UsageLimitError || err instanceof SignInError || !session.claude_session_id) throw err;
       const history = db.prepare('select role, body from messages where session_id = ? order by created_at')
         .all(session.id);
       turn = await runTurn({
@@ -199,6 +201,21 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
         .run(String(err.message), toSqlUtc(err.resetsAt), err.exact ? 1 : 0, err.limitType, job.id);
       db.prepare("update sessions set status = 'usage_limited', updated_at = datetime('now') where id = ?")
         .run(job.session_id);
+      return true;
+    }
+    // Claude Code is signed out. The page says how to sign in (on your own
+    // computer) or that the owner has been told (on a shared portal), with a
+    // Retry button. Admins are still emailed: on a shared portal only they can
+    // fix it, and a local portal's email provider only writes to its log.
+    if (err instanceof SignInError) {
+      db.prepare("update jobs set status = 'failed', error = ?, failure_kind = 'signed_out' where id = ?")
+        .run(String(err.message), job.id);
+      db.prepare("update sessions set status = 'signed_out', updated_at = datetime('now') where id = ?")
+        .run(job.session_id);
+      await alertAdmins(send, `${config.portalTitle}: Claude is signed out`,
+        `A turn on "${session.title}" failed because Claude Code is not signed in: ${err.message}\n\n`
+        + 'Sign in again as the user this portal runs as, with: claude auth login\n'
+        + 'The session shows a Retry button.');
       return true;
     }
     db.prepare("update jobs set status = 'failed', error = ? where id = ?").run(String(err), job.id);

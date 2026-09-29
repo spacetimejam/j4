@@ -14,7 +14,7 @@ create table if not exists sessions (
   user_email text not null,
   title text not null,
   claude_session_id text,
-  status text not null default 'active', -- active | working | awaiting_reply | done | needs_attention | usage_limited | drafting_blocked
+  status text not null default 'active', -- active | working | awaiting_reply | done | needs_attention | usage_limited | drafting_blocked | signed_out
   created_at text not null default (datetime('now')),
   updated_at text not null default (datetime('now'))
 );

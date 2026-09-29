@@ -133,6 +133,11 @@ fi
 check "SETUP.md exists" test -f "$TARGET1/SETUP.md"
 check "SETUP.md records the name answer" grep -q "Alex Example" "$TARGET1/SETUP.md"
 check "SETUP.md records the field answer" grep -q "software engineering" "$TARGET1/SETUP.md"
+check "SETUP.md sets expectations before intake" grep -q "only as good as what" "$TARGET1/SETUP.md"
+check "SETUP.md offers career-step interviews" grep -q "career-step" "$TARGET1/SETUP.md"
+check "intake holds the career-step interview" grep -q "^## Career-step interviews" "$TARGET1/core/intake.md"
+check "master CV explains the Interviewed line" grep -q "Interviewed: <YYYY-MM-DD>" "$TARGET1/core/master-cv.md"
+check "spine offers career-step interviews later" grep -q "career-step interview" "$TARGET1/CLAUDE.md"
 check "core/profile.md exists" test -f "$TARGET1/core/profile.md"
 check "WORKFLOW.md exists" test -f "$TARGET1/WORKFLOW.md"
 check "tracker/applications.csv exists" test -f "$TARGET1/tracker/applications.csv"
@@ -423,6 +428,15 @@ check "SETUP.md records the mode" grep -q "How Jawbs is used: terminal" "$MWORK/
 run_mode "$TEST_DIR/answers-local.env" "$MWORK/l" || fail "local mode exited non-zero"
 check "local mode has no remote-access task" sh -c "! grep -q 'If you chose the portal' '$MWORK/l/SETUP.md'"
 check "SETUP.md records local" grep -q "How Jawbs is used: local" "$MWORK/l/SETUP.md"
+check "local with no writer answer leaves it to detection" grep -qx -- "- Writer: detect" "$MWORK/l/SETUP.md"
+check "terminal mode is not asked about the writer" grep -qx -- "- Writer: not asked" "$MWORK/t/SETUP.md"
+
+# The writer choice is recorded as answered, and an unknown one stops setup.
+printf 'WRITER="chatgpt-only"\n' | cat "$TEST_DIR/answers-local.env" - > "$MWORK/w.env"
+run_mode "$MWORK/w.env" "$MWORK/w" || fail "a writer choice exited non-zero"
+check "SETUP.md records the writer" grep -qx -- "- Writer: chatgpt-only" "$MWORK/w/SETUP.md"
+printf 'WRITER="gemini"\n' | cat "$TEST_DIR/answers-local.env" - > "$MWORK/wbad.env"
+if run_mode "$MWORK/wbad.env" "$MWORK/wb"; then fail "an unknown WRITER should stop setup"; else pass; fi
 
 # PORTAL=yes still means shared, PORTAL=no still means terminal.
 run_mode "$TEST_DIR/answers-portal.env" "$MWORK/s" || fail "PORTAL=yes alias exited non-zero"
@@ -464,6 +478,53 @@ check "signed-in codex means both" grep -q '^SUBSCRIPTIONS=both$' "$LWORK/env1"
 check "codex path recorded" grep -q "^CODEX_BIN=$LWORK/fakebin/codex$" "$LWORK/env1"
 check "user registered" grep -q 'alex@example.com' "$LWORK/users.json"
 check "skipped launch is reported as skipped" grep -qx skipped "$LWORK/env1.status"
+check "a signed-in claude needs no sign-in" test "$(grep -c "not signed in" "$LWORK/env1.out")" = 0
+
+# A signed-out claude does not stop setup, and the output says how to sign in.
+# Not a terminal here, so no browser sign-in is attempted.
+mkdir -p "$LWORK/fakebin-out"
+cp "$LWORK/fakebin/codex" "$LWORK/fakebin-out/codex"
+printf '#!/bin/sh\n[ "$1 $2" = "auth status" ] && exit 1\n[ "$1 $2" = "auth login" ] && touch "%s/login-tried"\nexit 0\n' "$LWORK" > "$LWORK/fakebin-out/claude"
+chmod +x "$LWORK/fakebin-out/claude"
+run_local "$LWORK/env1s" "$LWORK/fakebin-out:$PATH"
+check "signed-out claude still sets up" grep -qx skipped "$LWORK/env1s.status"
+check "signed-out claude is explained" grep -q "claude auth login" "$LWORK/env1s.out"
+check "no sign-in attempted outside a terminal" test ! -e "$LWORK/login-tried"
+
+# The wizard's writer choice wins over what is signed in. These PATHs keep the
+# host's own codex (in ~/.local/bin) out of reach.
+set_writer_line() { # set_writer_line <value>
+  awk -v w="$1" '/^- Writer: / { print "- Writer: " w; next } { print }' "$LWORK/proj/SETUP.md" > "$LWORK/SETUP.tmp" \
+    && mv "$LWORK/SETUP.tmp" "$LWORK/proj/SETUP.md"
+}
+mkdir -p "$LWORK/fb-nocodex" "$LWORK/fb-codexout" "$LWORK/fb-noclaude"
+cp "$LWORK/fakebin/claude" "$LWORK/fb-nocodex/claude"
+cp "$LWORK/fakebin/claude" "$LWORK/fb-codexout/claude"
+printf '#!/bin/sh\nexit 1\n' > "$LWORK/fb-codexout/codex"; chmod +x "$LWORK/fb-codexout/codex"
+cp "$LWORK/fakebin/codex" "$LWORK/fb-noclaude/codex"
+
+set_writer_line claude-only
+run_local "$LWORK/w1" "$LWORK/fakebin:/usr/bin:/bin"
+check "claude-only is kept with a signed-in codex" grep -q '^SUBSCRIPTIONS=claude-only$' "$LWORK/w1"
+check "claude-only runs on claude" grep -q '^AGENT_RUNNER=claude-sdk$' "$LWORK/w1"
+
+set_writer_line both
+run_local "$LWORK/w2" "$LWORK/fb-nocodex:/usr/bin:/bin"
+check "both without codex is not set up" test ! -f "$LWORK/w2"
+check "both without codex says how to install it" grep -q "npm install -g @openai/codex" "$LWORK/w2.out"
+check "both without codex is not switched quietly" grep -qx -- "- Writer: both" "$LWORK/proj/SETUP.md"
+run_local "$LWORK/w3" "$LWORK/fb-codexout:/usr/bin:/bin"
+check "both with codex signed out still sets up" grep -q '^SUBSCRIPTIONS=both$' "$LWORK/w3"
+check "both with codex signed out says how to sign in" grep -q "codex login" "$LWORK/w3.out"
+
+set_writer_line chatgpt-only
+run_local "$LWORK/w4" "$LWORK/fb-noclaude:/usr/bin:/bin"
+check "chatgpt-only needs no claude" grep -q '^SUBSCRIPTIONS=chatgpt-only$' "$LWORK/w4"
+check "chatgpt-only runs on codex" grep -q '^AGENT_RUNNER=codex$' "$LWORK/w4"
+run_local "$LWORK/w5" "$LWORK/fb-nocodex:/usr/bin:/bin"
+check "chatgpt-only without codex is not set up" test ! -f "$LWORK/w5"
+check "chatgpt-only without codex says how to install it" grep -q "npm install -g @openai/codex" "$LWORK/w5.out"
+set_writer_line detect
 
 # SETUP.md deletes itself when setup is done; a re-run then finds the person
 # in the registry by project folder.
@@ -601,6 +662,23 @@ check "launcher starts node from a bare PATH" grep -q "started src/server.js" "$
 check "launcher reports a node that exited" test "$LAUNCH_RC" -eq 1
 check "launcher stops waiting when node has exited" test $((T1 - T0)) -lt 6
 check "launcher failure names the log" grep -q "jawbs.log" "$IWORK/launch.err"
+
+# A server that keeps running must not hold the launcher open. This one never
+# answers the probe, so the launcher should give up after JAWBS_WAIT_SECS
+# rather than wait for the server to exit, which a healthy one never does.
+cat > "$IWORK/fake-node" <<'EOF'
+#!/bin/sh
+[ "$1" = "-e" ] && exit 0
+echo $$ > "$FAKE_NODE_PID"
+exec sleep 30
+EOF
+T0=$(date +%s)
+env -i HOME="$IWORK/home" PATH="/usr/bin:/bin" FAKE_NODE_PID="$IWORK/node.pid" JAWBS_PORT=59717 JAWBS_WAIT_SECS=2 JAWBS_NO_BROWSER=yes JAWBS_NO_DIALOG=yes \
+  /bin/bash "$L" >/dev/null 2>&1
+T1=$(date +%s)
+check "launcher returns while the server keeps running" test $((T1 - T0)) -lt 10
+check "launcher leaves the server running" kill -0 "$(cat "$IWORK/node.pid" 2>/dev/null)"
+kill "$(cat "$IWORK/node.pid" 2>/dev/null)" 2>/dev/null
 
 # With the real node and no curl anywhere on PATH, the launcher still finds
 # a running Jawbs, and tells this kit's from another copy's.

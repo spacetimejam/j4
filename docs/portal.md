@@ -35,17 +35,32 @@ rest of the kit works without it.
 The simplest way to run Jawbs is in your browser on the computer you already
 use, with nothing to publish and no emailed sign-in links. In the setup
 wizard, choose option 1, "In your web browser, on this computer". The wizard
-then runs `setup/jawbs-local.sh` for you, which does six things:
+then asks who should write your CVs and cover letters:
 
-1. Checks that Node 18 or newer and Claude Code are installed. If either is
-   missing it tells you how to install it and stops without failing.
+- Claude runs Jawbs and ChatGPT writes the CV and letter copy (recommended;
+  needs both subscriptions).
+- Claude does everything (a Claude subscription only).
+- ChatGPT does everything (a ChatGPT subscription only; newer and less tested).
+
+The answer is recorded in `SETUP.md` as `Writer:`. The wizard then runs
+`setup/jawbs-local.sh` for you, which does six things:
+
+1. Checks that Node 18 or newer is installed, and whichever of Claude Code
+   and Codex (the program Jawbs uses to reach ChatGPT) your choice needs. If
+   one is missing it tells you how to install it and stops without failing;
+   if you chose ChatGPT as the writer and Codex is missing, it also offers
+   to let Claude write instead, but never switches without asking. If a
+   program is installed but not signed in, it opens the sign-in in your
+   browser (`claude auth login` or `codex login`). Skipping that does not
+   stop setup: until you sign in, Jawbs shows the same instructions in place
+   of a reply or a draft, with a button to try again.
 2. Checks that this copy of the kit does not already run Jawbs for someone
    else.
 3. Installs the portal's dependencies.
 4. Writes `portal/.env` with the local settings (`EXPOSURE=local`, loopback
-   only, no email provider), and works out whether to use Claude, ChatGPT or
-   both from what is signed in on this computer. An existing `.env` is left
-   as it is.
+   only, no email provider) and your writer choice. A project set up before
+   the question existed has its choice worked out from what is signed in on
+   this computer. An existing `.env` is left as it is.
 5. Registers you as the portal's one user.
 6. Creates a Jawbs icon (in Applications and on your Desktop on a Mac, in the
    applications menu and on your Desktop on Linux) and opens Jawbs in your
@@ -53,8 +68,8 @@ then runs `setup/jawbs-local.sh` for you, which does six things:
 
 Next time, double-click the Jawbs icon. It starts Jawbs if it is not already
 running and opens it in your browser; double-clicking again is harmless. The
-page has a Quit Jawbs link, which lets any reply in progress finish and then
-stops Jawbs. Open it from the icon again whenever you like.
+cog menu on the main page has Quit Jawbs, which lets any reply in progress
+finish and then stops Jawbs. Open it from the icon again whenever you like.
 
 Jawbs opens on a conversation called Getting started, which works through the
 same steps as `docs/first-session.md`. When it asks for your CV, attach it

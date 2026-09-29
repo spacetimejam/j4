@@ -1,6 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { REPLY_SCHEMA } from '../reply-schema.js';
 import { toUsageLimitError } from '../usage-limit.js';
+import { toSignInError } from '../sign-in.js';
 
 // Default runner: drives Claude via @anthropic-ai/claude-agent-sdk.
 // Satisfies the runner contract documented in src/agent.js.
@@ -32,10 +33,14 @@ export async function runClaudeSdk(
   // kept so the failure can be reported as a usage limit rather than a fault.
   let rejected = null;
   let rateLimited = false;
+  // Signed out looks the same way: an assistant message marked
+  // authentication_failed, then an is_error result saying "Not logged in".
+  let authFailed = false;
   try {
     for await (const msg of q) {
       if (msg.type === 'rate_limit_event' && msg.rate_limit_info?.status === 'rejected') rejected = msg.rate_limit_info;
       if (msg.type === 'assistant' && msg.error === 'rate_limit') rateLimited = true;
+      if (msg.type === 'assistant' && msg.error === 'authentication_failed') authFailed = true;
       if (msg.type === 'system' && msg.subtype === 'init') sessionId = msg.session_id;
       // Every text block the agent addressed to the user, in order. The
       // structured field below is the answer; this satisfies the shared runner
@@ -59,7 +64,7 @@ export async function runClaudeSdk(
       }
     }
   } catch (err) {
-    throw toUsageLimitError(err, { rejected, rateLimited }) ?? err;
+    throw toUsageLimitError(err, { rejected, rateLimited }) ?? toSignInError(err, { authFailed }) ?? err;
   }
   // This runner always asks for REPLY_SCHEMA and always prompts the agent with
   // the structured protocol, so a success without structured_output cannot be
