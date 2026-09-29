@@ -66,9 +66,12 @@ folder. If setup stopped because something was missing, install it and run
 `setup/jawbs-local.sh <project folder>` again; it needs no further questions.
 
 Jawbs on a computer serves one person, so a second person needs their own copy
-of the kit (clone it again into another folder).
+of the kit (clone it again into another folder). Each copy picks its own port
+when it is set up (8710 if free, otherwise the next free one up to 8730), and
+its icon opens that copy, never another person's. The port is `PORT` in
+`portal/.env`.
 
-There is no sign-in. Anyone or anything that can act as your user account on this computer can use Jawbs, including other programs you run. Jawbs listens only on this computer (127.0.0.1) and refuses requests addressed to any other host name, which stops websites you visit from reaching it through your browser. Do not change `BIND_HOST` or put a proxy in front of a local Jawbs: publish it with `docs/portal-remote-access.md` instead, which switches to emailed sign-in links.
+There is no sign-in. Anyone or anything with an account on this computer, and any program you run, can use Jawbs. Local Jawbs suits a computer only you use; on a shared computer, use the shared setup instead. Jawbs listens only on this computer (127.0.0.1) and refuses requests addressed to any other host name, which stops websites you visit from reaching it through your browser. Do not change `BIND_HOST` or put a proxy in front of a local Jawbs: publish it with `docs/portal-remote-access.md` instead, which switches to emailed sign-in links.
 
 ## Setup walkthrough
 
@@ -102,7 +105,7 @@ Then edit `.env`, field by field:
   `public`. Leave it unset (or `private`) for Tailscale `serve`, a VPN, or
   localhost only. `setup-remote.sh configure` sets this for you when using
   Tailscale. `local` is Jawbs on your own computer, with no sign-in and one
-  person; the wizard writes it for you (see the next section).
+  person; the wizard writes it for you (see "Using Jawbs on your own computer", above).
 - `BIND_HOST`: the address the portal listens on. Defaults to `0.0.0.0`, all
   interfaces, which is what a reverse proxy on another host or in a
   container such as Docker generally needs, since it cannot reach loopback.

@@ -53,7 +53,7 @@ First run the setup wizard from the kit folder (see Installation above). Then st
 
 If you chose Jawbs in your browser, the wizard opens it for you on a Getting started conversation instead, and you can skip the terminal step; next time, double-click the Jawbs icon.
 
-Your AI tool will guide you through intake, then manage applications, track progress, and redraft materials as you refine your search. See `docs/first-session.md` for what that first session looks like, including choosing a Typst CV template with the assistant.
+Your AI tool will guide you through intake, then manage applications, track progress, and redraft materials as you refine your search. See `docs/first-session.md` for what that first session looks like, including the intake conversation and how your CV and applications are set up.
 
 ## Principles
 
