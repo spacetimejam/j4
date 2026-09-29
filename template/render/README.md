@@ -75,9 +75,24 @@ never changes: the design is adapted to the yaml, never the yaml to the design.
      way. If not, restyle the current letter with the CV's fonts, colours and
      header so the two read as a set. Keep the `<letter-end>` length guard from
      "Hard rules" below.
+   - Paper is A4 whatever the template's default, since the Hard rules count
+     A4 pages.
    - Fonts: bundle any the template needs into `render/fonts/` if their licence
-     permits (OFL, Apache, MIT); where an icon font cannot be bundled, drop the
-     icons rather than render missing glyphs.
+     permits (OFL, Apache, MIT); variable fonts are fine. Check every `#import`
+     in the template: the candidate must compile offline, so drop another
+     package's features (usually icons) rather than vendor the package.
+     Contacts are plain lines; never render missing glyphs.
+   - Mapping is by meaning, not by adding fields: the yaml `position` goes in
+     the template's headline or quote slot (a plain line under the name if it
+     has none), key skills become tags or a plain list, and a multi-line
+     `recipient` splits into name then address. Keep the current section
+     order rather than the template's. Leave
+     out photos, logos, and anything hidden from the reader (invisible keyword
+     or prompt text aimed at screening software).
+   - `theme:` keys (`accent`, `body_font`, `heading_font`) must keep working,
+     so existing yamls render.
+   - Aim for the 75% letter fill with the design itself (spacing, margins the
+     template already uses), not by shrinking type.
    - Copy the template's licence file in, and write `SOURCE.md`:
      ```
      # Design source
@@ -91,7 +106,10 @@ never changes: the design is adapted to the yaml, never the yaml to the design.
    `render/sample/` and your test CV in `applications/test-render/`, and fails
    unless every CV is one page and every letter fills its page. Only then does
    it move the current design to `render/templates-previous/<date>-<name>/`
-   and make the candidate live. Fix what it reports and run it again.
+   and make the candidate live. Fix what it reports and run it again. The
+   script checks page count and fill only, so before switching, render the
+   candidate and look at it: every yaml field should appear where a reader
+   expects it.
 4. **If it cannot be made to pass**, delete `render/templates-candidate/`, say
    plainly what went wrong, and offer another pick. The live design is untouched.
 5. **Going back:** `render/switch-design.sh render/templates-previous/<folder>`.

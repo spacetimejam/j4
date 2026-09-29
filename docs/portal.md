@@ -76,6 +76,12 @@ same steps as `docs/first-session.md`. When it asks for your CV, attach it
 with the Attach a file button (PDF, Word, text and similar formats, up to
 15 MB).
 
+In Getting started, Jawbs offers a link to Typst Universe's CV templates
+before and after it renders your test CV: name any template there, or paste
+its link, and Jawbs adapts it to your CV and cover letter, checks it still
+fits one page, and switches over. After setup, "Change CV design" in the cog
+menu does the same, and can put an earlier design back.
+
 If something goes wrong, the log is `portal/data/jawbs.log` in the kit
 folder. If setup stopped because something was missing, install it and run
 `setup/jawbs-local.sh <project folder>` again; it needs no further questions.
