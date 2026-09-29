@@ -403,3 +403,24 @@ test('the portal runs a career-step interview on request, titled so it is not an
     assert.match(p, /Career interview: <role>, <organisation>/);
   }
 });
+
+const { DESIGN_CATEGORY_URL } = await import('../src/design-link.js');
+const { designSteps } = await import('../src/agent.js');
+
+test('setup session C offers the CV templates before and after the test CV', () => {
+  for (const structured of [true, false]) {
+    const p = setupPrompt('Sam', { structured });
+    assert.ok(p.includes(DESIGN_CATEGORY_URL));
+    assert.doesNotMatch(p, /do not offer to browse Typst Universe/);
+    assert.match(p, /pick a design now/);
+    assert.match(p, /happy with the look/);
+    assert.match(p, /switch-design\.sh/);
+  }
+});
+
+test('the adaptation steps fetch, adapt by the README, switch, then deliver', () => {
+  const s = designSteps('the email field');
+  for (const needle of ['render/fetch-template.py', 'Adapting a template', 'render/switch-design.sh', 'the email field']) {
+    assert.ok(s.includes(needle), needle);
+  }
+});

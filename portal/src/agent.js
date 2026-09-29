@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
+import { DESIGN_CATEGORY_URL } from './design-link.js';
 import { runClaudeSdk } from './runners/claude-sdk.js';
 import { runCli } from './runners/cli.js';
 import { runCodex } from './runners/codex.js';
@@ -111,6 +112,30 @@ Claude Code session in the project folder; do not run bin/chatgpt-draft, even
 where WORKFLOW.md mentions it.
 `;
 
+// How a chosen CV template becomes the live design, shared by session C and
+// the "CV design" conversation. The scripts hold the rules (CV category only,
+// proven before switching); render/README.md holds the adaptation itself.
+export const designSteps = deliver => `
+When they name a template or paste its Typst Universe link:
+1. If it is a letter-only template, a national form (a Japanese rirekisho or shokumu keirekisho,
+   a Europass CV) or written for a language other than English, say what it is and check they
+   mean it before going further.
+2. Say that adapting it takes a few minutes and that they can close the window, then carry on in
+   the same turn: run render/fetch-template.py with what they gave you. If it refuses, relay the
+   reason plainly and ask for another pick.
+3. Build the candidate following "Adapting a template" in render/README.md exactly: the yaml
+   content model never changes, the letter matches the CV, fonts are bundled only where their
+   licence allows, and SOURCE.md records where the design came from.
+4. Run render/switch-design.sh render/templates-candidate. It proves the design and only then
+   switches. Fix what it reports and run it again. If you cannot make it pass, delete
+   render/templates-candidate/, say plainly what went wrong, and offer another pick: the live
+   design must never be half-changed.
+5. Render the test CV and letter in the new design (render/render.sh test-render, creating
+   applications/test-render/ from core/master-cv.md first if it does not exist) and deliver both
+   PDFs through ${deliver}.
+To go back to an earlier design, run render/switch-design.sh on the folder they want in
+render/templates-previous/.`;
+
 // Setup sessions work through the project's SETUP.md in the browser. They
 // reuse the reply protocol, never rename themselves and never draft through
 // ChatGPT: the writer is for applications.
@@ -143,10 +168,12 @@ This is a chat window, not a terminal:
   "Between sessions" tasks) takes around 15 to 30 minutes and that they can close the window while
   it runs, and ask them to tell you when to start. Do that work in the next turn, then open
   session B with the results. Mark drafts "draft, awaiting review" as SETUP.md asks.
-- Session C: the project already has a working default CV template in render/templates/. Render a
-  test CV from core/master-cv.md as render/README.md describes, and deliver the PDF through
-  ${deliver} so it appears as a download. Changing the design can happen later in a Claude Code
-  session; do not offer to browse Typst Universe here.
+- Session C: before rendering the test CV, share the CV templates link
+  (${DESIGN_CATEGORY_URL}) as a markdown link and ask whether they would like to pick a design now
+  or see the default first. Render the test CV into applications/test-render/ as SETUP.md says and
+  deliver the PDF through ${deliver} so it appears as a download, then ask whether they are
+  happy with the look or would like to pick another from the link.
+${designSteps(deliver)}
 - Never set a session title: this conversation is always called "Getting started", so leave
   "title" ${structured ? 'null' : 'out of the session-title block'}.
 

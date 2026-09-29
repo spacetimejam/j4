@@ -3,8 +3,7 @@
 Typst rendering for send-ready CV and cover letter PDFs. A default design is
 included in `render/templates/` (derived from the MIT-licensed vantage-cv
 layout, using fonts that ship with Typst), so rendering works as soon as
-Typst is installed. You can swap it for a Typst Universe template whenever
-you like: see "Choosing your template" below. The content model and the hard
+Typst is installed. You can change it for any Typst Universe CV template: see "Choosing your template" below. The content model and the hard
 rules stay the same whichever template you use.
 
 ## Usage
@@ -42,28 +41,63 @@ back here: it expects `templates/main.typ` (the CV) and
 
 ## Choosing your template
 
-1. **Browse Typst Universe** at https://typst.app/universe and search its CV
-   templates; any of the currently popular CV packages is a fine starting
-   point. Pick a design you would be happy to send.
-2. **Vendor it into `render/templates/`.** Copy the template's source files in (do not
-   rely on a package import that can change under you), and keep its licence
-   file alongside the source.
-3. **Adapt it to the content model.** With your AI assistant, rework the
-   template so it is driven by the yaml schema below: an entry file
-   `templates/main.typ` for the CV and `templates/cover-letter.typ` for the
-   letter, each reading its yaml via `sys.inputs.config` (that is how
-   `render.sh` passes the per-role file in).
-4. **Bundle fonts.** Any fonts the template needs go in `render/fonts/`
-   (bundle only fonts whose licence permits it, e.g. OFL). `render.sh` and
-   `build.sh` pass this directory to Typst as the font path.
-5. **Verify** with a real render of a dummy application slug before using it
-   in anger.
+Any template in Typst Universe's CV category can be your design, and only
+those: https://typst.app/universe/search/?kind=templates&category=cv
 
-If you already have a designed CV you like, the assistant should replicate it
-by **measuring the PDF, not eyeballing renders**: extract the colours, type
-sizes and baseline positions programmatically (for example with PyMuPDF) and
-match those numbers in the Typst template. Iterating by visual comparison of
-screenshots is slow and inaccurate.
+Ask your AI assistant for the one you like, by name or by pasting its page
+link. It fetches it, adapts it to your content, proves it renders your CV on
+one page with a letter that fills its page, and only then switches over. Your
+previous design is kept, so you can always go back.
+
+If you already have a designed CV you like, the assistant can replicate it
+instead, by **measuring the PDF, not eyeballing renders**: extract the colours,
+type sizes and baseline positions programmatically (for example with PyMuPDF)
+and match those numbers in the Typst template. Iterating by visual comparison
+of screenshots is slow and inaccurate. The result still goes live through
+`switch-design.sh` below.
+
+## Adapting a template
+
+The procedure an assistant follows for a chosen template. The content model
+never changes: the design is adapted to the yaml, never the yaml to the design.
+
+1. **Fetch.** `render/fetch-template.py <name or link>`. It refuses anything
+   outside the CV category and says why; relay that and ask for another pick.
+   It unpacks to `render/template-source/<name>-<version>/` and reports the
+   licence, whether the template has its own cover letter, and fonts to check.
+2. **Build the candidate** in `render/templates-candidate/`, starting from a copy
+   of `render/templates/`:
+   - `main.typ` takes the template's CV layout and reads the CV yaml exactly as
+     the current `main.typ` does (`yaml(sys.inputs.at("config", ...))`, the same
+     field names). Sections the content model lacks (photos, language grids)
+     are left out or mapped onto existing fields; never add fields.
+   - `cover-letter.typ`: if the template has its own letter, adapt that the same
+     way. If not, restyle the current letter with the CV's fonts, colours and
+     header so the two read as a set. Keep the `<letter-end>` length guard from
+     "Hard rules" below.
+   - Fonts: bundle any the template needs into `render/fonts/` if their licence
+     permits (OFL, Apache, MIT); where an icon font cannot be bundled, drop the
+     icons rather than render missing glyphs.
+   - Copy the template's licence file in, and write `SOURCE.md`:
+     ```
+     # Design source
+     Package: <name> <version>
+     Licence: <licence> (<licence file name>)
+     Adopted: <YYYY-MM-DD>
+     Changes: <what the adaptation changed: letter matched or restyled, icons dropped, fonts bundled>
+     ```
+3. **Prove and switch.** `render/switch-design.sh render/templates-candidate`.
+   It runs `render/try-design.sh`, which renders the candidate against
+   `render/sample/` and your test CV in `applications/test-render/`, and fails
+   unless every CV is one page and every letter fills its page. Only then does
+   it move the current design to `render/templates-previous/<date>-<name>/`
+   and make the candidate live. Fix what it reports and run it again.
+4. **If it cannot be made to pass**, delete `render/templates-candidate/`, say
+   plainly what went wrong, and offer another pick. The live design is untouched.
+5. **Going back:** `render/switch-design.sh render/templates-previous/<folder>`.
+
+Letters already sent never change. Re-renders and new applications use the
+live design.
 
 ## Hard rules
 

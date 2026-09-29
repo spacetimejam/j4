@@ -63,14 +63,20 @@ them in the next session.
 
 ### Session C: finishing (with user)
 
-10. The project ships with a default CV and cover letter design in
-    `render/templates/`. Render a test CV from `core/master-cv.md` (copy the
-    skeleton `configuration.yaml` into a dummy application folder, fill it from
-    the master CV, and run `render/render.sh <slug>`), check it fits one page,
-    and show it to {{USER_NAME}}. In a terminal session, offer to switch to a
-    different design from Typst Universe (https://typst.app/universe) or to
-    replicate their existing CV's look, following "Choosing your template" in
-    `render/README.md`.
+10. Choose the design and render a test CV. The project ships with a default
+    CV and cover letter design in `render/templates/`, and any template in
+    Typst Universe's CV category can replace it:
+    https://typst.app/universe/search/?kind=templates&category=cv
+    - Before rendering, share that link and ask {{USER_NAME}} whether they
+      would like to pick a design now or see the default first.
+    - Render a test CV from `core/master-cv.md`: copy the skeleton
+      `render/templates/configuration.yaml` to `applications/test-render/cv.yaml`,
+      fill it from the master CV, and run `render/render.sh test-render`. Check
+      it fits one page and show it to {{USER_NAME}}.
+    - Then ask whether they are happy with the look or would like to pick
+      another from the link.
+    A pick at either point follows "Adapting a template" in `render/README.md`,
+    then renders the test CV again in the new design.
 11. Delete this file and tell {{USER_NAME}} the project is ready to judge
     fits and draft applications.
 
