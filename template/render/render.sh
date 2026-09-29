@@ -10,6 +10,11 @@ ROOT="$(cd "$HERE/.." && pwd)"
 SLUG="${1:?usage: render.sh <role-slug>}"
 APPDIR="$ROOT/applications/$SLUG"
 
+# try-design.sh renders a candidate design into a scratch folder with these;
+# left unset, render.sh uses the live design and the application folder.
+TEMPLATES="${JAWBS_TEMPLATES_DIR:-$HERE/templates}"
+OUTDIR="${JAWBS_OUT_DIR:-$APPDIR}"
+
 # The Typst installer puts a static binary in ~/.local/bin, which may not be
 # on PATH in fresh shells. Fall back to it if typst is not already found.
 if ! command -v typst >/dev/null 2>&1 && [ -x "$HOME/.local/bin/typst" ]; then
@@ -17,15 +22,15 @@ if ! command -v typst >/dev/null 2>&1 && [ -x "$HOME/.local/bin/typst" ]; then
 fi
 
 # No template yet? Stop with guidance rather than a raw typst error.
-if [ ! -f "$HERE/templates/main.typ" ]; then
-  echo "error: no CV template found at render/templates/main.typ." >&2
+if [ ! -f "$TEMPLATES/main.typ" ]; then
+  echo "error: no CV template found at $TEMPLATES/main.typ." >&2
   echo "The default template is missing. Restore it from the kit's template/render/templates/, or vendor another:" >&2
   echo "see the 'Choosing your template' section in render/README.md." >&2
   exit 1
 fi
 
-if [ ! -f "$HERE/templates/cover-letter.typ" ]; then
-  echo "error: no cover letter template found at render/templates/cover-letter.typ." >&2
+if [ ! -f "$TEMPLATES/cover-letter.typ" ]; then
+  echo "error: no cover letter template found at $TEMPLATES/cover-letter.typ." >&2
   echo "The default template is missing. Restore it from the kit's template/render/templates/, or vendor another:" >&2
   echo "see the 'Choosing your template' section in render/README.md." >&2
   exit 1
@@ -44,10 +49,10 @@ render_one() {
   local name role out
   name="$(field "$cfg" name)"; role="$(field "$cfg" role)"
   [ -n "$role" ] || { echo "warning: no 'role:' in $(basename "$cfg"), filename will be incomplete"; }
-  out="$APPDIR/${doctype} - ${name} - ${role}.pdf"
+  out="$OUTDIR/${doctype} - ${name} - ${role}.pdf"
   typst compile --font-path "$HERE/fonts" --root "$ROOT" \
     --input config="/applications/$SLUG/$(basename "$cfg")" \
-    "$HERE/templates/$tmpl" "$out"
+    "$TEMPLATES/$tmpl" "$out"
   echo "rendered: $out"
 
   # Cover letters must fill the page: at least three quarters down as rendered.
@@ -57,7 +62,7 @@ render_one() {
     local fill
     fill="$(typst query --font-path "$HERE/fonts" --root "$ROOT" \
       --input config="/applications/$SLUG/$(basename "$cfg")" \
-      "$HERE/templates/$tmpl" '<letter-end>' --field value --one 2>/dev/null \
+      "$TEMPLATES/$tmpl" '<letter-end>' --field value --one 2>/dev/null \
       | python3 -c 'import json,sys
 try: v=json.load(sys.stdin); print(v["fill-pct"] if v["page"]==1 else 100)
 except Exception: pass' )"

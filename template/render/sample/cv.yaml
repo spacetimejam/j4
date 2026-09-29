@@ -1,0 +1,74 @@
+# Fictional content for proving a CV design (render/try-design.sh). Not a
+# real person and never sent anywhere. Keep it a realistic length: a design
+# that only fits one page with thin content is not a design that fits.
+theme: {}
+
+contacts:
+  name: "Jordan Sample"
+  phone: "07700 900123"
+  email: "jordan.sample@example.com"
+  location: "Manchester"
+  website:
+    url: "https://www.example.com"
+    displayText: "www.example.com"
+  linkedin:
+    url: "https://www.linkedin.com/in/jordan-sample"
+    displayText: "linkedin.com/in/jordan-sample"
+
+position: "Senior Operations Manager"
+role: "Senior Operations Manager"
+
+about:
+  - >-
+    Operations manager with eleven years in logistics and retail supply chains,
+    most recently running a 140-person regional distribution network. Strongest
+    at turning messy processes into ones people can run without heroics.
+  - >-
+    Works best close to the floor, with data to hand and a team that says
+    plainly what is going wrong.
+
+key_skills:
+  - Network planning
+  - Budget ownership to 9 million pounds
+  - Supplier negotiation
+  - Lean process design
+  - Team leadership
+  - Stakeholder reporting
+
+education:
+  - qualification: BSc (Hons)
+    course: Logistics and Supply Chain Management
+    institution: University of Salford
+    dates: 2010 - 2013
+
+jobs:
+  - position: Senior Operations Manager
+    company: Northway Distribution
+    from: Apr 2021
+    to: Present
+    intro: >-
+      Runs three regional warehouses and the transport team serving 400 stores.
+    description:
+      - Cut late store deliveries from 9% to 2% in a year by redesigning route planning.
+      - Owns a 9 million pound operating budget; delivered 6% savings two years running.
+      - Led the move to a new warehouse system with no lost trading days.
+  - position: Operations Manager
+    company: Brightside Retail
+    from: Jun 2017
+    to: Mar 2021
+    intro: >-
+      Managed the returns centre and its 60-strong team.
+    description:
+      - Halved returns processing time by introducing a triage line.
+      - Built the first weekly performance pack the board actually read.
+      - Brought agency staff turnover down from 45% to 20%.
+  - position: Shift Manager
+    company: Brightside Retail
+    from: Sep 2013
+    to: May 2017
+    intro: >-
+      Ran night shifts in the main fulfilment centre.
+    description:
+      - Led a team of 25 across picking, packing and loading.
+      - Trained twelve team leaders, eight of whom were later promoted.
+      - Cut picking errors by a third with a simple two-step check.

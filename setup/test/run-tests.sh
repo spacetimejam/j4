@@ -728,6 +728,33 @@ if command -v node >/dev/null 2>&1; then
 fi
 rm -rf "$IWORK"
 
+# --- render design scripts -----------------------------------------------------
+# Needs typst and python3 with yaml; skipped with a note when either is missing.
+if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1; then
+  RWORK="$(mktemp -d)"
+  PORTAL_REGISTRY="$RWORK/users.json" \
+    bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers.env" --target "$RWORK/p" --skip-deps >/dev/null 2>&1
+  RP="$RWORK/p"
+  mkdir -p "$RP/applications/demo" "$RWORK/out"
+  cp "$RP/render/sample/cv.yaml" "$RP/render/sample/cover-letter.yaml" "$RP/applications/demo/"
+
+  JAWBS_OUT_DIR="$RWORK/out" bash "$RP/render/render.sh" demo >/dev/null 2>&1
+  check "render.sh writes to JAWBS_OUT_DIR" test -n "$(ls "$RWORK/out"/CV*.pdf 2>/dev/null)"
+  check "render.sh leaves the application folder alone with JAWBS_OUT_DIR" test -z "$(ls "$RP/applications/demo"/*.pdf 2>/dev/null)"
+
+  # A design that announces itself, so the check proves which one was used.
+  cp -R "$RP/render/templates" "$RP/render/alt"
+  printf '#panic("alt design used")\n' > "$RP/render/alt/main.typ"
+  JAWBS_TEMPLATES_DIR="$RP/render/alt" JAWBS_OUT_DIR="$RWORK/out" bash "$RP/render/render.sh" demo >"$RWORK/alt.out" 2>&1
+  check "render.sh uses JAWBS_TEMPLATES_DIR" grep -q "alt design used" "$RWORK/alt.out"
+  rm -rf "$RP/render/alt"
+
+  # Tasks 2 and 4 add their checks here, above this line.
+  rm -rf "$RWORK"
+else
+  echo "note: typst or python3 yaml not found; render design script tests skipped"
+fi
+
 # --- Summary ----------------------------------------------------------------
 
 rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"

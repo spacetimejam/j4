@@ -1,0 +1,53 @@
+# Fictional content for proving a letter design (render/try-design.sh). Four
+# full paragraphs, so the letter's own fill check (at least 66% of the page)
+# is tested against a realistic letter rather than a stub.
+theme: {}
+
+contacts:
+  name: "Jordan Sample"
+  phone: "07700 900123"
+  email: "jordan.sample@example.com"
+  location: "Manchester"
+  website:
+    url: "https://www.example.com"
+    displayText: "www.example.com"
+  linkedin:
+    url: "https://www.linkedin.com/in/jordan-sample"
+    displayText: "linkedin.com/in/jordan-sample"
+
+position: "Senior Operations Manager"
+role: "Head of Operations"
+date: 29 September 2026
+subject: "Application for Head of Operations"
+greeting: "Dear Hiring Team,"
+
+paragraphs:
+  - >-
+    I am writing to apply for the Head of Operations role advertised on your
+    careers page. For the last four years I have run Northway Distribution's
+    regional network of three warehouses and a transport team serving four
+    hundred stores, and the challenges your advert describes, growing volume
+    without growing cost and keeping service steady through a systems change,
+    are the ones I have spent that time solving.
+  - >-
+    The clearest example is delivery reliability. When I joined, nearly one
+    store delivery in ten arrived late, and the fixes on offer were more vans
+    and more overtime. I rebuilt route planning around actual store opening
+    patterns instead, trialled it in one region for six weeks, and rolled it
+    out once the numbers held. Late deliveries fell to two per cent within a
+    year, and the transport budget came in under plan.
+  - >-
+    I also know what a systems change feels like from the floor. I led our
+    move to a new warehouse management system across all three sites, and we
+    did not lose a single trading day. That came from unglamorous work:
+    rehearsing the cutover twice, training team leaders to train their own
+    teams, and keeping a paper fallback ready that we were glad never to use.
+    I would bring the same care to the migration your advert mentions.
+  - >-
+    I would welcome the chance to talk about how I could help your network
+    through its next stage of growth. I am available for interview at any
+    time, and I am happy to share the performance pack I built at Northway
+    as an example of how I report to a board. Thank you for considering my
+    application.
+
+signoff: "Best wishes,"
