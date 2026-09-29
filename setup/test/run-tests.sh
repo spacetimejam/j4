@@ -728,6 +728,16 @@ if command -v node >/dev/null 2>&1; then
 fi
 rm -rf "$IWORK"
 
+# --- fetch-template.py ----------------------------------------------------------
+FETCH_OUT="$(mktemp)"
+if (cd "$TEST_DIR" && python3 -m unittest -q test_fetch_template) >"$FETCH_OUT" 2>&1; then
+  pass
+else
+  fail "fetch-template.py unit tests (details below)"
+  cat "$FETCH_OUT"
+fi
+rm -f "$FETCH_OUT"
+
 # --- render design scripts -----------------------------------------------------
 # Needs typst and python3 with yaml; skipped with a note when either is missing.
 if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1; then
