@@ -129,7 +129,7 @@ case "$JAWBS_MODE" in
 esac
 if [ "$JAWBS_MODE" = "shared" ]; then PORTAL="yes"; else PORTAL="no"; fi
 
-# Normalise the creative answer like PORTAL below.
+# Normalise the creative answer like PORTAL_ADMIN below.
 CREATIVE="${CREATIVE:-no}"
 case "$CREATIVE" in
   y|Y|yes|Yes|YES) CREATIVE="yes" ;;
@@ -361,18 +361,36 @@ else
   echo "git not found: skipping repository initialisation for the project."
 fi
 
-if [ "$JAWBS_MODE" = "local" ] && [ "${JAWBS_SKIP_LOCAL:-no}" != "yes" ] && [ -f "$SETUP_DIR/jawbs-local.sh" ]; then
+# In local mode jawbs-local.sh reports how far it got (launched, skipped,
+# failed, or nothing when it stopped early) so the closing message is true.
+LOCAL_STATUS=""
+if [ "$JAWBS_MODE" = "local" ] && [ "${JAWBS_SKIP_LOCAL:-no}" != "yes" ] && [ -f "${JAWBS_LOCAL_SCRIPT:-$SETUP_DIR/jawbs-local.sh}" ]; then
   echo
-  bash "$SETUP_DIR/jawbs-local.sh" "$(cd "$TARGET_DIR" && pwd)" || true
+  status_file="$(mktemp)"
+  JAWBS_STATUS_FILE="$status_file" bash "${JAWBS_LOCAL_SCRIPT:-$SETUP_DIR/jawbs-local.sh}" "$(cd "$TARGET_DIR" && pwd)" || true
+  LOCAL_STATUS="$(head -1 "$status_file" 2>/dev/null)"
+  rm -f "$status_file"
 fi
 
 echo
 echo "Done. Your project is at: $TARGET_DIR"
 echo
-if [ "$JAWBS_MODE" = "local" ]; then
+if [ "$JAWBS_MODE" = "local" ] && [ "$LOCAL_STATUS" = "launched" ]; then
   echo "Jawbs should now be open in your web browser, ready to start."
   echo "Next time, double-click Jawbs on your Desktop or in your Applications."
+elif [ "$JAWBS_MODE" = "local" ] && [ "$LOCAL_STATUS" = "skipped" ]; then
+  echo "Jawbs is set up on this computer. To open it, run: $KIT_DIR/bin/jawbs-open"
+elif [ "$JAWBS_MODE" = "local" ] && [ "$LOCAL_STATUS" = "failed" ]; then
+  echo "Jawbs is set up, but it did not open. The reason is in:"
+  echo "  $KIT_DIR/portal/data/jawbs.log"
+  echo "Fix that, then double-click Jawbs, or run: $KIT_DIR/bin/jawbs-open"
 else
+  if [ "$JAWBS_MODE" = "local" ]; then
+    echo "Jawbs was not finished on this computer (see the message above). Once that is"
+    echo "sorted, run: $SETUP_DIR/jawbs-local.sh $TARGET_DIR"
+    echo "Until then you can work in the terminal:"
+    echo
+  fi
   echo "Next step: start your AI assistant from inside the project folder"
   if [ "$AI_TOOL" = "claude-code" ]; then
     echo "  cd $TARGET_DIR"

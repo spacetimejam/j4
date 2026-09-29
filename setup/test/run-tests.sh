@@ -443,9 +443,10 @@ mkdir -p "$LWORK/fakebin"
 # A codex that is signed in.
 printf '#!/bin/sh\n[ "$1 $2" = "login status" ] && exit 0\nexit 1\n' > "$LWORK/fakebin/codex"
 chmod +x "$LWORK/fakebin/codex"
-run_local() { # run_local <env-file> [PATH]
+run_local() { # run_local <env-file> [PATH]; status lands in <env-file>.status
+  JAWBS_STATUS_FILE="$1.status" \
   HOME="$LWORK/home" PORTAL_REGISTRY="$LWORK/users.json" JAWBS_ENV_FILE="$1" \
-  JAWBS_SKIP_NPM=yes JAWBS_SKIP_LAUNCH=yes PATH="${2:-$PATH}" \
+  JAWBS_SKIP_NPM=yes JAWBS_SKIP_LAUNCH=yes JAWBS_PORT_BASE=59700 PATH="${2:-$PATH}" \
     bash "$SETUP_DIR/jawbs-local.sh" "$LWORK/proj" >"$1.out" 2>&1
 }
 mkdir -p "$LWORK/home"
@@ -456,16 +457,38 @@ run_local "$LWORK/env1" "$LWORK/fakebin:$PATH" || fail "jawbs-local.sh exited no
 check ".env written" test -f "$LWORK/env1"
 check ".env is local" grep -q '^EXPOSURE=local$' "$LWORK/env1"
 check ".env binds loopback" grep -q '^BIND_HOST=127.0.0.1$' "$LWORK/env1"
-check ".env base url" grep -q '^BASE_URL=http://localhost:8710$' "$LWORK/env1"
+check ".env port" grep -q '^PORT=59700$' "$LWORK/env1"
+check ".env base url follows the port" grep -q '^BASE_URL=http://localhost:59700$' "$LWORK/env1"
 check ".env logs email" grep -q '^EMAIL_PROVIDER=log$' "$LWORK/env1"
 check "signed-in codex means both" grep -q '^SUBSCRIPTIONS=both$' "$LWORK/env1"
 check "codex path recorded" grep -q "^CODEX_BIN=$LWORK/fakebin/codex$" "$LWORK/env1"
 check "user registered" grep -q 'alex@example.com' "$LWORK/users.json"
+check "skipped launch is reported as skipped" grep -qx skipped "$LWORK/env1.status"
+
+# SETUP.md deletes itself when setup is done; a re-run then finds the person
+# in the registry by project folder.
+mv "$LWORK/proj/SETUP.md" "$LWORK/SETUP.md.aside"
+run_local "$LWORK/env1b" "$LWORK/fakebin:$PATH" || fail "re-run without SETUP.md exited non-zero"
+check "re-run without SETUP.md still sets up" grep -q '^EXPOSURE=local$' "$LWORK/env1b"
+check "re-run without SETUP.md completes" grep -qx skipped "$LWORK/env1b.status"
+mv "$LWORK/users.json" "$LWORK/users.json.aside"
+run_local "$LWORK/env1c" "$LWORK/fakebin:$PATH" || fail "no SETUP.md and no registry should still exit 0"
+check "no SETUP.md and no registry is explained" grep -q "Could not find your name and email" "$LWORK/env1c.out"
+check "no SETUP.md and no registry writes no .env" test ! -f "$LWORK/env1c"
+check "no SETUP.md and no registry reports nothing" test ! -s "$LWORK/env1c.status"
+mv "$LWORK/SETUP.md.aside" "$LWORK/proj/SETUP.md"
+mv "$LWORK/users.json.aside" "$LWORK/users.json"
 
 printf 'EXPOSURE=private\n' > "$LWORK/env2"
 run_local "$LWORK/env2" "$LWORK/fakebin:$PATH"
 check "existing .env left alone" test "$(cat "$LWORK/env2")" = "EXPOSURE=private"
-check "existing .env explained" grep -q "already has settings" "$LWORK/env2.out"
+check "a shared .env is explained" grep -q "settings for the shared Jawbs" "$LWORK/env2.out"
+check "a shared .env is not launched" test ! -s "$LWORK/env2.status"
+# An existing local .env is kept and setup carries on.
+printf 'EXPOSURE=local\nPORT=59705\n' > "$LWORK/env2b"
+run_local "$LWORK/env2b" "$LWORK/fakebin:$PATH"
+check "an existing local .env is kept" grep -q "already has settings, so it was left" "$LWORK/env2b.out"
+check "an existing local .env carries on" grep -qx skipped "$LWORK/env2b.status"
 
 # Signed-out codex means claude-only.
 printf '#!/bin/sh\nexit 1\n' > "$LWORK/fakebin/codex"
@@ -483,7 +506,47 @@ rm -f "$LWORK/users.json"
 JAWBS_NODE=definitely-not-node run_local "$LWORK/env5" "$LWORK/fakebin:$PATH" || fail "missing node should still exit 0"
 check "missing node explained" grep -q "Node" "$LWORK/env5.out"
 check "missing node writes no .env" test ! -f "$LWORK/env5"
+check "missing node reports nothing" test ! -s "$LWORK/env5.status"
 rm -rf "$LWORK"
+
+# --- setup.sh closing message in local mode -----------------------------------
+# A stand-in jawbs-local.sh reports each outcome; only "launched" may promise
+# an open browser.
+CWORK="$(mktemp -d)"
+closing() { # closing <status or empty> <name>
+  printf '#!/bin/sh\n[ -n "%s" ] && echo "%s" > "$JAWBS_STATUS_FILE"\nexit 0\n' "$1" "$1" > "$CWORK/stub-$2.sh"
+  PORTAL_REGISTRY="$CWORK/users.json" JAWBS_LOCAL_SCRIPT="$CWORK/stub-$2.sh" \
+    bash "$SETUP_DIR/setup.sh" --answers "$TEST_DIR/answers-local.env" --target "$CWORK/$2" --skip-deps >"$CWORK/$2.out" 2>&1
+}
+closing launched ok
+check "launched says the browser is open" grep -q "should now be open in your web browser" "$CWORK/ok.out"
+closing "" stopped
+check "stopped early does not claim an open browser" sh -c "! grep -q 'should now be open' '$CWORK/stopped.out'"
+check "stopped early says how to finish" grep -q "jawbs-local.sh $CWORK/stopped" "$CWORK/stopped.out"
+check "stopped early gives the terminal next step" grep -q "Next step" "$CWORK/stopped.out"
+closing skipped skip
+check "skipped launch is neutral" grep -q "Jawbs is set up on this computer." "$CWORK/skip.out"
+check "skipped launch does not claim an open browser" sh -c "! grep -q 'should now be open' '$CWORK/skip.out'"
+closing failed bad
+check "failed launch points at the log" grep -q "jawbs.log" "$CWORK/bad.out"
+check "failed launch does not claim an open browser" sh -c "! grep -q 'should now be open' '$CWORK/bad.out'"
+rm -rf "${CWORK:?}"
+
+# --- write_local_env port choice -------------------------------------------------
+# JAWBS_PORT_BASE keeps these off 8710, which the live portal owns.
+PPWORK="$(mktemp -d)"
+if command -v node >/dev/null 2>&1; then
+  node -e 'require("net").createServer().listen(59710, "127.0.0.1", () => console.log("up"))' >"$PPWORK/busy.out" 2>&1 &
+  BUSY_PID=$!
+  n=0; while [ "$n" -lt 50 ] && ! grep -q up "$PPWORK/busy.out"; do sleep 0.1; n=$((n + 1)); done
+  JAWBS_PORT_BASE=59710 write_local_env "$PPWORK/busy.env" claude-only "" node
+  check "a taken port moves to the next one" grep -q '^PORT=59711$' "$PPWORK/busy.env"
+  check "base url follows the moved port" grep -q '^BASE_URL=http://localhost:59711$' "$PPWORK/busy.env"
+  kill "$BUSY_PID" 2>/dev/null; wait "$BUSY_PID" 2>/dev/null
+fi
+JAWBS_PORT_BASE=59720 write_local_env "$PPWORK/nonode.env" claude-only "" definitely-not-node
+check "no node falls back to the first port" grep -q '^PORT=59720$' "$PPWORK/nonode.env"
+rm -rf "${PPWORK:?}"
 
 # --- install_launcher ---------------------------------------------------------
 IWORK="$(mktemp -d)"
@@ -516,7 +579,8 @@ check "mac app executable" test -x "$APP/Contents/MacOS/Jawbs"
 check "mac app runs the launcher" grep -q "$L" "$APP/Contents/MacOS/Jawbs"
 check "mac desktop shortcut" test -e "$IWORK/home/Desktop/Jawbs.app"
 
-# The launcher starts node with a GUI's minimal PATH.
+# The launcher starts node with a GUI's minimal PATH, and gives up as soon
+# as node has exited rather than waiting out JAWBS_WAIT_SECS.
 cat > "$IWORK/fake-node" <<'EOF'
 #!/bin/sh
 echo "started $*" >> "$FAKE_NODE_LOG"
@@ -528,10 +592,62 @@ chmod +x "$IWORK/fake-node"
   install_launcher "$IWORK/kit" "$IWORK/fake-node" >/dev/null 2>&1
 )
 mkdir -p "$IWORK/kit/portal/data"
-env -i HOME="$IWORK/home" PATH="/usr/bin:/bin" FAKE_NODE_LOG="$IWORK/node.log" JAWBS_PORT=59717 JAWBS_WAIT_SECS=1 JAWBS_NO_BROWSER=yes JAWBS_NO_DIALOG=yes \
-  /bin/bash "$L" >/dev/null 2>&1
-sleep 1
+T0=$(date +%s)
+env -i HOME="$IWORK/home" PATH="/usr/bin:/bin" FAKE_NODE_LOG="$IWORK/node.log" JAWBS_PORT=59717 JAWBS_WAIT_SECS=15 JAWBS_NO_BROWSER=yes JAWBS_NO_DIALOG=yes \
+  /bin/bash "$L" >/dev/null 2>"$IWORK/launch.err"
+LAUNCH_RC=$?
+T1=$(date +%s)
 check "launcher starts node from a bare PATH" grep -q "started src/server.js" "$IWORK/node.log"
+check "launcher reports a node that exited" test "$LAUNCH_RC" -eq 1
+check "launcher stops waiting when node has exited" test $((T1 - T0)) -lt 6
+check "launcher failure names the log" grep -q "jawbs.log" "$IWORK/launch.err"
+
+# With the real node and no curl anywhere on PATH, the launcher still finds
+# a running Jawbs, and tells this kit's from another copy's.
+if command -v node >/dev/null 2>&1; then
+  REAL_NODE="$(command -v node)"
+  mkdir -p "$IWORK/nocurl" "$IWORK/home2"
+  for t in bash env dirname mkdir sed head tr sleep nohup chmod cat cp uname; do
+    tp="$(command -v "$t" 2>/dev/null)" && ln -s "$tp" "$IWORK/nocurl/$t"
+  done
+  (
+    HOME="$IWORK/home2" JAWBS_OS=Linux JAWBS_DESKTOP_DIR="$IWORK/home2/Desktop" PATH="$IWORK/nocurl"
+    export HOME JAWBS_OS JAWBS_DESKTOP_DIR PATH
+    install_launcher "$IWORK/kit" "$REAL_NODE" >/dev/null 2>&1
+  )
+  check "no-curl launcher PATH has no curl" test ! -e "$IWORK/nocurl/curl"
+  check "no-curl launcher bakes the curl-free PATH" grep -q "^export PATH=\"$IWORK/nocurl\"$" "$L"
+  # A stand-in Jawbs on a free port that reports the kit it was given.
+  fake_jawbs() { # fake_jawbs <kit> <portfile>
+    FJ_KIT="$1" FJ_PORT_FILE="$2" "$REAL_NODE" -e '
+      const s = require("http").createServer((q, r) => {
+        r.setHeader("content-type", "application/json");
+        r.end(JSON.stringify({ title: "Jawbs", local: true, kit: process.env.FJ_KIT }));
+      });
+      s.listen(0, "127.0.0.1", () => require("fs").writeFileSync(process.env.FJ_PORT_FILE, String(s.address().port)));
+    ' &
+    FJ_PID=$!
+    n=0; while [ "$n" -lt 50 ] && [ ! -s "$2" ]; do sleep 0.1; n=$((n + 1)); done
+  }
+  run_launcher() { # run_launcher [JAWBS_PORT]
+    env -i HOME="$IWORK/home2" PATH="$IWORK/nocurl" ${1:+JAWBS_PORT=$1} JAWBS_WAIT_SECS=1 JAWBS_NO_BROWSER=yes JAWBS_NO_DIALOG=yes \
+      /bin/bash "$L" >"$IWORK/run.out" 2>&1
+  }
+  fake_jawbs "$(cd "$IWORK/kit" && pwd -P)" "$IWORK/ours.port"
+  if run_launcher "$(cat "$IWORK/ours.port")"; then pass; else fail "launcher without curl should find its own Jawbs"; fi
+  # The port comes from portal/.env when JAWBS_PORT is not set.
+  printf 'EXPOSURE=local\nPORT=%s\n' "$(cat "$IWORK/ours.port")" > "$IWORK/kit/portal/.env"
+  if run_launcher; then pass; else fail "launcher should read PORT from portal/.env"; fi
+  rm -f "$IWORK/kit/portal/.env"
+  kill "$FJ_PID" 2>/dev/null; wait "$FJ_PID" 2>/dev/null
+
+  fake_jawbs "/somewhere/else/kit" "$IWORK/other.port"
+  rm -f "$IWORK/kit/portal/data/jawbs.log"
+  if run_launcher "$(cat "$IWORK/other.port")"; then fail "another kit's Jawbs should stop the launcher"; else pass; fi
+  check "another kit's Jawbs is explained" grep -q "Another copy of Jawbs" "$IWORK/run.out"
+  check "no second node is started" test ! -e "$IWORK/kit/portal/data/jawbs.log"
+  kill "$FJ_PID" 2>/dev/null; wait "$FJ_PID" 2>/dev/null
+fi
 rm -rf "$IWORK"
 
 # --- Summary ----------------------------------------------------------------

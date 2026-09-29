@@ -23,10 +23,24 @@ RERUN="Once it is installed, run this to finish: $SETUP_DIR/jawbs-local.sh $PROJ
 answer() { sed -n "s/^- $1: //p" "$PROJECT/SETUP.md" 2>/dev/null | head -1; }
 USER_NAME="$(answer Name)"
 USER_EMAIL="$(answer Email)"
+# SETUP.md deletes itself when setup is done; a later re-run finds the person
+# in the registry by project folder instead.
 if [ -z "$USER_NAME" ] || [ -z "$USER_EMAIL" ]; then
-  echo "Could not read your name and email from $PROJECT/SETUP.md, so Jawbs was not set up."
+  found="$(registry_person_for "$PORTAL_REGISTRY" "$PROJECT" "$NODE_BIN")"
+  if [ -n "$found" ]; then
+    USER_NAME="${found%%	*}"
+    USER_EMAIL="${found#*	}"
+  fi
+fi
+if [ -z "$USER_NAME" ] || [ -z "$USER_EMAIL" ]; then
+  echo "Could not find your name and email (not in $PROJECT/SETUP.md or the list of people"
+  echo "using Jawbs here), so Jawbs was not set up."
   exit 0
 fi
+
+# setup.sh reads what happened from this file: launched, skipped or failed.
+# Nothing written means setup stopped before the end.
+report() { [ -n "${JAWBS_STATUS_FILE:-}" ] && echo "$1" > "$JAWBS_STATUS_FILE"; return 0; }
 
 echo "Setting up Jawbs on this computer..."
 
@@ -55,7 +69,8 @@ fi
 if registry_has_other "$PORTAL_REGISTRY" "$USER_EMAIL"; then
   echo "This copy of the kit already runs Jawbs for another person."
   echo "Jawbs on a computer serves one person, so a second person needs their"
-  echo "own copy of the kit (git clone it again into another folder)."
+  echo "own copy of the kit (git clone it again into another folder). Each copy"
+  echo "picks its own port automatically."
   exit 0
 fi
 
@@ -71,18 +86,25 @@ fi
 
 # 4. Settings.
 detect_subscriptions
-if write_local_env "$ENV_FILE" "$SUBSCRIPTIONS_FOUND" "$CODEX_BIN_FOUND"; then
+if write_local_env "$ENV_FILE" "$SUBSCRIPTIONS_FOUND" "$CODEX_BIN_FOUND" "$NODE_BIN"; then
   echo "Settings written to $ENV_FILE."
-else
+elif grep -q '^EXPOSURE=local' "$ENV_FILE" 2>/dev/null; then
   echo "$ENV_FILE already has settings, so it was left as it is."
+else
+  echo "$ENV_FILE has settings for the shared Jawbs, so Jawbs on this computer was not"
+  echo "started. Use a separate copy of the kit for this, or move that file aside first."
+  exit 0
 fi
 
 # 5. Register.
 register_portal_user "$PORTAL_REGISTRY" "$USER_EMAIL" "$USER_NAME" "$PROJECT" "yes" >/dev/null
 
 # 6. Launcher, icons, first launch. JAWBS_SKIP_LAUNCH=yes (tests) skips all three.
-if [ "${JAWBS_SKIP_LAUNCH:-no}" != "yes" ] && type install_launcher >/dev/null 2>&1; then
-  install_launcher "$KIT_DIR" "$(command -v "$NODE_BIN")"
-  "$KIT_DIR/bin/jawbs-open" || true
+if [ "${JAWBS_SKIP_LAUNCH:-no}" = "yes" ]; then
+  report skipped
+elif install_launcher "$KIT_DIR" "$(command -v "$NODE_BIN")" && "$KIT_DIR/bin/jawbs-open"; then
+  report launched
+else
+  report failed
 fi
 exit 0

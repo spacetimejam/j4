@@ -208,18 +208,42 @@ detect_subscriptions() {
   fi
 }
 
-# write_local_env <env_file> <subscriptions> [codex_bin]
-# Writes the portal .env for EXPOSURE=local. Never overwrites: returns 1 and
-# writes nothing when the file exists.
+# free_local_port <node> [first]
+# Prints the first port free on 127.0.0.1 from <first> (default 8710, or
+# JAWBS_PORT_BASE) up to 20 later, so two people with their own kit copies on
+# one computer get different ports. Prints <first> when node cannot check.
+free_local_port() {
+  flp_first="${2:-${JAWBS_PORT_BASE:-8710}}"
+  flp_port="$(FLP_FIRST="$flp_first" "$1" -e '
+    const net = require("net");
+    const first = Number(process.env.FLP_FIRST);
+    const tryPort = (p) => {
+      if (p > first + 20) { console.log(first); return; }
+      const s = net.createServer();
+      s.once("error", () => tryPort(p + 1));
+      s.listen(p, "127.0.0.1", () => s.close(() => console.log(p)));
+    };
+    tryPort(first);
+  ' 2>/dev/null)"
+  case "$flp_port" in
+    ''|*[!0-9]*) flp_port="$flp_first" ;;
+  esac
+  echo "$flp_port"
+}
+
+# write_local_env <env_file> <subscriptions> [codex_bin] [node]
+# Writes the portal .env for EXPOSURE=local, on the first free port from 8710.
+# Never overwrites: returns 1 and writes nothing when the file exists.
 write_local_env() {
-  wle_file="$1"; wle_subs="$2"; wle_codex="${3:-}"
+  wle_file="$1"; wle_subs="$2"; wle_codex="${3:-}"; wle_node="${4:-node}"
   [ -e "$wle_file" ] && return 1
+  wle_port="$(free_local_port "$wle_node")"
   {
     echo "# Written by the setup wizard for Jawbs on this computer. See docs/portal.md."
     echo "EXPOSURE=local"
     echo "BIND_HOST=127.0.0.1"
-    echo "PORT=8710"
-    echo "BASE_URL=http://localhost:8710"
+    echo "PORT=$wle_port"
+    echo "BASE_URL=http://localhost:$wle_port"
     echo "EMAIL_PROVIDER=log"
     echo "PORTAL_TITLE=Jawbs"
     echo "AGENT_RUNNER=claude-sdk"
@@ -240,6 +264,19 @@ registry_has_other() {
     const u = JSON.parse(require("fs").readFileSync(process.env.RHO_FILE, "utf8"));
     const me = process.env.RHO_EMAIL.trim().toLowerCase();
     process.exit(Object.keys(u).some(k => k !== me) ? 0 : 1);
+  ' 2>/dev/null
+}
+
+# registry_person_for <registry> <project_dir> [node]
+# Prints "name<TAB>email" for the person registered with this project folder,
+# or nothing. Used to re-run local setup once SETUP.md has deleted itself.
+registry_person_for() {
+  [ -f "$1" ] || return 1
+  command -v "${3:-node}" >/dev/null 2>&1 || return 1
+  RPF_FILE="$1" RPF_DIR="$2" "${3:-node}" -e '
+    const u = JSON.parse(require("fs").readFileSync(process.env.RPF_FILE, "utf8"));
+    const hit = Object.keys(u).find(k => u[k].projectDir === process.env.RPF_DIR);
+    if (hit) console.log(u[hit].name + "\t" + hit);
   ' 2>/dev/null
 }
 
@@ -264,18 +301,36 @@ install_launcher() {
     printf 'export PATH="%s"\n' "$PATH"
     printf 'OS="%s"\n' "$il_os"
     cat <<'EOF'
-PORT="${JAWBS_PORT:-8710}"
+PORT="${JAWBS_PORT:-}"
+[ -n "$PORT" ] || PORT="$(sed -n 's/^PORT=//p' "$KIT/portal/.env" 2>/dev/null | head -1 | tr -d '\r ')"
+PORT="${PORT:-8710}"
 URL="http://localhost:$PORT"
 LOG="$KIT/portal/data/jawbs.log"
 WAIT="${JAWBS_WAIT_SECS:-15}"
 
-up() { curl -fsS --max-time 2 "http://127.0.0.1:$PORT/api/meta" 2>/dev/null | grep -q '"local":true'; }
+# Asks Jawbs on this port who it is, with the node baked in above rather than
+# curl, which not every computer has. Prints "ours" for this kit's Jawbs,
+# "other" for another kit's, and nothing when no Jawbs answers.
+probe() {
+  PROBE_PORT="$PORT" PROBE_KIT="$KIT" "$NODE" -e '
+    const fs = require("fs");
+    fetch("http://127.0.0.1:" + process.env.PROBE_PORT + "/api/meta", { signal: AbortSignal.timeout(2000) })
+      .then((r) => r.json())
+      .then((m) => {
+        if (!m || m.local !== true) return;
+        let mine = process.env.PROBE_KIT;
+        try { mine = fs.realpathSync(mine); } catch (e) {}
+        console.log(m.kit === mine ? "ours" : "other");
+      })
+      .catch(() => {});
+  ' 2>/dev/null
+}
 open_browser() {
   [ "${JAWBS_NO_BROWSER:-}" = "yes" ] && return 0
   if [ "$OS" = "Darwin" ]; then open "$URL"; else xdg-open "$URL" >/dev/null 2>&1 & fi
 }
 complain() {
-  msg="Jawbs did not start. Details are in $LOG"
+  msg="${1:-Jawbs did not start. Details are in $LOG}"
   [ "${JAWBS_NO_DIALOG:-}" = "yes" ] && { echo "$msg" >&2; return; }
   if [ "$OS" = "Darwin" ]; then
     osascript -e "display alert \"Jawbs\" message \"$msg\" as critical" >/dev/null 2>&1 || echo "$msg" >&2
@@ -287,13 +342,22 @@ complain() {
     echo "$msg" >&2
   fi
 }
+clash() {
+  complain "Another copy of Jawbs is already using this computer's port. Quit it first, or change PORT in $KIT/portal/.env."
+  exit 1
+}
 
-if up; then open_browser; exit 0; fi
+state="$(probe)"
+if [ "$state" = "ours" ]; then open_browser; exit 0; fi
+[ "$state" = "other" ] && clash
 mkdir -p "$(dirname "$LOG")"
-( cd "$KIT/portal" && nohup "$NODE" src/server.js >>"$LOG" 2>&1 & )
+PID="$( cd "$KIT/portal" && nohup "$NODE" src/server.js >>"$LOG" 2>&1 & echo $! )"
 i=0
 while [ "$i" -lt "$WAIT" ]; do
-  if up; then open_browser; exit 0; fi
+  state="$(probe)"
+  if [ "$state" = "ours" ]; then open_browser; exit 0; fi
+  [ "$state" = "other" ] && clash
+  kill -0 "$PID" 2>/dev/null || break
   sleep 1
   i=$((i + 1))
 done
