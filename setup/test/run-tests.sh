@@ -730,7 +730,7 @@ rm -rf "$IWORK"
 
 # --- fetch-template.py ----------------------------------------------------------
 FETCH_OUT="$(mktemp)"
-if (cd "$TEST_DIR" && python3 -m unittest -q test_fetch_template) >"$FETCH_OUT" 2>&1; then
+if (cd "$TEST_DIR" && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q test_fetch_template) >"$FETCH_OUT" 2>&1; then
   pass
 else
   fail "fetch-template.py unit tests (details below)"

@@ -140,6 +140,43 @@ class FetchTemplateTest(unittest.TestCase):
         r = subprocess.run([sys.executable, SCRIPT], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
 
+    def test_invalid_json_index_format(self):
+        """Index is valid JSON but not a list of objects."""
+        env = dict(os.environ,
+                   JAWBS_TYPST_INDEX_URL="file://" + os.path.join(self.tmp, "bad-index.json"),
+                   JAWBS_TEMPLATE_SOURCE_DIR=self.dest)
+        # Write a valid JSON object (not a list)
+        with open(os.path.join(self.tmp, "bad-index.json"), "w") as f:
+            json.dump({"error": "not a list"}, f)
+        r = subprocess.run([sys.executable, SCRIPT, "good-cv"], env=env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("not in the expected format", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_unwritable_destination(self):
+        """Cannot write to destination folder."""
+        # Skip this test if running as root (can write anywhere)
+        if os.geteuid() == 0:
+            self.skipTest("running as root; cannot test unwritable directory")
+
+        # Create a read-only directory
+        ro_dir = os.path.join(self.tmp, "readonly")
+        os.makedirs(ro_dir)
+        os.chmod(ro_dir, 0o555)
+
+        try:
+            env = dict(os.environ,
+                       JAWBS_TYPST_INDEX_URL="file://" + self.index,
+                       JAWBS_TYPST_PACKAGES_URL="file://" + self.pkgs,
+                       JAWBS_TEMPLATE_SOURCE_DIR=os.path.join(ro_dir, "dest"))
+            r = subprocess.run([sys.executable, SCRIPT, "good-cv"], env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("Could not write", r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+        finally:
+            # Restore permissions for cleanup
+            os.chmod(ro_dir, 0o755)
+
 
 if __name__ == "__main__":
     unittest.main()

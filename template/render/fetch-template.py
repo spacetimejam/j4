@@ -8,6 +8,7 @@ https://typst.app/universe/search/?kind=templates&category=cv
 Anything else is refused with the reason. This is where that rule lives, so it
 holds whoever or whatever runs the script. Standard library only.
 """
+import http.client
 import io
 import json
 import os
@@ -48,7 +49,12 @@ def version_key(v):
 
 
 def choose(index, name, version):
-    entries = [p for p in index if p.get("name") == name]
+    if not isinstance(index, list):
+        raise Refusal("The Typst package list was not in the expected format.")
+    try:
+        entries = [p for p in index if p.get("name") == name]
+    except AttributeError:
+        raise Refusal("The Typst package list was not in the expected format.")
     if not entries:
         raise Refusal(f'There is no Typst Universe package called "{name}". The CV templates are listed at {CATEGORY_LINK}')
     if version:
@@ -72,7 +78,10 @@ def unpack(data, dest):
     """Unpack into dest via a .partial folder, so a failure leaves nothing."""
     tmp = dest + ".partial"
     shutil.rmtree(tmp, ignore_errors=True)
-    os.makedirs(tmp)
+    try:
+        os.makedirs(tmp)
+    except OSError as e:
+        raise Refusal(f"Could not write to {os.path.dirname(tmp)} ({e}).")
     try:
         real_tmp = os.path.realpath(tmp)
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
@@ -94,7 +103,11 @@ def unpack(data, dest):
         shutil.rmtree(tmp, ignore_errors=True)
         raise Refusal(f"The download could not be unpacked ({e}).")
     shutil.rmtree(dest, ignore_errors=True)
-    os.rename(tmp, dest)
+    try:
+        os.rename(tmp, dest)
+    except OSError as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise Refusal(f"Could not write to {os.path.dirname(dest)} ({e}).")
 
 
 def typ_files(root):
@@ -143,15 +156,18 @@ def main(argv):
         name, version = parse_request(argv[1])
         try:
             index = json.loads(fetch(INDEX_URL))
-        except (urllib.error.URLError, OSError, ValueError) as e:
+        except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError) as e:
             raise Refusal(f"Could not read the Typst package list ({e}). Check the internet connection and try again.")
         pkg = choose(index, name, version)
         url = f"{PACKAGES_URL}/{pkg['name']}-{pkg['version']}.tar.gz"
         try:
             data = fetch(url)
-        except (urllib.error.URLError, OSError) as e:
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
             raise Refusal(f"Could not download {pkg['name']} {pkg['version']} ({e}). Check the internet connection and try again.")
-        os.makedirs(DEST_ROOT, exist_ok=True)
+        try:
+            os.makedirs(DEST_ROOT, exist_ok=True)
+        except OSError as e:
+            raise Refusal(f"Could not write to {DEST_ROOT} ({e}).")
         dest = os.path.join(DEST_ROOT, f"{pkg['name']}-{pkg['version']}")
         unpack(data, dest)
     except Refusal as e:
