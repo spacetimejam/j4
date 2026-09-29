@@ -785,6 +785,54 @@ if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1;
 
   if bash "$RP/render/try-design.sh" "$RWORK" >/dev/null 2>&1; then fail "a candidate outside the project should be refused"; else pass; fi
 
+  rm -rf "$RP/applications/test-render" "$RP/render/templates-candidate"
+  # trial_candidate <package-name>: a copy of the live design labelled as <package-name>.
+  trial_candidate() {
+    rm -rf "$RP/render/templates-candidate"
+    cp -R "$RP/render/templates" "$RP/render/templates-candidate"
+    printf '# Design source\nPackage: %s 1.0.0\nLicence: MIT (LICENSE)\nAdopted: 2026-09-29\nChanges: none\n' "$1" \
+      > "$RP/render/templates-candidate/SOURCE.md"
+  }
+  trial_candidate trial-cv
+  rm -f "$RP/render/templates-candidate/SOURCE.md"
+  if bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >/dev/null 2>&1; then
+    fail "a design without SOURCE.md should be refused"
+  else
+    pass
+  fi
+
+  trial_candidate trial-cv
+  bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >"$RWORK/sw1.out" 2>&1
+  check "switch-design makes the candidate live" grep -q "^Package: trial-cv" "$RP/render/templates/SOURCE.md"
+  check "switch-design keeps the old design" test -d "$RP/render/templates-previous/$(date +%Y-%m-%d)-vantage-cv"
+  check "switch-design empties the candidate folder" test ! -e "$RP/render/templates-candidate"
+
+  # Two more switches the same day, each replacing a live trial-cv: the second
+  # kept trial-cv must not overwrite the first.
+  trial_candidate trial-cv
+  bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >/dev/null 2>&1
+  trial_candidate trial-cv
+  bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >/dev/null 2>&1
+  TODAY="$(date +%Y-%m-%d)"
+  check "a same-day switch keeps the first kept design" test -d "$RP/render/templates-previous/$TODAY-trial-cv"
+  check "a same-day switch keeps the second under a new name" test -d "$RP/render/templates-previous/$TODAY-trial-cv-2"
+
+  # Going back: restore the default from templates-previous.
+  bash "$RP/render/switch-design.sh" "$RP/render/templates-previous/$TODAY-vantage-cv" >"$RWORK/sw2.out" 2>&1
+  check "restoring brings the default back" grep -q "^Package: vantage-cv" "$RP/render/templates/SOURCE.md"
+  check "restoring says what is in use" grep -q "^Now using: vantage-cv" "$RWORK/sw2.out"
+
+  # A failing design is refused and nothing moves.
+  cp -R "$RP/render/templates" "$RP/render/templates-candidate"
+  printf '\n#pagebreak()\nSecond page.\n' >> "$RP/render/templates-candidate/main.typ"
+  LIVE_SUM="$(cat "$RP/render/templates"/* | cksum)"
+  if bash "$RP/render/switch-design.sh" "$RP/render/templates-candidate" >/dev/null 2>&1; then
+    fail "a failing design should not be switched in"
+  else
+    pass
+  fi
+  check "a refused switch leaves the live design byte-identical" test "$(cat "$RP/render/templates"/* | cksum)" = "$LIVE_SUM"
+
   # Tasks 2 and 4 add their checks here, above this line.
   rm -rf "$RWORK"
 else
