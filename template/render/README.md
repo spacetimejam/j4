@@ -3,8 +3,9 @@
 Typst rendering for send-ready CV and cover letter PDFs. A default design is
 included in `render/templates/` (derived from the MIT-licensed vantage-cv
 layout, using fonts that ship with Typst), so rendering works as soon as
-Typst is installed. You can change it for any Typst Universe CV template: see "Choosing your template" below. The content model and the hard
-rules stay the same whichever template you use.
+Typst is installed. You can change it for any Typst Universe CV template: see
+"Choosing your template" below. The content model and the hard rules stay the
+same whichever template you use.
 
 ## Usage
 

@@ -65,7 +65,7 @@ render_one() {
       "$TEMPLATES/$tmpl" '<letter-end>' --field value --one 2>/dev/null \
       | python3 -c 'import json,sys
 try: v=json.load(sys.stdin); print(v["fill-pct"] if v["page"]==1 else 100)
-except Exception: pass' )"
+except Exception: pass' || true)"
     if [ -n "$fill" ]; then
       echo "cover letter fills ${fill}% of the page"
       if python3 -c "import sys; sys.exit(0 if float('$fill') < 75 else 1)"; then

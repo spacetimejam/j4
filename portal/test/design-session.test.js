@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const projectDir = mkdtempSync(join(tmpdir(), 'proj-'));
@@ -19,6 +19,21 @@ const base = `http://localhost:${server.address().port}`;
 const cookie = `jskit=${makeCookie('owner@test.com')}`;
 test.after(() => server.close());
 const post = path => fetch(base + path, { method: 'POST', headers: { cookie } });
+
+const get = path => fetch(base + path, { headers: { cookie } });
+const switchScript = join(projectDir, 'render', 'switch-design.sh');
+mkdirSync(join(projectDir, 'render'));
+writeFileSync(switchScript, '#!/bin/sh\n');
+
+test('design start is refused, plainly, for a project without the design scripts', async () => {
+  rmSync(switchScript);
+  const r = await post('/api/design/start');
+  assert.equal(r.status, 409);
+  assert.match((await r.json()).error, /does not have/);
+  assert.equal((await (await get('/api/setup')).json()).canChangeDesign, false);
+  writeFileSync(switchScript, '#!/bin/sh\n');
+  assert.equal((await (await get('/api/setup')).json()).canChangeDesign, true);
+});
 
 test('design start is refused while setup is pending', async () => {
   writeFileSync(join(projectDir, 'SETUP.md'), '# Setup incomplete');

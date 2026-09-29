@@ -41,6 +41,18 @@ class FetchTemplateTest(unittest.TestCase):
              "categories": ["cv"], "license": "MIT"},
             {"name": "missing-cv", "version": "0.1.0", "template": {"path": "template"},
              "categories": ["cv"], "license": "MIT"},
+            {"name": "badver-cv", "version": "../../evil", "template": {"path": "template"},
+             "categories": ["cv"], "license": "MIT"},
+            {"name": "badver-cv", "version": 3, "template": {"path": "template"},
+             "categories": ["cv"], "license": "MIT"},
+            {"name": "mixed-cv", "version": 9, "template": {"path": "template"},
+             "categories": ["cv"], "license": "MIT"},
+            {"name": "mixed-cv", "version": "1.0.0", "template": {"path": "template"},
+             "categories": ["cv"], "license": "MIT"},
+            {"name": "link-cv", "version": "0.1.0", "template": {"path": "template"},
+             "categories": ["cv"], "license": "MIT"},
+            {"name": "hard-cv", "version": "0.1.0", "template": {"path": "template"},
+             "categories": ["cv"], "license": "MIT"},
         ]
         self.index = os.path.join(self.tmp, "index.json")
         with open(self.index, "w") as f:
@@ -53,6 +65,19 @@ class FetchTemplateTest(unittest.TestCase):
                       "template/cover-letter.typ": "letter\n"})
         make_tarball(os.path.join(self.pkgs, "evil-cv-0.1.0.tar.gz"),
                      {"typst.toml": "[package]\n", "../escape.typ": "nope\n"})
+        make_tarball(os.path.join(self.pkgs, "mixed-cv-1.0.0.tar.gz"),
+                     {"typst.toml": "[package]\n", "template/main.typ": "x\n"})
+        for name, kind, target in (("link-cv", tarfile.SYMTYPE, "/etc/passwd"),
+                                   ("hard-cv", tarfile.LNKTYPE, "template/main.typ")):
+            with tarfile.open(os.path.join(self.pkgs, f"{name}-0.1.0.tar.gz"), "w:gz") as tar:
+                data = b"x\n"
+                info = tarfile.TarInfo("template/main.typ")
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+                info = tarfile.TarInfo("template/alias.typ")
+                info.type = kind
+                info.linkname = target
+                tar.addfile(info)
         # missing-cv has no tarball, standing in for a failed download.
 
     def run_fetch(self, arg):
@@ -112,6 +137,23 @@ class FetchTemplateTest(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.dest, "escape.typ")))
         leftovers = os.listdir(self.dest) if os.path.isdir(self.dest) else []
         self.assertEqual([p for p in leftovers if p.endswith(".partial")], [])
+
+    def test_refuses_an_archive_with_a_symlink_or_hardlink_and_leaves_nothing(self):
+        for name in ("link-cv", "hard-cv"):
+            r = self.run_fetch(name)
+            self.assertEqual(r.returncode, 1, name)
+            self.assertIn("unsafe", r.stderr)
+            self.assertFalse(os.path.exists(os.path.join(self.dest, f"{name}-0.1.0")))
+            self.assertFalse(os.path.exists(os.path.join(self.dest, f"{name}-0.1.0.partial")))
+
+    def test_a_version_from_the_index_must_look_like_a_version(self):
+        r = self.run_fetch("badver-cv")
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("usable version", r.stderr)
+        r = self.run_fetch("mixed-cv")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Fetched: mixed-cv 1.0.0", r.stdout)
 
     def test_a_failed_download_is_one_plain_sentence_and_leaves_nothing(self):
         r = self.run_fetch("missing-cv")

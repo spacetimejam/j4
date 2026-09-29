@@ -20,7 +20,12 @@ die() { echo "$1" >&2; exit 1; }
 
 [ "$NEW" != "$LIVE" ] || die "That is already the live design."
 [ -f "$NEW/SOURCE.md" ] || die "Record where this design came from in $NEW/SOURCE.md first (see render/README.md, \"Adapting a template\")."
-bash "$HERE/try-design.sh" "$NEW" || die "The design did not pass, so the live design was left as it is."
+if ! bash "$HERE/try-design.sh" "$NEW"; then
+  case "$NEW/" in
+    "$PREV"/*) die "That earlier design no longer passes the one-page CV and letter-fill checks with the current sample and test CV, so the live design was left as it is." ;;
+    *) die "The design did not pass, so the live design was left as it is." ;;
+  esac
+fi
 
 name="$(sed -n 's/^Package: *//p' "$LIVE/SOURCE.md" 2>/dev/null | head -1 | awk '{print $1}' | tr -cd 'A-Za-z0-9._-')"
 name="${name:-unknown}"

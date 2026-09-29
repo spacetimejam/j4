@@ -11,7 +11,7 @@ import { getUser } from './users.js';
 import { isLocal, localHostGuard } from './local.js';
 import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } from './deletion.js';
 import { readTracker, stageFor } from './tracker.js';
-import { setupPending, findSetupSession, startSetupSession } from './setup-session.js';
+import { setupPending, findSetupSession, startSetupSession, canChangeDesign } from './setup-session.js';
 import { startDesignSession } from './design-session.js';
 import { saveUpload, MAX_UPLOAD_BYTES } from './upload.js';
 import { fileURLToPath } from 'node:url';
@@ -133,9 +133,10 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
   app.get('/api/me', requireAuth, (req, res) => res.json({ email: req.userEmail }));
 
   app.get('/api/setup', requireAuth, (req, res) => {
-    const pending = setupPending(getUser(req.userEmail)?.projectDir);
+    const projectDir = getUser(req.userEmail)?.projectDir;
+    const pending = setupPending(projectDir);
     const session = findSetupSession(getDb(), req.userEmail);
-    res.json({ pending, sessionId: session?.id ?? null });
+    res.json({ pending, sessionId: session?.id ?? null, canChangeDesign: canChangeDesign(projectDir) });
   });
 
   app.post('/api/setup/start', requireAuth, (req, res) => {
@@ -144,10 +145,14 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
   });
 
   // "Change CV design" in the cog menu. While setup is pending, session C
-  // covers the choice, so the menu item is hidden and this refuses.
+  // covers the choice, so the menu item is hidden and this refuses. Projects made
+  // before the design tools existed lack render/switch-design.sh: hidden and refused too.
   app.post('/api/design/start', requireAuth, (req, res) => {
     if (setupPending(getUser(req.userEmail)?.projectDir)) {
       return res.status(409).json({ error: 'finish Getting started first' });
+    }
+    if (!canChangeDesign(getUser(req.userEmail)?.projectDir)) {
+      return res.status(409).json({ error: 'This project does not have the CV design tools yet, so the design cannot be changed from here.' });
     }
     res.json({ id: startDesignSession(getDb(), req.userEmail).id });
   });

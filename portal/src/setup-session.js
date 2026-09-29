@@ -33,3 +33,10 @@ export function startSetupSession(db, email) {
     return { id, created: true };
   })();
 }
+
+// The CV design tools arrived after some projects were made, and those projects
+// have neither the scripts nor the sample they need. The switch script is the
+// marker for the whole set.
+export function canChangeDesign(projectDir) {
+  return Boolean(projectDir) && existsSync(join(projectDir, 'render', 'switch-design.sh'));
+}

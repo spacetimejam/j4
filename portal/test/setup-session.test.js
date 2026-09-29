@@ -29,7 +29,7 @@ test('setup is pending exactly while SETUP.md exists', () => {
 });
 
 test('GET /api/setup reports pending and no session yet', async () => {
-  assert.deepEqual(await (await get('/api/setup')).json(), { pending: true, sessionId: null });
+  assert.deepEqual(await (await get('/api/setup')).json(), { pending: true, sessionId: null, canChangeDesign: false });
 });
 
 test('start creates one setup session and queues one opening turn, however often called', async () => {
@@ -43,14 +43,14 @@ test('start creates one setup session and queues one opening turn, however often
   assert.equal(s.status, 'working');
   assert.equal(db.prepare('select count(*) c from jobs where session_id = ?').get(a.id).c, 1);
   assert.equal(db.prepare('select count(*) c from messages where session_id = ?').get(a.id).c, 0);
-  assert.deepEqual(await (await get('/api/setup')).json(), { pending: true, sessionId: a.id });
+  assert.deepEqual(await (await get('/api/setup')).json(), { pending: true, sessionId: a.id, canChangeDesign: false });
 });
 
 test('once SETUP.md is gone, start is refused but the session still takes replies', async () => {
   const { sessionId } = await (await get('/api/setup')).json();
   rmSync(join(projectDir, 'SETUP.md'));
   assert.equal((await post('/api/setup/start')).status, 409);
-  assert.deepEqual(await (await get('/api/setup')).json(), { pending: false, sessionId });
+  assert.deepEqual(await (await get('/api/setup')).json(), { pending: false, sessionId, canChangeDesign: false });
   const r = await fetch(`${base}/api/sessions/${sessionId}/reply`, {
     method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ body: 'thanks' }),
   });

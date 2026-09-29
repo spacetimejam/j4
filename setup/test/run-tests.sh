@@ -792,6 +792,44 @@ if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1;
 
   if bash "$RP/render/try-design.sh" "$RWORK" >/dev/null 2>&1; then fail "a candidate outside the project should be refused"; else pass; fi
 
+  # A candidate letter that does not police itself: strip the panic guard from
+  # cover-letter.typ so only try-design's own checks can catch a bad letter.
+  # letter_case <label> <fill|overflow|nomarker>: expects exit 1 and a FAIL message.
+  letter_case() {
+    rm -rf "$RP/render/templates-candidate" "$RP/applications/test-render"
+    cp -R "$RP/render/templates" "$RP/render/templates-candidate"
+    mkdir -p "$RP/applications/test-render"
+    cp "$RP/render/sample/cv.yaml" "$RP/applications/test-render/cv.yaml"
+    cp "$RP/render/sample/cover-letter.yaml" "$RP/applications/test-render/cover-letter.yaml"
+    python3 - "$RP" "$2" <<'PYEOF'
+import sys, yaml
+rp, kind = sys.argv[1], sys.argv[2]
+f = rp + "/render/templates-candidate/cover-letter.typ"
+src = open(f).read().split("#context {\n  let pos")[0]
+if kind == "nomarker":
+    src = src.replace("<letter-end>", "<letter-fin>")
+open(f, "w").write(src)
+cfg = rp + "/applications/test-render/cover-letter.yaml"
+d = yaml.safe_load(open(cfg)) or {}
+if kind == "overflow":
+    d["paragraphs"] = list(d.get("paragraphs", [])) + ["Overflow padding paragraph to force a second page. " * 60 for _ in range(6)]
+elif kind == "fill":
+    d["paragraphs"] = list(d.get("paragraphs", []))[:1]
+yaml.safe_dump(d, open(cfg, "w"), sort_keys=False)
+PYEOF
+    LIVE_SUM_L="$(cat "$RP/render/templates"/* | cksum)"
+    if bash "$RP/render/try-design.sh" "$RP/render/templates-candidate" >"$RWORK/letter-$2.out" 2>&1; then
+      fail "$1 should fail try-design"
+    else
+      pass
+    fi
+    check "$1 is named as the reason" grep -q "$3" "$RWORK/letter-$2.out"
+    check "$1 leaves the live design untouched" test "$(cat "$RP/render/templates"/* | cksum)" = "$LIVE_SUM_L"
+  }
+  letter_case "a multi-page letter with the marker but no panic" overflow "^FAIL: the letter for applications/test-render/ runs to [0-9]* pages; it must be exactly one"
+  letter_case "a letter with no end marker" nomarker "^FAIL: the letter template does not mark where the letter ends"
+  letter_case "a too-short letter with no panic" fill "^FAIL: the letter for applications/test-render/ fills only"
+
   rm -rf "$RP/applications/test-render" "$RP/render/templates-candidate"
   # trial_candidate <package-name>: a copy of the live design labelled as <package-name>.
   trial_candidate() {

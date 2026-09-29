@@ -130,9 +130,10 @@ When they name a template or paste its Typst Universe link:
    switches. Fix what it reports and run it again. If you cannot make it pass, delete
    render/templates-candidate/, say plainly what went wrong, and offer another pick: the live
    design must never be half-changed.
-5. Render the test CV and letter in the new design (render/render.sh test-render, creating
-   applications/test-render/ from core/master-cv.md first if it does not exist) and deliver both
-   PDFs through ${deliver}.
+5. Render the test CV and letter in the new design (render/render.sh test-render). If
+   applications/test-render/ lacks cv.yaml or cover-letter.yaml, write them first from
+   core/master-cv.md (the letter a short sample, kept to the letter's page-fill rules). Deliver
+   both PDFs, the CV and the letter, through ${deliver}.
 To go back to an earlier design, run render/switch-design.sh on the folder they want in
 render/templates-previous/.`;
 
@@ -170,8 +171,9 @@ This is a chat window, not a terminal:
   session B with the results. Mark drafts "draft, awaiting review" as SETUP.md asks.
 - Session C: before rendering the test CV, share the CV templates link
   (${DESIGN_CATEGORY_URL}) as a markdown link and ask whether they would like to pick a design now
-  or see the default first. Render the test CV into applications/test-render/ as SETUP.md says and
-  deliver the PDF through ${deliver} so it appears as a download, then ask whether they are
+  or see the default first. Render the test CV and a sample cover letter into applications/test-render/ as SETUP.md
+  says (both cv.yaml and cover-letter.yaml) and deliver both PDFs through ${deliver} so they
+  appear as downloads, then ask whether they are
   happy with the look or would like to pick another from the link.
 ${designSteps(deliver)}
 - Never set a session title: this conversation is always called "Getting started", so leave

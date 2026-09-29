@@ -57,6 +57,12 @@ def choose(index, name, version):
         raise Refusal("The Typst package list was not in the expected format.")
     if not entries:
         raise Refusal(f'There is no Typst Universe package called "{name}". The CV templates are listed at {CATEGORY_LINK}')
+    # The version goes into a URL and a folder name, so only a plain dotted
+    # number from the index is trusted.
+    entries = [p for p in entries if isinstance(p.get("version"), str)
+               and re.fullmatch(r"[0-9]+(\.[0-9]+)*", p["version"])]
+    if not entries:
+        raise Refusal(f"{name} has no usable version in the Typst package list.")
     if version:
         entries = [p for p in entries if p.get("version") == version]
         if not entries:

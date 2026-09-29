@@ -42,12 +42,13 @@ cp "$HERE/sample/cv.yaml" "$HERE/sample/cover-letter.yaml" "$TRIAL/"
 
 failed=0
 
-# pages <config-path-from-root>: how many pages the candidate's CV runs to.
-# One tiny PNG per page is the page count, with nothing beyond Typst needed.
+# pages <config-path-from-root> <template-file>: how many pages the candidate's
+# CV (main.typ) or letter (cover-letter.typ) runs to. One tiny PNG per page is
+# the page count, with nothing beyond Typst needed.
 pages() {
   pg_dir="$(mktemp -d "$SCRATCH/pages.XXXXXX")"
   if ! typst compile --font-path "$HERE/fonts" --root "$ROOT" --ppi 10 \
-      --input config="$1" "$CAND/main.typ" "$pg_dir/p-{p}.png" >/dev/null 2>&1; then
+      --input config="$1" "$CAND/$2" "$pg_dir/p-{p}.png" >/dev/null 2>&1; then
     echo 0
     return
   fi
@@ -64,9 +65,41 @@ try_slug() {
     failed=1
     return
   fi
-  ts_pages="$(pages "/applications/$ts_slug/cv.yaml")"
+  ts_pages="$(pages "/applications/$ts_slug/cv.yaml" main.typ)"
   if [ "$ts_pages" != "1" ]; then
     echo "FAIL: the CV for applications/$ts_slug/ runs to $ts_pages pages; it must be exactly one"
+    failed=1
+  fi
+  # The letter is checked here too rather than left to the candidate's own
+  # panic: a letter template that forgets the check would otherwise pass.
+  if [ -f "$ROOT/applications/$ts_slug/cover-letter.yaml" ]; then
+    check_letter "$ts_slug"
+  fi
+}
+
+# check_letter <slug>: exactly one page, the <letter-end> marker present, and
+# the letter at least 66% of the way down that page.
+check_letter() {
+  cl_slug="$1"
+  cl_cfg="/applications/$cl_slug/cover-letter.yaml"
+  cl_pages="$(pages "$cl_cfg" cover-letter.typ)"
+  if [ "$cl_pages" != "1" ]; then
+    echo "FAIL: the letter for applications/$cl_slug/ runs to $cl_pages pages; it must be exactly one"
+    failed=1
+    return
+  fi
+  cl_fill="$(typst query --font-path "$HERE/fonts" --root "$ROOT" --input config="$cl_cfg" \
+    "$CAND/cover-letter.typ" '<letter-end>' --field value --one 2>/dev/null \
+    | python3 -c 'import json,sys
+try: print(json.load(sys.stdin)["fill-pct"])
+except Exception: pass' || true)"
+  if [ -z "$cl_fill" ]; then
+    echo "FAIL: the letter template does not mark where the letter ends (the <letter-end> marker in render/README.md), so its page fill cannot be checked"
+    failed=1
+    return
+  fi
+  if python3 -c "import sys; sys.exit(0 if float('$cl_fill') < 66 else 1)"; then
+    echo "FAIL: the letter for applications/$cl_slug/ fills only ${cl_fill}% of the page; it must reach at least 66%"
     failed=1
   fi
 }
