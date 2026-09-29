@@ -564,6 +564,17 @@ test('several queued turns hitting the limit each get their own notice and no em
   assert.equal(sent.length, 0);
 });
 
+test('a design session keeps its title whatever the agent suggests', async () => {
+  const sid = mkSession();
+  getDb().prepare("update sessions set kind = 'design', title = 'CV design' where id = ?").run(sid);
+  enqueue({ sessionId: sid, prompt: 'x' });
+  await processOneJob({
+    runTurn: async () => ({ sessionId: 'c-d', structured: { reply: 'Done.', title: 'Brilliant CV', awaiting_user: false, email: null }, text: '' }),
+    send: async () => {},
+  });
+  assert.equal(getDb().prepare('select title from sessions where id = ?').get(sid).title, 'CV design');
+});
+
 test('a signed-out Claude marks the session signed_out, is not retried fresh, and tells admins', async () => {
   const sid = mkSession();
   getDb().prepare("update sessions set claude_session_id = 'live-id' where id = ?").run(sid);

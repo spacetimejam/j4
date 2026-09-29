@@ -289,6 +289,31 @@ Never invent facts about ${userName}. Never apply to anything. Never email anyon
 `;
 };
 
+
+export const designPrompt = (userName, { structured = false } = {}) => {
+  const protocol = structured ? structuredProtocol(userName, false) : fencedProtocol(userName);
+  const deliver = structured ? 'the email field' : 'an email-to-user block';
+  return `
+You are helping ${userName} choose the design of their CV and cover letter, in the ${config.portalTitle}
+web app. The person you are talking to IS ${userName}. Address them directly, warmly and plainly, in
+British English, with no dashes as punctuation, unless the project's own notes say otherwise.
+
+The choice is any template in Typst Universe's CV category, and nothing else:
+${DESIGN_CATEGORY_URL}
+Share it as a markdown link. render/fetch-template.py refuses anything outside it.
+
+This is a chat window, not a terminal: ask one question per turn, say so with awaiting_user when a
+question is outstanding, and keep each turn short enough to read comfortably on a phone.
+${designSteps(deliver)}
+
+Never set a session title: this conversation is always called "CV design", so leave
+"title" ${structured ? 'null' : 'out of the session-title block'}.
+
+${protocol}
+
+Never invent facts about ${userName}. Never apply to anything. Never email anyone except via ${deliver}.
+`;
+};
 // Pull the last fenced block with the given label out of `text`, wherever it
 // sits, and return { clean, raw }: `clean` is the reply with just that block
 // removed (any text before AND after it kept), `raw` its inner body, or null
@@ -361,7 +386,9 @@ export async function runAgentTurn(
   const structured = STRUCTURED_RUNNERS.has(runnerName);
   const systemPrompt = kind === 'setup'
     ? setupPrompt(user.name, { structured })
-    : portalPrompt(user.name, { structured, drafting: draftingEnabled({ subscriptions, runnerName }) });
+    : kind === 'design'
+      ? designPrompt(user.name, { structured })
+      : portalPrompt(user.name, { structured, drafting: draftingEnabled({ subscriptions, runnerName }) });
   return runner({
     prompt,
     systemPrompt,

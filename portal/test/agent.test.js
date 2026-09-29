@@ -424,3 +424,19 @@ test('the adaptation steps fetch, adapt by the README, switch, then deliver', ()
     assert.ok(s.includes(needle), needle);
   }
 });
+
+const { designPrompt } = await import('../src/agent.js');
+
+test('a design session gets the design prompt, with the link and the steps', async () => {
+  let seen = null;
+  const runners = { fake: async args => { seen = args; return { sessionId: 's', text: 'x' }; } };
+  await runAgentTurn({ prompt: 'hi', user: { name: 'Sam', projectDir: '/tmp' }, kind: 'design' },
+    { runners, runnerName: 'fake' });
+  assert.equal(seen.systemPrompt, designPrompt('Sam', { structured: false }));
+  for (const structured of [true, false]) {
+    const p = designPrompt('Sam', { structured });
+    assert.ok(p.includes(DESIGN_CATEGORY_URL));
+    assert.match(p, /switch-design\.sh/);
+    assert.match(p, /CV design/);
+  }
+});

@@ -9,6 +9,10 @@ import { UsageLimitError, toSqlUtc } from './usage-limit.js';
 import { SignInError } from './sign-in.js';
 import { unprovenancedDeliveries } from './drafting.js';
 
+// Conversations whose title is fixed by the portal, and which render test
+// documents rather than applications, so they never trip the provenance alert.
+const FIXED_KINDS = new Set(['setup', 'design']);
+
 export function enqueue({ sessionId, prompt }) {
   getDb().prepare('insert into jobs (id, session_id, prompt) values (?, ?, ?)')
     .run(newId(), sessionId, prompt);
@@ -139,7 +143,7 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
     db.prepare("update sessions set claude_session_id = ?, updated_at = datetime('now') where id = ?")
       .run(claudeId, job.session_id);
     const newTitle = (title || '').trim().slice(0, 80);
-    if (newTitle && session.kind !== 'setup') {
+    if (newTitle && !FIXED_KINDS.has(session.kind)) {
       db.prepare('update sessions set title = ? where id = ?').run(newTitle, job.session_id);
     }
     // The writer could not draft, so there is nothing to deliver: hold the
@@ -179,9 +183,9 @@ export async function processOneJob({ runTurn = runAgentTurn, send = sendEmail, 
       // The writer's provenance is how the owner knows ChatGPT wrote the copy.
       // Delivery has already happened; this only makes a bypass visible. With
       // one subscription Claude writes the copy, so there is nothing to bypass.
-      // Setup sessions never draft through ChatGPT either (setupPrompt says so),
+      // Setup and design sessions never draft through ChatGPT either (setupPrompt says so),
       // so a session-C test CV must not trip this alert.
-      const unproven = drafting && session.kind !== 'setup' ? unprovenancedDeliveries(email.attachments) : [];
+      const unproven = drafting && !FIXED_KINDS.has(session.kind) ? unprovenancedDeliveries(email.attachments) : [];
       if (unproven.length) {
         await alertAdmins(send,
           `${config.portalTitle}: CV or cover letter delivered without a ChatGPT draft on "${newTitle || session.title}"`,

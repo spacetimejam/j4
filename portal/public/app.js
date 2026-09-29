@@ -234,6 +234,11 @@ async function renderList() {
   }
   document.getElementById('cog').onclick = () => openSheet([
     { label: 'View archived applications', run: () => { location.hash = 'archived'; } },
+    // Session C offers the design while setup is pending, so this waits until after.
+    ...(setup.pending ? [] : [{ label: 'Change CV design', run: async () => {
+      const r = await api('/design/start', { method: 'POST' });
+      if (r.ok) location.hash = (await r.json()).id;
+    } }]),
     ...(LOCAL ? [{ label: 'Quit Jawbs', run: quitJawbs }] : []),
   ]);
   document.querySelectorAll('.dots').forEach(b => b.onclick = e => {

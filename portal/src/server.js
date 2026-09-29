@@ -12,6 +12,7 @@ import { isLocal, localHostGuard } from './local.js';
 import { deriveApplicationFolder, recordDeletion, removeFolder, folderNoteFor } from './deletion.js';
 import { readTracker, stageFor } from './tracker.js';
 import { setupPending, findSetupSession, startSetupSession } from './setup-session.js';
+import { startDesignSession } from './design-session.js';
 import { saveUpload, MAX_UPLOAD_BYTES } from './upload.js';
 import { fileURLToPath } from 'node:url';
 
@@ -140,6 +141,15 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
   app.post('/api/setup/start', requireAuth, (req, res) => {
     if (!setupPending(getUser(req.userEmail)?.projectDir)) return res.status(409).json({ error: 'setup is complete' });
     res.json({ id: startSetupSession(getDb(), req.userEmail).id });
+  });
+
+  // "Change CV design" in the cog menu. While setup is pending, session C
+  // covers the choice, so the menu item is hidden and this refuses.
+  app.post('/api/design/start', requireAuth, (req, res) => {
+    if (setupPending(getUser(req.userEmail)?.projectDir)) {
+      return res.status(409).json({ error: 'finish Getting started first' });
+    }
+    res.json({ id: startDesignSession(getDb(), req.userEmail).id });
   });
 
   app.get('/api/sessions', requireAuth, (req, res) => {
