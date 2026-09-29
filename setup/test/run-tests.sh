@@ -749,6 +749,32 @@ if command -v typst >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1;
   check "render.sh uses JAWBS_TEMPLATES_DIR" grep -q "alt design used" "$RWORK/alt.out"
   rm -rf "$RP/render/alt"
 
+  cp -R "$RP/render/templates" "$RP/render/templates-candidate"
+  LIVE_SUM="$(cat "$RP/render/templates"/* | cksum)"
+  bash "$RP/render/try-design.sh" "$RP/render/templates-candidate" >"$RWORK/try1.out" 2>&1
+  check "the default design passes try-design" grep -q "^PASS:" "$RWORK/try1.out"
+  check "try-design removes its trial folder" test ! -e "$RP/applications/_design-trial"
+
+  # A CV that runs to two pages must fail, and nothing live may change.
+  printf '\n#pagebreak()\nSecond page.\n' >> "$RP/render/templates-candidate/main.typ"
+  if bash "$RP/render/try-design.sh" "$RP/render/templates-candidate" >"$RWORK/try2.out" 2>&1; then
+    fail "a two-page CV should fail try-design"
+  else
+    pass
+  fi
+  check "a two-page CV is named as the reason" grep -q "2 pages" "$RWORK/try2.out"
+  check "a failed try leaves the live design byte-identical" test "$(cat "$RP/render/templates"/* | cksum)" = "$LIVE_SUM"
+
+  # The person's own test CV is tried too when it exists.
+  mkdir -p "$RP/applications/test-render"
+  cp "$RP/render/sample/cv.yaml" "$RP/applications/test-render/cv.yaml"
+  rm -rf "$RP/render/templates-candidate" && cp -R "$RP/render/templates" "$RP/render/templates-candidate"
+  bash "$RP/render/try-design.sh" "$RP/render/templates-candidate" >"$RWORK/try3.out" 2>&1
+  check "try-design also tries applications/test-render" grep -q "applications/test-render" "$RWORK/try3.out"
+  check "try-design writes no PDFs into test-render" test -z "$(ls "$RP/applications/test-render"/*.pdf 2>/dev/null)"
+
+  if bash "$RP/render/try-design.sh" "$RWORK" >/dev/null 2>&1; then fail "a candidate outside the project should be refused"; else pass; fi
+
   # Tasks 2 and 4 add their checks here, above this line.
   rm -rf "$RWORK"
 else
