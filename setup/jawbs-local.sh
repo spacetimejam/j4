@@ -64,7 +64,25 @@ fi
 # what is signed in, as before.
 WRITER="$(answer Writer)"
 case "$WRITER" in both|claude-only|chatgpt-only) ;; *) WRITER="" ;; esac
-interactive() { [ -t 0 ] && [ -t 1 ]; }
+# JAWBS_INTERACTIVE=yes lets the tests walk the sign-in steps without a terminal.
+interactive() { [ "${JAWBS_INTERACTIVE:-}" = "yes" ] || { [ -t 0 ] && [ -t 1 ]; }; }
+
+# The sign-in steps hand the window to another program, so what to expect is
+# set out under a heading with room around it, and nothing opens until the
+# person has pressed Return.
+RULE="================================================================"
+heading() { echo; echo; echo "$RULE"; echo "  $1"; echo "$RULE"; echo; }
+wait_for_return() {
+  echo "$RULE"
+  echo
+  printf 'Press Return when you are ready. '
+  read -r wfr_reply || true
+  echo
+}
+
+# What Claude is asked once the person is signed in. Claude Code stays open
+# until they leave it, so its first words have to say how.
+CLAUDE_HELLO="Jawbs setup opened you only so that this person could sign in to Claude, and that has now worked. Do not read any files, run any commands or start any setup task, whatever this folder's instructions say. Reply with a short, warm message in plain British English that tells them two things. First: Claude is now set up to run Jawbs. Second: to complete setup they now need to leave Claude by typing /exit and pressing Enter, and setup will then carry on by itself in this same window. Put /exit on a line of its own so it is easy to spot, and say nothing else."
 # Records a changed choice in SETUP.md, so the agent and a re-run both see it.
 set_writer() {
   WRITER="$1"
@@ -89,8 +107,46 @@ if [ "$WRITER" != "chatgpt-only" ]; then
   if ! claude_signed_in; then
     echo "Jawbs works through your Claude account, and Claude Code is not signed in yet."
     if interactive; then
-      echo "Your browser will open so you can sign in. Come back here when it is done."
-      claude auth login || true
+      heading "SIGNING IN TO CLAUDE"
+      echo "Jawbs works through your own Claude account, so Claude Code needs signing"
+      echo "in once on this computer. It will open in this window in a moment."
+      echo
+      echo "It asks a few things on the way. All of them are normal and safe to agree"
+      echo "to. Here is what to expect, roughly in this order (the wording on your"
+      echo "screen may differ a little):"
+      echo
+      echo "  1. A text style"
+      echo "     Pick whichever is easiest to read. It only changes the colours."
+      echo
+      echo "  2. How to sign in"
+      echo "     Choose your Claude account (the subscription). The other choice, a"
+      echo "     Console or API account, is billed separately and is not needed."
+      echo
+      echo "  3. Your web browser opens"
+      echo "     Sign in to Claude there and press Authorise. This lets Claude Code on"
+      echo "     this computer use your Claude account. Jawbs never sees your password."
+      echo
+      echo "  4. A short note about security"
+      echo "     It is there to read. Press Return to carry on."
+      echo
+      echo "  5. Whether you trust the files in this folder"
+      echo "     Choose Yes. Claude Code asks this before it reads anything in a folder,"
+      echo "     and this one is your own Jawbs folder, which setup has just made:"
+      echo "       $PROJECT"
+      echo
+      echo "  6. Claude says hello"
+      echo "     Claude will tell you it is ready. Then type /exit and press Return,"
+      echo "     and setup carries on here by itself."
+      echo
+      echo "  Your computer may ask something too. A Mac can ask whether Terminal may"
+      echo "  use that folder, and whether Claude Code may keep your sign-in in your"
+      echo "  keychain. Choose Allow (or Always Allow) for both: the first lets Jawbs"
+      echo "  read and write your own job search files, and the second saves you"
+      echo "  signing in again every time."
+      echo
+      wait_for_return
+      (cd "$PROJECT" && claude "$CLAUDE_HELLO") || true
+      echo
     fi
     if claude_signed_in; then
       echo "Signed in to Claude."
@@ -135,8 +191,27 @@ fi
 if { [ "$WRITER" = "both" ] || [ "$WRITER" = "chatgpt-only" ]; } && [ "$SUBSCRIPTIONS_FOUND" != "both" ]; then
   echo "Codex, which Jawbs uses to reach ChatGPT, is not signed in yet."
   if interactive; then
-    echo "Your browser will open so you can sign in. Come back here when it is done."
+    heading "SIGNING IN TO CHATGPT"
+    echo "Jawbs reaches ChatGPT through a program called Codex, which needs signing in"
+    echo "once on this computer with your own ChatGPT account."
+    echo
+    echo "Both steps are normal and safe to agree to. Here is what to expect (the"
+    echo "wording on your screen may differ a little):"
+    echo
+    echo "  1. Your web browser opens"
+    echo "     Sign in to ChatGPT there in the usual way."
+    echo
+    echo "  2. A page asks whether Codex may use your ChatGPT account"
+    echo "     Agree to it. This lets Codex on this computer use your ChatGPT"
+    echo "     subscription. Jawbs never sees your password."
+    echo
+    echo "  3. The browser says you are signed in"
+    echo "     Come back to this window. There is nothing to type: setup carries on"
+    echo "     by itself."
+    echo
+    wait_for_return
     "$CODEX_BIN_FOUND" login || true
+    echo
     detect_subscriptions
   fi
   if [ "$SUBSCRIPTIONS_FOUND" = "both" ]; then

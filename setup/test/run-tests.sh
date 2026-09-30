@@ -491,12 +491,34 @@ check "a signed-in claude needs no sign-in" test "$(grep -c "not signed in" "$LW
 # Not a terminal here, so no browser sign-in is attempted.
 mkdir -p "$LWORK/fakebin-out"
 cp "$LWORK/fakebin/codex" "$LWORK/fakebin-out/codex"
-printf '#!/bin/sh\n[ "$1 $2" = "auth status" ] && exit 1\n[ "$1 $2" = "auth login" ] && touch "%s/login-tried"\nexit 0\n' "$LWORK" > "$LWORK/fakebin-out/claude"
+# Signed out until it has been opened once; opening it records what it was asked.
+cat > "$LWORK/fakebin-out/claude" <<FAKE
+#!/bin/sh
+if [ "\$1 \$2" = "auth status" ]; then [ -e "$LWORK/login-tried" ]; exit; fi
+printf '%s\n' "\$1" > "$LWORK/login-tried"
+pwd > "$LWORK/login-dir"
+FAKE
 chmod +x "$LWORK/fakebin-out/claude"
 run_local "$LWORK/env1s" "$LWORK/fakebin-out:$PATH"
 check "signed-out claude still sets up" grep -qx skipped "$LWORK/env1s.status"
 check "signed-out claude is explained" grep -q "claude auth login" "$LWORK/env1s.out"
 check "no sign-in attempted outside a terminal" test ! -e "$LWORK/login-tried"
+
+# In a terminal, each thing the person is about to be asked is explained under
+# a heading, nothing opens until they press Return, and Claude opens in their
+# own folder with a first message that tells them how to leave.
+echo | JAWBS_INTERACTIVE=yes run_local "$LWORK/env1i" "$LWORK/fakebin-out:$PATH"
+check "claude sign-in has a heading" grep -q "^  SIGNING IN TO CLAUDE$" "$LWORK/env1i.out"
+check "the folder question is explained" grep -q "trust the files in this folder" "$LWORK/env1i.out"
+check "the folder is named" grep -q "^       $(cd "$LWORK/proj" && pwd)$" "$LWORK/env1i.out"
+check "the browser step is explained" grep -q "Jawbs never sees your password" "$LWORK/env1i.out"
+check "setup waits for Return" grep -q "Press Return when you are ready" "$LWORK/env1i.out"
+check "claude is told to say how to leave" grep -q "typing /exit and pressing Enter" "$LWORK/login-tried"
+check "claude is told it now runs Jawbs" grep -q "Claude is now set up to run Jawbs" "$LWORK/login-tried"
+check "claude opens in the person's folder" test "$(cat "$LWORK/login-dir")" = "$(cd "$LWORK/proj" && pwd -P)"
+check "a finished sign-in is confirmed" grep -q "^Signed in to Claude.$" "$LWORK/env1i.out"
+check "setup carries on after sign-in" grep -qx skipped "$LWORK/env1i.status"
+rm -f "$LWORK/login-tried" "$LWORK/login-dir"
 
 # The wizard's writer choice wins over what is signed in. These PATHs keep the
 # host's own codex (in ~/.local/bin) out of reach.
@@ -523,6 +545,10 @@ check "both without codex is not switched quietly" grep -qx -- "- Writer: both" 
 run_local "$LWORK/w3" "$LWORK/fb-codexout:/usr/bin:/bin"
 check "both with codex signed out still sets up" grep -q '^SUBSCRIPTIONS=both$' "$LWORK/w3"
 check "both with codex signed out says how to sign in" grep -q "codex login" "$LWORK/w3.out"
+echo | JAWBS_INTERACTIVE=yes run_local "$LWORK/w3i" "$LWORK/fb-codexout:/usr/bin:/bin"
+check "chatgpt sign-in has a heading" grep -q "^  SIGNING IN TO CHATGPT$" "$LWORK/w3i.out"
+check "chatgpt sign-in waits for Return" grep -q "Press Return when you are ready" "$LWORK/w3i.out"
+check "chatgpt sign-in says nothing needs typing" grep -q "nothing to type" "$LWORK/w3i.out"
 
 set_writer_line chatgpt-only
 run_local "$LWORK/w4" "$LWORK/fb-noclaude:/usr/bin:/bin"

@@ -164,10 +164,10 @@ export function checkConfig(cfg, {
     if (!lookupBin('codex')) {
       err('AGENT_RUNNER is "codex" but no codex binary is on PATH. Install the Codex CLI, or set AGENT_RUNNER=claude-sdk in .env.');
     }
-    // AGENT_MODEL defaults to a Claude id, so only an explicit setting is a
+    // AGENT_MODEL defaults to a Claude model, so only an explicit setting is a
     // mistake. Left unset, the codex runner omits --model and codex chooses.
-    if (cfg.agentModelExplicit && /^claude-/.test(cfg.agentModel || '')) {
-      err(`AGENT_RUNNER is "codex" but AGENT_MODEL is "${cfg.agentModel}", which is a Claude model id. Leave AGENT_MODEL unset to let codex choose its own default, or set a codex model.`);
+    if (cfg.agentModelExplicit && /^(claude-|(opus|sonnet|haiku)$)/.test(cfg.agentModel || '')) {
+      err(`AGENT_RUNNER is "codex" but AGENT_MODEL is "${cfg.agentModel}", which is a Claude model. Leave AGENT_MODEL unset to let codex choose its own default, or set a codex model.`);
     }
     // A warning, not an error: the runner may well be correct. But a broken
     // assumption here fails silently in production (queue.js's existing

@@ -17,7 +17,9 @@ export const config = {
   usersFile: process.env.PORTAL_USERS_FILE || new URL('../data/users.json', import.meta.url).pathname,
   portalTitle: process.env.PORTAL_TITLE || 'Job Search Portal',
   userName: process.env.USER_NAME || 'the owner',
-  agentModel: process.env.AGENT_MODEL || 'claude-opus-5-5',
+  // "opus" is Claude Code's name for the newest Opus it knows, so the portal
+  // moves to a new Opus when the Agent SDK is updated, with no edit here.
+  agentModel: process.env.AGENT_MODEL || 'opus',
   // Whether the fallback above is in play. The codex runner omits --model
   // entirely when it is not, so the Claude default can never leak into a
   // codex command line. Same pattern as emailProviderExplicit below.

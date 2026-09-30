@@ -268,6 +268,11 @@ test('AGENT_RUNNER=codex with an explicit Claude AGENT_MODEL is an error', () =>
     { ...ok, lookupBin: binPresent });
   assert.equal(errors(issues).length, 1);
   assert.match(errors(issues)[0].message, /AGENT_MODEL/);
+  // The short names Claude Code accepts are Claude models too.
+  const alias = checkConfig(
+    valid({ agentRunner: 'codex', agentModel: 'opus', agentModelExplicit: true }),
+    { ...ok, lookupBin: binPresent });
+  assert.equal(errors(alias).length, 1);
 });
 
 test('AGENT_RUNNER=codex with an unset AGENT_MODEL is fine, even though the default is a Claude id', () => {

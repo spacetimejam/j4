@@ -2,7 +2,7 @@ import { renderMarkdown } from './markdown.js';
 import { isSubmitChord } from './keys.js';
 import { formatLondon } from './time.js';
 import { delayedNotice } from './notices.js';
-import { attachNote, appendNote } from './setup.js';
+import { attachNote, appendNote, firstMessageNotice } from './setup.js';
 
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
@@ -304,7 +304,7 @@ async function renderSession(id, scrollToLatest = false) {
       }
       return `<div class="msg ${m.role}">${esc(m.body)}</div>`;
     }).join('')}
-    ${s.status === 'working' ? '<p class="muted">Jawbs is working on this. You can close the page; it will be here when you come back.</p>' : ''}
+    ${firstMessageNotice(s) || (s.status === 'working' ? '<p class="muted">Jawbs is working on this. You can close the page; it will be here when you come back.</p>' : '')}
     ${s.delayed ? delayedNotice(s.delayed, new Date(), { local: LOCAL }) : ''}
     <textarea id="reply" placeholder="Your reply"></textarea>
     ${s.kind === 'setup' ? `<input id="file" type="file" accept=".pdf,.doc,.docx,.odt,.rtf,.pages,.txt,.md" hidden>

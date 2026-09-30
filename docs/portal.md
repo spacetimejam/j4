@@ -50,8 +50,11 @@ The answer is recorded in `SETUP.md` as `Writer:`. The wizard then runs
    one is missing it tells you how to install it and stops without failing;
    if you chose ChatGPT as the writer and Codex is missing, it also offers
    to let Claude write instead, but never switches without asking. If a
-   program is installed but not signed in, it opens the sign-in in your
-   browser (`claude auth login` or `codex login`). Skipping that does not
+   program is installed but not signed in, it first explains each thing
+   you are about to be asked and why it is safe to agree, waits for you to
+   press Return, then opens the sign-in (Claude Code itself, which greets you
+   once you are signed in and asks you to type `/exit` to carry on, or
+   `codex login`). Skipping that does not
    stop setup: until you sign in, Jawbs shows the same instructions in place
    of a reply or a draft, with a button to try again.
 2. Checks that this copy of the kit does not already run Jawbs for someone
@@ -172,10 +175,12 @@ Then edit `.env`, field by field:
   `data/portal.db` inside `portal/`.
 - `PORTAL_TITLE`: the name shown in the web app and email subjects.
 - `AGENT_MODEL`: the model used for portal sessions. What it means depends on
-  `AGENT_RUNNER`: for `claude-sdk` it is a Claude model id and defaults to
-  `claude-opus-5-5`; for `codex` it should be left unset so the codex runner
-  omits `--model` and lets Codex choose its own default (see "Using Codex"
-  below).
+  `AGENT_RUNNER`: for `claude-sdk` it defaults to `opus`, which always means
+  the newest Opus the installed Agent SDK knows (Opus 5.5 at the time of
+  writing), so updating the SDK is all it takes to move to a newer one. Set a
+  full model id such as `claude-opus-5-5` only to pin one. For `codex` it
+  should be left unset so the codex runner omits `--model` and lets Codex
+  choose its own default (see "Using Codex" below).
 - `AGENT_RUNNER`, `AGENT_CMD`, `AGENT_CMD_RESUME`: see "Using a different
   LLM" below. Leave at the defaults to use the Claude Agent SDK.
 - `SUBSCRIPTIONS`: `both` (the default), `claude-only` or `chatgpt-only`. See
