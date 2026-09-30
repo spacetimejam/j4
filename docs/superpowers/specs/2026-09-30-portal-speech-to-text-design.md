@@ -111,7 +111,9 @@ Would you like to talk to Jawbs as well as type?
   2) No thanks (you can switch it on later)
 ```
 
-- No pre-selected answer: `ask_menu` already requires a choice.
+- No pre-selected answer. `ask_menu` takes option 1 on a bare Return, so it
+  gains a `--required` flag that asks again instead.
+- The wording lives in one function in `setup/lib.sh` so the tests can read it.
 - The answer is the wizard variable `SPEECH` (`yes` or `no`), substituted into
   `setup/SETUP.md.tmpl` as `- Speech: {{SPEECH}}` beside `- Writer:`.
 - An answers file with no `SPEECH` records `no`. Terminal and shared modes
@@ -138,16 +140,19 @@ anyone who said no. Bash 3.2 compatible.
 4. Say what happened in plain words, including the command to run again after
    a failure.
 
-It never stops setup. `jawbs-local.sh` calls it after `write_local_env`, prints
-a line if it failed, and carries on with speech off. `write_local_env` never
+It exits non-zero when it could not switch speech on, and that never stops
+setup: `jawbs-local.sh` calls it after `write_local_env`, prints a line if it
+failed, and carries on with speech off. The `.env` is rewritten in place so its
+permissions are kept, since the shared portal's holds secrets. `write_local_env` never
 overwrites an existing `.env`, so the setting survives a rerun.
 
 `jawbs-speech.sh off` sets `SPEECH_TO_TEXT=off` and leaves the model on disk.
 
-Test hooks: `JAWBS_ENV_FILE` (exists), `JAWBS_SPEECH_DIR`, and
+Test hooks: `JAWBS_ENV_FILE` (exists), `JAWBS_SPEECH_DIR`,
 `JAWBS_SPEECH_URL_BASE` with `JAWBS_SPEECH_SHA_MODEL` and `JAWBS_SPEECH_SHA_VAD`,
+and `JAWBS_SPEECH_LIB_OK` (`yes` or `no`, standing in for the library check),
 so the tests serve tiny fixture files from a `file://` directory and never
-download the model or touch the real `.env`.
+download the model, load the library or touch the real `.env`.
 
 ## Portal, server side
 
@@ -205,8 +210,10 @@ platform with no build still installs the portal; only the worker imports it.
 
 ### `portal/public/dictate.js`
 
-`attachDictation(textarea, anchorButton)` adds the mic control beside a text
-box. `app.js` calls it for `#jd` and `#reply` when `/api/meta` reported
+`attachDictation(textarea, anchorButton)` adds the mic control to a text box.
+The portal's buttons are all full width and stacked, so the control is one more
+secondary button directly above Send, holding the icon, a label and the timer,
+with the notice on its own line under the text box. `app.js` calls it for `#jd` and `#reply` when `/api/meta` reported
 `speech: true` and the browser has `navigator.mediaDevices.getUserMedia` and
 `MediaRecorder`. Otherwise nothing is added.
 
@@ -216,15 +223,15 @@ re-attached after every render, because the ten-second poll while a session is
 
 States of the control:
 
-| State | Mic button | Beside it | Notice under the box |
+| State | Mic button | Small type beside the icon | Notice under the box |
 |---|---|---|---|
 | Idle | mic icon, "Speak your answer" | nothing | none |
-| Recording | stop icon, highlighted | `mm:ss` timer, small font | the encouragement below |
+| Recording | stop icon, "Stop recording", red outline | `mm:ss` timer | the encouragement below |
 | Transcribing | disabled | "Transcribing (12s)", counting up | none |
-| Failed | mic icon | nothing | the error, with Try again |
+| Failed | mic icon, "Speak your answer" | nothing | the error, with Try again |
 
 The timer counts up from `00:00` in small muted type immediately beside the
-mic. In the last minute it takes the warning colour.
+icon, inside the button. In the last minute it takes the warning colour.
 
 The recording notice:
 
@@ -278,7 +285,13 @@ Messages, all plain and under the box, never an `alert`:
 - Nothing heard: "Jawbs did not catch any speech in that. Press the mic to try
   again."
 - Busy (503): as above.
+- Recording the browser could not decode: "Sorry, that recording could not be
+  read. Press the mic to try again."
 - Anything else: "Sorry, that could not be turned into text." with Try again.
+
+This recording and conversion path was run in headless Chromium on 2026-09-30
+(fake microphone fed from a WAV file, WebM Opus out, 16 kHz PCM in, correct
+text from the worker). Safari and Firefox are untested.
 
 Microphone access needs a secure page. The shared portal is HTTPS and the local
 portal is `http://localhost`, which browsers treat as secure, so both qualify.
