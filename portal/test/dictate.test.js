@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 const {
   MAX_SECONDS, formatTimer, transcribingLabel, recordingNotice, RECORDING_NOTICE, LAST_MINUTE_NOTICE,
-  FULL_NOTICE, ERRORS, appendTranscript, floatToPcm16,
+  FULL_NOTICE, ERRORS, appendTranscript, floatToPcm16, capSamples,
 } = await import('../public/dictate.js');
 
 test('the limit is ten minutes', () => {
@@ -60,4 +60,16 @@ test('floatToPcm16 scales to 16-bit and clamps anything out of range', () => {
   assert.deepEqual(Array.from(floatToPcm16(new Float32Array([0, 1, -1, 0.5, -0.5, 2, -2]))),
     [0, 32767, -32768, 16383, -16384, 32767, -32768]);
   assert.equal(floatToPcm16(new Float32Array(0)).length, 0);
+});
+
+test('capSamples cuts a recording that overran to ten minutes, so it can always be sent', () => {
+  // The ten-minute stop rides on a timer the browser may hold back in a
+  // background tab; an overlong clip would be refused as too large for ever.
+  const limit = MAX_SECONDS * 16000;
+  assert.equal(capSamples(new Float32Array(limit + 16000 * 59)).length, limit);
+  assert.equal(capSamples(new Float32Array(limit)).length, limit);
+  assert.equal(capSamples(new Float32Array(1234)).length, 1234);
+  const kept = capSamples(Float32Array.from({ length: limit + 5 }, (_, i) => (i === 0 ? 0.5 : 0)));
+  assert.equal(kept[0], 0.5, 'the start of the recording is what is kept');
+  assert.ok(floatToPcm16(capSamples(new Float32Array(limit + 99999))).byteLength <= 20 * 1024 * 1024);
 });

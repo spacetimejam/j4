@@ -89,3 +89,51 @@ test('a failure does not block the clips behind it', async () => {
   await assert.rejects(stub(script, {}, 'bad')(Buffer.alloc(2)), err => err.code === 'failed');
   assert.equal(await stub(script, {}, 'good')(Buffer.alloc(2)), 'fine');
 });
+
+// A clip nobody is waiting for any more (the person left the page, the
+// connection dropped, or they pressed Try again) must stop using the machine
+// and give up its place in the queue.
+const abortError = err => err.code === 'aborted';
+
+test('aborting a running clip kills its worker and lets the next one start', async () => {
+  const marker = join(work, 'finished-anyway');
+  const slow = `const fs = require('fs'); process.stdin.resume().on('end', () =>
+    setTimeout(() => { fs.appendFileSync(process.argv[1], 'x'); console.log('{"text":"late"}'); }, 800));`;
+  const transcribe = createTranscriber({ dir: '/unused', command: process.execPath, args: ['-e', slow, marker] });
+  const gone = new AbortController();
+  const first = transcribe(Buffer.alloc(2), { signal: gone.signal });
+  const second = transcribe(Buffer.alloc(2));
+  setTimeout(() => gone.abort(), 100);
+  const started = Date.now();
+  await assert.rejects(first, abortError);
+  assert.ok(Date.now() - started < 600, 'the abort should not wait for the worker to finish');
+  assert.equal(await second, 'late');
+  // Each worker that reaches the end leaves one mark. One mark means the first
+  // was killed: left alone it would have finished before the second did.
+  assert.equal(readFileSync(marker, 'utf8'), 'x');
+});
+
+test('aborting a waiting clip gives up its place without ever starting a worker', async () => {
+  const log = join(work, 'starts.log');
+  const script = `require('fs').appendFileSync(process.argv[1], 'start\\n');
+    process.stdin.resume().on('end', () => setTimeout(() => console.log('{"text":"x"}'), 200));`;
+  const transcribe = createTranscriber({ dir: '/unused', command: process.execPath, args: ['-e', script, log], maxWaiting: 1 });
+  const gone = new AbortController();
+  const first = transcribe(Buffer.alloc(2));
+  const second = transcribe(Buffer.alloc(2), { signal: gone.signal });
+  gone.abort();
+  await assert.rejects(second, abortError);
+  // Its place is free again straight away, while the first is still running.
+  const third = transcribe(Buffer.alloc(2));
+  assert.deepEqual(await Promise.all([first, third]), ['x', 'x']);
+  assert.equal(readFileSync(log, 'utf8'), 'start\nstart\n');
+});
+
+test('a clip whose listener has already gone is never started', async () => {
+  const log = join(work, 'never.log');
+  const script = `require('fs').appendFileSync(process.argv[1], 'start\\n'); console.log('{"text":"x"}');`;
+  const transcribe = createTranscriber({ dir: '/unused', command: process.execPath, args: ['-e', script, log] });
+  await assert.rejects(transcribe(Buffer.alloc(2), { signal: AbortSignal.abort() }), abortError);
+  await new Promise(r => setTimeout(r, 150));
+  assert.throws(() => readFileSync(log), /ENOENT/);
+});

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { packWindows, pcmToFloat, SAMPLE_RATE, WINDOW_SECONDS } from '../src/speech-worker.js';
+import { packWindows, pcmToFloat, threadCount, SAMPLE_RATE, WINDOW_SECONDS } from '../src/speech-worker.js';
 
 const MAX = WINDOW_SECONDS * SAMPLE_RATE;
 const sec = n => n * SAMPLE_RATE;
@@ -68,4 +68,12 @@ test('the worker exits 1 with a message when the model folder is missing', { ski
   const r = spawnSync(process.execPath, [WORKER, '/nonexistent-speech-dir'], { input: Buffer.alloc(32000), encoding: 'utf8', timeout: 60000 });
   assert.equal(r.status, 1);
   assert.ok(r.stderr.trim().length > 0);
+});
+
+test('threadCount uses up to four cores, and works on a Node without availableParallelism', () => {
+  // os.availableParallelism arrived in Node 18.14; package.json promises 18.0.
+  assert.equal(threadCount({ availableParallelism: () => 16, cpus: () => [] }), 4);
+  assert.equal(threadCount({ availableParallelism: () => 2, cpus: () => [] }), 2);
+  assert.equal(threadCount({ cpus: () => [{}, {}, {}] }), 3);
+  assert.equal(threadCount({ cpus: () => new Array(12).fill({}) }), 4);
 });

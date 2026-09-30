@@ -44,6 +44,13 @@ export const ERRORS = {
 export const appendTranscript = (existing, text) =>
   (existing.trim() ? `${existing.replace(/\s+$/, '')}\n\n${text}` : text);
 
+/* The ten-minute stop rides on a timer, and a browser may hold timers back in
+   a background tab. A recording that overran would be over the portal's size
+   limit and refused every time, Try again included, which would lose exactly
+   the long answer this exists for. So anything past ten minutes is cut here. */
+export const capSamples = samples =>
+  (samples.length > MAX_SECONDS * SAMPLE_RATE ? samples.subarray(0, MAX_SECONDS * SAMPLE_RATE) : samples);
+
 export function floatToPcm16(samples) {
   const out = new Int16Array(samples.length);
   for (let i = 0; i < samples.length; i++) {
@@ -71,6 +78,9 @@ let stream = null;
 let chunks = [];
 let ticker = null;
 let ui = null;
+/* The request in flight, so leaving can cancel it: the portal then stops
+   transcribing a clip nobody is waiting for. */
+let sending = null;
 
 const pageKey = () => location.hash;
 
@@ -104,6 +114,8 @@ export function attachDictation(textarea, anchor) {
    the microphone and abandons anything still being transcribed. */
 export function leaveDictation() {
   run++;
+  sending?.abort();
+  sending = null;
   if (recorder && recorder.state !== 'inactive') {
     recorder.onstop = null;
     recorder.stop();
@@ -188,6 +200,8 @@ function settle(error) {
 
 async function startRecording() {
   const mine = ++run;
+  sending?.abort();
+  sending = null;
   Object.assign(state, { error: null, note: '', pcm: null });
   paint();
   let granted;
@@ -235,6 +249,7 @@ async function finish(mine, mimeType) {
   }
   if (mine !== run) return;
   if (!pcm.length) return settle('silence');
+  if (pcm.length >= MAX_SECONDS * SAMPLE_RATE) state.note = FULL_NOTICE;
   state.pcm = pcm;
   send(mine);
 }
@@ -251,7 +266,7 @@ async function toPcm16(blob) {
     source.buffer = decoded;
     source.connect(offline.destination);
     source.start();
-    return floatToPcm16((await offline.startRendering()).getChannelData(0));
+    return floatToPcm16(capSamples((await offline.startRendering()).getChannelData(0)));
   } finally {
     ctx.close();
   }
@@ -262,8 +277,9 @@ async function send(mine) {
   try {
     /* An Int16Array is sent in the machine's byte order, which is
        little-endian on everything a browser runs on, as the portal expects. */
+    sending = new AbortController();
     r = await fetch('/api/transcribe', {
-      method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: state.pcm,
+      method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: state.pcm, signal: sending.signal,
     });
   } catch {
     if (mine === run) settle('failed');

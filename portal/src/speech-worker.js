@@ -3,7 +3,7 @@
 // as the one argument, a single JSON line on stdout. A process of its own
 // because decoding is a synchronous native call that would freeze the portal
 // for as long as it runs, and because exiting hands the memory back.
-import { availableParallelism } from 'node:os';
+import os from 'node:os';
 import { join } from 'node:path';
 
 export const SAMPLE_RATE = 16000;
@@ -32,6 +32,10 @@ export function packWindows(lengths, max = WINDOW_SECONDS * SAMPLE_RATE) {
   return windows;
 }
 
+// os.availableParallelism arrived in Node 18.14 and package.json promises 18.0,
+// so fall back to counting cores. Capped at four: more gave nothing in testing.
+export const threadCount = (o = os) => Math.min(4, o.availableParallelism?.() ?? o.cpus().length);
+
 export function pcmToFloat(buffer) {
   const out = new Float32Array(buffer.length >> 1);
   for (let i = 0; i < out.length; i++) out[i] = buffer.readInt16LE(i * 2) / 32768;
@@ -56,7 +60,7 @@ async function main(dir) {
       },
       tokens: join(model, 'tokens.txt'),
       modelType: 'nemo_transducer',
-      numThreads: Math.min(4, availableParallelism()),
+      numThreads: threadCount(),
       provider: 'cpu',
       debug: 0,
     },

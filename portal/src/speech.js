@@ -38,19 +38,29 @@ export function speechReady(cfg, { exists = existsSync, library = libraryInstall
 }
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
+const gone = () => fail('aborted', 'nobody is waiting for this recording any more');
 
-function runWorker(command, args, pcm, timeoutMs) {
+function runWorker(command, args, pcm, timeoutMs, signal) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
     let errText = '';
     let done = false;
+    // Nobody is waiting any more (they left the page or the connection
+    // dropped): stop at once rather than spend a minute of every core on text
+    // no one will read.
+    const onAbort = () => {
+      child.kill('SIGKILL');
+      finish(reject, gone());
+    };
     const finish = (fn, value) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       fn(value);
     };
+    signal?.addEventListener('abort', onAbort, { once: true });
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
       finish(reject, fail('timeout', 'the speech worker took too long and was stopped'));
@@ -77,9 +87,11 @@ function runWorker(command, args, pcm, timeoutMs) {
   });
 }
 
-// Returns transcribe(pcm). One clip runs at a time, because each takes every
-// core and about 1 GB; up to maxWaiting wait their turn and the next is
-// refused as busy rather than left hanging.
+// Returns transcribe(pcm, { signal }). One clip runs at a time, because each
+// takes every core and about 1 GB; up to maxWaiting wait their turn and the
+// next is refused as busy rather than left hanging. Aborting the signal gives
+// up a waiting clip's place, or kills the worker of a running one, so a clip
+// whose listener has gone cannot hold the queue against the next person.
 export function createTranscriber({
   dir, command = process.execPath, args = [WORKER, dir], timeoutMs = 5 * 60 * 1000, maxWaiting = 3,
 } = {}) {
@@ -89,16 +101,27 @@ export function createTranscriber({
     if (active || !waiting.length) return;
     active = true;
     const job = waiting.shift();
-    runWorker(command, args, job.pcm, timeoutMs)
+    // From here the worker owns the signal.
+    job.signal?.removeEventListener('abort', job.leave);
+    runWorker(command, args, job.pcm, timeoutMs, job.signal)
       .then(job.resolve, job.reject)
       .finally(() => { active = false; pump(); });
   };
-  return function transcribe(pcm) {
+  return function transcribe(pcm, { signal } = {}) {
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) return reject(gone());
       if (active && waiting.length >= maxWaiting) {
         return reject(fail('busy', 'too many recordings are waiting'));
       }
-      waiting.push({ pcm, resolve, reject });
+      const job = { pcm, resolve, reject, signal };
+      job.leave = () => {
+        const i = waiting.indexOf(job);
+        if (i < 0) return;
+        waiting.splice(i, 1);
+        reject(gone());
+      };
+      signal?.addEventListener('abort', job.leave, { once: true });
+      waiting.push(job);
       pump();
     });
   };

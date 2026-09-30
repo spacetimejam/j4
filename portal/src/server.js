@@ -375,12 +375,18 @@ export function createApp({ send = sendEmail, quit = null, speech = speechReady(
       if (!Buffer.isBuffer(req.body) || !req.body.length || req.body.length % 2) {
         return res.status(400).json({ error: 'expected 16-bit PCM audio' });
       }
+      // A page that has gone (closed, moved on, or lost its connection and
+      // pressed Try again) must not leave its clip running: that would hold
+      // the queue against the next recording, the person's own included.
+      const left = new AbortController();
+      res.on('close', () => { if (!res.writableEnded) left.abort(); });
       const started = Date.now();
       try {
-        const text = await runTranscribe(req.body);
+        const text = await runTranscribe(req.body, { signal: left.signal });
         console.log(`speech: ${Math.round(req.body.length / 32000)}s of audio transcribed in ${((Date.now() - started) / 1000).toFixed(1)}s`);
         res.json({ text });
       } catch (err) {
+        if (err.code === 'aborted') return; // nobody is left to answer
         if (err.code === 'busy') return res.status(503).json({ error: 'busy' });
         console.error('transcription failed:', err.message);
         res.status(500).json({ error: 'transcription failed' });

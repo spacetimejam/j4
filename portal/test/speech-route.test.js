@@ -15,9 +15,9 @@ const { MAX_AUDIO_BYTES } = await import('../src/speech.js');
 
 let calls = [];
 let answer = async () => 'hello there';
-const on = createApp({ send: async () => {}, speech: true, transcribe: pcm => { calls.push(pcm.length); return answer(pcm); } }).listen(0);
+const on = createApp({ send: async () => {}, speech: true, transcribe: (pcm, opts) => { calls.push(pcm.length); return answer(pcm, opts); } }).listen(0);
 const off = createApp({ send: async () => {}, speech: false }).listen(0);
-test.after(() => { on.close(); off.close(); });
+test.after(() => { on.close(); off.close(); on.closeAllConnections(); off.closeAllConnections(); });
 const url = (server, path) => `http://localhost:${server.address().port}${path}`;
 const cookie = `jskit=${makeCookie('owner@test.com')}`;
 const post = (server, body, headers = {}) => fetch(url(server, '/api/transcribe'), {
@@ -81,5 +81,40 @@ test('a failed transcription is a 500 that does not leak the reason', async () =
   const r = await post(on, Buffer.alloc(4));
   assert.equal(r.status, 500);
   assert.deepEqual(await r.json(), { error: 'transcription failed' });
+  answer = async () => 'hello there';
+});
+
+test('a client that goes away stops its transcription', async () => {
+  let signal;
+  answer = (pcm, opts) => new Promise((resolve, reject) => {
+    signal = opts?.signal;
+    signal?.addEventListener('abort', () => reject(Object.assign(new Error('gone'), { code: 'aborted' })));
+  });
+  const leaving = new AbortController();
+  const pending = fetch(url(on, '/api/transcribe'), {
+    method: 'POST', headers: { cookie, 'content-type': 'application/octet-stream' }, body: Buffer.alloc(4), signal: leaving.signal,
+  }).catch(() => {});
+  try {
+    for (let i = 0; i < 100 && !signal; i++) await new Promise(r => setTimeout(r, 10));
+    assert.ok(signal, 'the route should hand the transcriber a signal');
+    assert.equal(signal.aborted, false);
+    leaving.abort();
+    await pending;
+    for (let i = 0; i < 100 && !signal.aborted; i++) await new Promise(r => setTimeout(r, 10));
+    assert.equal(signal.aborted, true);
+  } finally {
+    // Whatever happened, do not leave a request hanging: it would keep the
+    // test server, and so the whole run, open for ever.
+    leaving.abort();
+    answer = async () => 'hello there';
+  }
+});
+
+test('a finished request does not abort anything', async () => {
+  let signal;
+  answer = async (pcm, opts) => { signal = opts?.signal; return 'done'; };
+  assert.equal((await post(on, Buffer.alloc(4))).status, 200);
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(signal?.aborted, false);
   answer = async () => 'hello there';
 });
