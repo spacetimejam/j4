@@ -383,7 +383,7 @@ their turn; after that the page asks the person to try again in a minute.
 The button needs a browser that can record (current Chrome, Edge, Firefox and
 Safari) and a secure page, which `https://` and `http://localhost` both are.
 In a browser that cannot record, the button does not appear. It has been used
-in Chromium, in Safari on a Mac and on a phone.
+in Chromium, in Safari and Firefox on a Mac, and on a phone.
 
 On a Mac the computer has its own say over the microphone, separate from the
 browser's question. If Jawbs says it could not find a microphone, open System
