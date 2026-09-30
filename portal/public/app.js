@@ -3,6 +3,7 @@ import { isSubmitChord } from './keys.js';
 import { formatLondon } from './time.js';
 import { delayedNotice } from './notices.js';
 import { attachNote, appendNote, firstMessageNotice } from './setup.js';
+import { attachDictation, leaveDictation } from './dictate.js';
 
 const app = document.getElementById('app');
 const api = (path, opts) => fetch('/api' + path, { headers: { 'content-type': 'application/json' }, ...opts });
@@ -35,12 +36,14 @@ const SUBMIT_HINT = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
 
 let TITLE = 'Job Search Portal';
 let LOCAL = false;
+let SPEECH = false;
 
 async function main() {
   try {
     const meta = await (await api('/meta')).json();
     if (meta.title) TITLE = meta.title;
     LOCAL = meta.local === true;
+    SPEECH = meta.speech === true;
   } catch { /* keep the neutral default */ }
   document.title = TITLE;
   const me = await api('/me');
@@ -61,6 +64,8 @@ async function main() {
 
 function route() {
   closeDocPanel?.();
+  // A recording belongs to the page it was started on.
+  leaveDictation();
   const id = location.hash.slice(1);
   if (id === 'archived') return renderArchived();
   id ? renderSession(id, true) : renderList();
@@ -231,6 +236,7 @@ async function renderList() {
       const { id } = await (await api('/sessions', { method: 'POST', body: JSON.stringify({ jd }) })).json();
       location.hash = id;
     });
+    if (SPEECH) attachDictation(document.getElementById('jd'), document.getElementById('submit'));
   }
   document.getElementById('cog').onclick = () => openSheet([
     { label: 'View archived applications', run: () => { location.hash = 'archived'; } },
@@ -281,12 +287,25 @@ let pollTimer;
    than the top of a long thread. The ten-second working poll passes it falsy on
    purpose: re-rendering must not yank the page down while the reader has
    scrolled up to reread. Replacing innerHTML keeps the window scroll offset, so
-   a background refresh leaves them where they were. */
-async function renderSession(id, scrollToLatest = false) {
+   a background refresh leaves them where they were.
+
+   keepDraft is set by the poll alone. It carries whatever is in the reply box,
+   and the caret, across the re-render: without it the poll silently empties the
+   box every ten seconds while Jawbs is working, which would throw away a spoken
+   answer. Arriving at a chat or sending a reply starts with an empty box. */
+async function renderSession(id, scrollToLatest = false, keepDraft = false) {
   clearInterval(pollTimer);
   const [sRes, dRes] = await Promise.all([api('/sessions/' + id), api(`/sessions/${id}/documents`)]);
   const s = await sRes.json();
   const docs = dRes.ok ? await dRes.json() : [];
+  // The person may have moved on while those two requests were in flight; a
+  // late render would put this chat on screen under another chat's address.
+  if (location.hash.slice(1) !== id) return;
+  const old = keepDraft ? document.getElementById('reply') : null;
+  const draft = old ? {
+    value: old.value, focused: document.activeElement === old,
+    start: old.selectionStart, end: old.selectionEnd, scrollTop: old.scrollTop,
+  } : null;
   app.innerHTML = `<div class="chat-bar">
       <a class="back" href="#" aria-label="${s.kind && s.kind !== 'application' ? 'All conversations' : 'All applications'}">&larr;</a>
       <h1 class="chat-title" title="${esc(s.title)}">${esc(s.title)}</h1>
@@ -316,6 +335,16 @@ async function renderSession(id, scrollToLatest = false) {
     await api(`/sessions/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
     renderSession(id, true);
   });
+  if (draft) {
+    const box = document.getElementById('reply');
+    box.value = draft.value;
+    box.scrollTop = draft.scrollTop;
+    if (draft.focused) {
+      box.focus();
+      box.setSelectionRange(draft.start, draft.end);
+    }
+  }
+  if (SPEECH) attachDictation(document.getElementById('reply'), document.getElementById('send'));
   const attach = document.getElementById('attach');
   if (attach) {
     const input = document.getElementById('file');
@@ -357,7 +386,7 @@ async function renderSession(id, scrollToLatest = false) {
   // known now; jump straight to the bottom with no animation so the page simply
   // appears already scrolled rather than racing through the whole conversation.
   if (scrollToLatest) window.scrollTo(0, document.body.scrollHeight);
-  if (s.status === 'working') pollTimer = setInterval(() => location.hash.slice(1) === id && renderSession(id), 10000);
+  if (s.status === 'working') pollTimer = setInterval(() => location.hash.slice(1) === id && renderSession(id, false, true), 10000);
 }
 
 main();

@@ -52,3 +52,246 @@ export function floatToPcm16(samples) {
   }
   return out;
 }
+
+const MIC_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>';
+const STOP_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+const RETRY = ' <button type="button" class="linkish dictate-retry">Try again</button>';
+
+/* The recorder's state lives here, not in the DOM: the ten-second poll while a
+   session is working rewrites app.innerHTML, and app.js attaches a fresh
+   button after every render. Same reasoning as the document panel.
+
+   `run` is bumped whenever the person starts again or leaves the page, and
+   every step that waits checks it afterwards, so a late answer from an
+   abandoned recording is dropped instead of landing in another conversation. */
+const state = { phase: 'idle', page: '', startedAt: 0, waitingSince: 0, error: null, note: '', pcm: null };
+let run = 0;
+let recorder = null;
+let stream = null;
+let chunks = [];
+let ticker = null;
+let ui = null;
+
+const pageKey = () => location.hash;
+
+function supported() {
+  return typeof MediaRecorder !== 'undefined' && typeof OfflineAudioContext !== 'undefined'
+    && Boolean(navigator.mediaDevices?.getUserMedia) && Boolean(window.AudioContext || window.webkitAudioContext);
+}
+
+/* Adds the mic button above `anchor` (the Send button) and its notice under
+   the text box. Called after every render; does nothing in a browser that
+   cannot record. */
+export function attachDictation(textarea, anchor) {
+  if (!textarea || !anchor || !supported()) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  anchor.before(button);
+  const notice = document.createElement('div');
+  notice.className = 'dictate-notice';
+  notice.setAttribute('aria-live', 'polite');
+  textarea.after(notice);
+  ui = { textarea, button, notice, phase: null, time: null, shownNotice: null };
+  button.onclick = () => {
+    if (state.phase === 'recording') stopRecording(false);
+    else if (state.phase === 'idle') startRecording();
+  };
+  notice.onclick = e => { if (e.target.closest('.dictate-retry')) retry(); };
+  paint();
+}
+
+/* Called when the person moves to another page. Stops a recording, releases
+   the microphone and abandons anything still being transcribed. */
+export function leaveDictation() {
+  run++;
+  if (recorder && recorder.state !== 'inactive') {
+    recorder.onstop = null;
+    recorder.stop();
+  }
+  recorder = null;
+  chunks = [];
+  releaseMic();
+  stopTicking();
+  Object.assign(state, { phase: 'idle', error: null, note: '', pcm: null });
+  ui = null;
+}
+
+function releaseMic() {
+  stream?.getTracks().forEach(t => t.stop());
+  stream = null;
+}
+
+function startTicking() {
+  if (!ticker) ticker = setInterval(tick, 250);
+}
+
+function stopTicking() {
+  clearInterval(ticker);
+  ticker = null;
+}
+
+function tick() {
+  if (state.phase === 'recording' && (Date.now() - state.startedAt) / 1000 >= MAX_SECONDS) stopRecording(true);
+  paint();
+}
+
+function paint() {
+  if (!ui || !ui.button.isConnected) return;
+  const { button } = ui;
+  if (ui.phase !== state.phase) {
+    /* Rebuilt only when the phase changes, so a press that lands between two
+       ticks is never on an element that has just been replaced. The children
+       take no pointer events (style.css) for the same reason. */
+    ui.phase = state.phase;
+    button.className = `secondary dictate${state.phase === 'recording' ? ' recording' : ''}`;
+    button.disabled = state.phase === 'transcribing';
+    if (state.phase === 'recording') {
+      button.innerHTML = `${STOP_ICON}<span>Stop recording</span><small class="dictate-time"></small>`;
+      button.setAttribute('aria-label', 'Stop recording');
+    } else if (state.phase === 'transcribing') {
+      button.innerHTML = '<small class="dictate-time"></small>';
+      button.setAttribute('aria-label', 'Transcribing your recording');
+    } else {
+      button.innerHTML = `${MIC_ICON}<span>Speak your answer</span>`;
+      button.setAttribute('aria-label', 'Speak your answer');
+    }
+    ui.time = button.querySelector('.dictate-time');
+  }
+  let notice = '';
+  if (state.phase === 'recording') {
+    const seconds = (Date.now() - state.startedAt) / 1000;
+    ui.time.textContent = formatTimer(seconds);
+    ui.time.classList.toggle('warn', seconds >= WARN_SECONDS);
+    notice = recordingNotice(seconds);
+  } else if (state.phase === 'transcribing') {
+    ui.time.textContent = transcribingLabel((Date.now() - state.waitingSince) / 1000);
+    notice = state.note;
+  } else if (state.error) {
+    notice = ERRORS[state.error] + (state.pcm ? RETRY : '');
+  } else {
+    notice = state.note;
+  }
+  /* Compared against what was last written, so the live region announces a
+     change once rather than four times a second. */
+  if (ui.shownNotice !== notice) {
+    ui.notice.innerHTML = notice;
+    ui.shownNotice = notice;
+  }
+}
+
+function settle(error) {
+  state.phase = 'idle';
+  state.error = error;
+  stopTicking();
+  paint();
+}
+
+async function startRecording() {
+  const mine = ++run;
+  Object.assign(state, { error: null, note: '', pcm: null });
+  paint();
+  let granted;
+  try {
+    granted = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    if (mine !== run) return;
+    return settle(err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError' ? 'no-mic' : 'denied');
+  }
+  if (mine !== run) {
+    granted.getTracks().forEach(t => t.stop());
+    return;
+  }
+  stream = granted;
+  chunks = [];
+  const rec = new MediaRecorder(granted);
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = () => finish(mine, rec.mimeType);
+  rec.start(1000);
+  recorder = rec;
+  Object.assign(state, { phase: 'recording', page: pageKey(), startedAt: Date.now() });
+  startTicking();
+  paint();
+}
+
+function stopRecording(full) {
+  if (state.phase !== 'recording' || !recorder) return;
+  Object.assign(state, { phase: 'transcribing', waitingSince: Date.now(), note: full ? FULL_NOTICE : '' });
+  recorder.stop();
+  releaseMic();
+  paint();
+}
+
+async function finish(mine, mimeType) {
+  const blob = new Blob(chunks, { type: mimeType });
+  chunks = [];
+  recorder = null;
+  if (mine !== run) return;
+  let pcm;
+  try {
+    pcm = await toPcm16(blob);
+  } catch {
+    if (mine === run) settle('unreadable');
+    return;
+  }
+  if (mine !== run) return;
+  if (!pcm.length) return settle('silence');
+  state.pcm = pcm;
+  send(mine);
+}
+
+/* The browser decodes its own recording (WebM Opus in Chrome and Firefox, MP4
+   AAC in Safari) and resamples it, so the portal needs no audio converter. */
+async function toPcm16(blob) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new Ctx();
+  try {
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * SAMPLE_RATE), SAMPLE_RATE);
+    const source = offline.createBufferSource();
+    source.buffer = decoded;
+    source.connect(offline.destination);
+    source.start();
+    return floatToPcm16((await offline.startRendering()).getChannelData(0));
+  } finally {
+    ctx.close();
+  }
+}
+
+async function send(mine) {
+  let r;
+  try {
+    /* An Int16Array is sent in the machine's byte order, which is
+       little-endian on everything a browser runs on, as the portal expects. */
+    r = await fetch('/api/transcribe', {
+      method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: state.pcm,
+    });
+  } catch {
+    if (mine === run) settle('failed');
+    return;
+  }
+  if (mine !== run) return;
+  if (r.status === 503) return settle('busy');
+  if (!r.ok) return settle('failed');
+  const out = await r.json().catch(() => ({}));
+  if (mine !== run) return;
+  /* The answer is in, so the recording is no longer needed. Until here it is
+     kept so a failure can be retried without speaking it all again. */
+  state.pcm = null;
+  const text = typeof out.text === 'string' ? out.text.trim() : '';
+  if (!text) return settle('silence');
+  if (ui?.textarea.isConnected && state.page === pageKey()) {
+    const box = ui.textarea;
+    box.value = appendTranscript(box.value, text);
+    box.focus();
+    box.scrollTop = box.scrollHeight;
+  }
+  settle(null);
+}
+
+function retry() {
+  if (state.phase !== 'idle' || !state.pcm) return;
+  Object.assign(state, { phase: 'transcribing', waitingSince: Date.now(), error: null });
+  startTicking();
+  paint();
+  send(run);
+}
