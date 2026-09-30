@@ -42,7 +42,15 @@ then asks who should write your CVs and cover letters:
 - Claude does everything (a Claude subscription only).
 - ChatGPT does everything (a ChatGPT subscription only; newer and less tested).
 
-The answer is recorded in `SETUP.md` as `Writer:`. The wizard then runs
+The answer is recorded in `SETUP.md` as `Writer:`.
+
+It then asks whether you would like to talk to Jawbs as well as type, which is
+optional and free of charge (see "Talking to Jawbs" below). That answer is
+recorded as `Speech:`. If it is yes, `setup/jawbs-local.sh` runs
+`setup/jawbs-speech.sh` once the settings are written; if that fails, setup
+says so and carries on without it.
+
+The wizard then runs
 `setup/jawbs-local.sh` for you, which does six things:
 
 1. Checks that Node 18 or newer is installed, and whichever of Claude Code
@@ -335,6 +343,52 @@ Create `~/Library/LaunchAgents/com.job-search.portal.plist`:
 ```
 
 Then `launchctl load ~/Library/LaunchAgents/com.job-search.portal.plist`.
+
+## Talking to Jawbs
+
+Jawbs does its best work with long, detailed answers, and those are easier to
+say than to type. With speech switched on, the new application box and the
+reply box each get a microphone button. Press it, talk for up to ten minutes,
+press it again, and your words appear in the box for you to check and send.
+Nothing is sent until you press Send.
+
+It is free of charge and needs no account. The portal turns the recording into
+text itself, so on your own computer your voice never leaves the machine, and
+on a shared Jawbs it goes only to the computer that runs it. The recording is
+held in memory while it is transcribed and is never saved.
+
+What it costs:
+
+- A one-off download of about 490 MB, which takes about 640 MB of disk space
+  in `portal/data/speech/`.
+- While a recording is being turned into text, every processor core and about
+  1 GB of memory. Five minutes of speech took about 25 seconds on a 2017
+  four-core desktop. The rest of the time it uses nothing.
+
+Switch it on, or off, at any time:
+
+```bash
+setup/jawbs-speech.sh        # download the model once and switch on
+setup/jawbs-speech.sh off    # switch off; the download is kept
+```
+
+Then quit Jawbs and open it again (on a shared Jawbs, restart the service).
+The script checks the download against a pinned checksum and refuses a file
+that does not match. If the model is missing while `SPEECH_TO_TEXT=on`, the
+portal still starts, says so in its log, and hides the button.
+
+On a shared Jawbs one recording is transcribed at a time. Up to three wait
+their turn; after that the page asks the person to try again in a minute.
+
+The button needs a browser that can record (current Chrome, Edge, Firefox and
+Safari) and a secure page, which `https://` and `http://localhost` both are.
+In a browser that cannot record, the button does not appear. Only Chromium has
+been tested so far.
+
+The model is NVIDIA's Parakeet TDT 0.6b v3, licensed CC-BY-4.0, in the ONNX
+build published by the sherpa-onnx project, and runs through the
+`sherpa-onnx-node` package (Apache-2.0). Speech is split at pauses with Silero
+VAD (MIT).
 
 ## Running on one subscription
 
