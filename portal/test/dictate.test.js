@@ -73,3 +73,15 @@ test('capSamples cuts a recording that overran to ten minutes, so it can always 
   assert.equal(kept[0], 0.5, 'the start of the recording is what is kept');
   assert.ok(floatToPcm16(capSamples(new Float32Array(limit + 99999))).byteLength <= 20 * 1024 * 1024);
 });
+
+test('a microphone that cannot be found also says the computer may be blocking the browser', () => {
+  // Firefox on a Mac reports "not found" when macOS itself has not allowed
+  // Firefox to use the microphone, even after the person says yes to the page.
+  // Saying only "no microphone" sends them looking for hardware that is fine.
+  const msg = ERRORS['no-mic'];
+  assert.match(msg, /could not find a microphone/);
+  assert.match(msg, /may not be letting your browser use it/);
+  assert.match(msg, /System Settings/);
+  assert.match(msg, /Microphone/);
+  assert.match(msg, /restart the browser/);
+});

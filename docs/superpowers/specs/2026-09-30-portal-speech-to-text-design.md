@@ -281,7 +281,11 @@ Messages, all plain and under the box, never an `alert`:
 
 - Microphone refused: "Jawbs could not use your microphone. Allow it in your
   browser's address bar, then press the mic again."
-- No microphone found: "No microphone was found on this device."
+- No microphone found: "Jawbs could not find a microphone. If this computer has
+  one, it may not be letting your browser use it. On a Mac: open System
+  Settings, then Privacy and Security, then Microphone, switch it on for your
+  browser, and restart the browser." (Firefox on a Mac reports "not found" when
+  macOS has not allowed Firefox the microphone; found in use on 2026-09-30.)
 - Nothing heard: "Jawbs did not catch any speech in that. Press the mic to try
   again."
 - Busy (503): as above.

@@ -382,8 +382,14 @@ their turn; after that the page asks the person to try again in a minute.
 
 The button needs a browser that can record (current Chrome, Edge, Firefox and
 Safari) and a secure page, which `https://` and `http://localhost` both are.
-In a browser that cannot record, the button does not appear. Only Chromium has
-been tested so far.
+In a browser that cannot record, the button does not appear. It has been used
+in Chromium, in Safari on a Mac and on a phone.
+
+On a Mac the computer has its own say over the microphone, separate from the
+browser's question. If Jawbs says it could not find a microphone, open System
+Settings, then Privacy and Security, then Microphone, switch it on for the
+browser, and restart the browser. Firefox in particular reports a blocked
+microphone as a missing one.
 
 The model is NVIDIA's Parakeet TDT 0.6b v3, licensed CC-BY-4.0, in the ONNX
 build published by the sherpa-onnx project, and runs through the

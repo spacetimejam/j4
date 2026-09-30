@@ -33,7 +33,9 @@ export const recordingNotice = seconds => (seconds >= WARN_SECONDS ? LAST_MINUTE
 
 export const ERRORS = {
   denied: "Jawbs could not use your microphone. Allow it in your browser's address bar, then press the mic again.",
-  'no-mic': 'No microphone was found on this device.',
+  /* Firefox on a Mac reports "not found", not "not allowed", when macOS itself
+     has not let Firefox use the microphone, so this cannot only say none exists. */
+  'no-mic': 'Jawbs could not find a microphone. If this computer has one, it may not be letting your browser use it. On a Mac: open System Settings, then Privacy and Security, then Microphone, switch it on for your browser, and restart the browser.',
   silence: 'Jawbs did not catch any speech in that. Press the mic to try again.',
   busy: "Jawbs is busy with someone else's recording. Try again in a minute.",
   unreadable: 'Sorry, that recording could not be read. Press the mic to try again.',
