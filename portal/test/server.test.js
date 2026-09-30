@@ -39,6 +39,27 @@ test('login always returns ok and emails link only for allowlisted', async () =>
   assert.equal(sentEmails[0].subject, 'Your Test Portal login link');
 });
 
+test('logout expires the login cookie in this browser', async () => {
+  const r = await fetch(`${base}/api/logout`, { method: 'POST', headers: { cookie: ownerCookie } });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).ok, true);
+  const cookie = r.headers.get('set-cookie');
+  // Same attributes as the cookie the login link sets, or the browser keeps the old one.
+  assert.match(cookie, /^jskit=;/);
+  assert.match(cookie, /Path=\//);
+  assert.match(cookie, /HttpOnly/);
+  assert.match(cookie, /Secure/);
+  assert.match(cookie, /SameSite=Lax/);
+  assert.match(cookie, /Max-Age=0/);
+});
+
+test('logout needs no cookie, and a GET cannot log anyone out', async () => {
+  const r = await fetch(`${base}/api/logout`, { method: 'POST' });
+  assert.equal(r.status, 200);
+  const get = await fetch(`${base}/api/logout`);
+  assert.equal(get.headers.get('set-cookie'), null);
+});
+
 test('unauthenticated API is rejected', async () => {
   const r = await fetch(`${base}/api/sessions`);
   assert.equal(r.status, 401);

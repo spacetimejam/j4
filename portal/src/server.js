@@ -112,6 +112,9 @@ export function createApp({ send = sendEmail, quit = null, speech = speechReady(
 
   if (!local) {
     // Local mode has no sign-in, so the login routes do not exist there.
+    // Setting and clearing must carry the same attributes, or the browser
+    // treats the clearing cookie as a different one and keeps the original.
+    const COOKIE_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Lax';
     app.post('/api/login', async (req, res) => {
       const token = issueToken(req.body?.email);
       if (token) {
@@ -132,8 +135,16 @@ export function createApp({ send = sendEmail, quit = null, speech = speechReady(
       const email = redeemToken(req.params.token);
       if (!email) return res.status(400).send('This link has expired. Please request a new one.');
       res.setHeader('Set-Cookie',
-        `jskit=${makeCookie(email)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${90 * 86400}`);
+        `jskit=${makeCookie(email)}; ${COOKIE_ATTRS}; Max-Age=${90 * 86400}`);
       res.redirect('/');
+    });
+
+    // Logs out this browser only: the cookie is signed, not recorded, so there
+    // is nothing on the server to revoke. No auth check, because clearing a
+    // cookie that is not there is harmless. POST so a link cannot do it.
+    app.post('/api/logout', (req, res) => {
+      res.setHeader('Set-Cookie', `jskit=; ${COOKIE_ATTRS}; Max-Age=0`);
+      res.json({ ok: true });
     });
   }
 

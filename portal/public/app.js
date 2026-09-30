@@ -198,6 +198,15 @@ async function quitJawbs() {
   app.innerHTML = `<h1>${esc(TITLE)}</h1><p>Jawbs is closing. You can close this tab.</p>`;
 }
 
+/* Shared portal only, in the same place in the cog menu. Reloading lands on the
+   login screen and stops any poll still running for the page left behind. */
+async function logOut() {
+  const r = await api('/logout', { method: 'POST' }).catch(() => null);
+  if (!r || !r.ok) return alert('Could not log out. Check your connection and try again.');
+  history.replaceState(null, '', location.pathname);
+  location.reload();
+}
+
 function renderLogin() {
   app.innerHTML = `<h1>${esc(TITLE)}</h1>
     <p>Enter your email and we will send you a login link.</p>
@@ -245,7 +254,7 @@ async function renderList() {
       const r = await api('/design/start', { method: 'POST' });
       if (r.ok) location.hash = (await r.json()).id;
     } }]),
-    ...(LOCAL ? [{ label: 'Quit Jawbs', run: quitJawbs }] : []),
+    LOCAL ? { label: 'Quit Jawbs', run: quitJawbs } : { label: 'Log out', run: logOut },
   ]);
   document.querySelectorAll('.dots').forEach(b => b.onclick = e => {
     e.preventDefault();

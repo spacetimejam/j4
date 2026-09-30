@@ -58,6 +58,7 @@ test('meta says local', async () => {
 test('login routes do not exist in local mode', async () => {
   assert.equal((await call('/api/login', { method: 'POST', body: { email: 'solo@test.com' } })).status, 404);
   assert.equal((await call('/auth/abc')).status, 404);
+  assert.equal((await call('/api/logout', { method: 'POST' })).status, 404);
 });
 
 test('a foreign Host is refused on API and static routes alike', async () => {
