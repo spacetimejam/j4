@@ -188,6 +188,40 @@ print_speech_question() {
   echo
 }
 
+# sha256_of <file>
+# Prints the file's SHA-256. Linux has sha256sum, macOS has shasum. Returns 1
+# when neither exists.
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{ print $1 }'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{ print $1 }'
+  else
+    return 1
+  fi
+}
+
+# set_env_line <file> <key> <value>
+# Sets KEY=value in a .env file: replaces the KEY= line, or adds one at the
+# end. Commented lines are left alone, and a key set twice ends up set once.
+# The result is written back over the file with cat rather than mv, so the
+# file keeps its permissions (the shared portal's .env holds secrets and is
+# often 600), and the temporary copy is made under umask 077 for the same
+# reason.
+set_env_line() {
+  sel_tmp="$1.set.$$"
+  (
+    umask 077
+    awk -v k="$2" -v v="$3" '
+      index($0, k "=") == 1 { if (!done) print k "=" v; done = 1; next }
+      { print }
+      END { if (!done) print k "=" v }
+    ' "$1" > "$sel_tmp"
+  ) || { rm -f "$sel_tmp"; return 1; }
+  cat "$sel_tmp" > "$1" || { rm -f "$sel_tmp"; return 1; }
+  rm -f "$sel_tmp"
+}
+
 # register_portal_user <registry_file> <email> <name> <project_dir> <admin yes|no>
 # Upserts one entry in the shared portal registry (portal/data/users.json).
 # The registry is edited with node so JSON escaping is always correct; the

@@ -964,6 +964,136 @@ else
   echo "note: typst or python3 yaml not found; render design script tests skipped"
 fi
 
+# --- jawbs-speech.sh ----------------------------------------------------------
+SWORK="$(mktemp -d)"
+SP_NAME="sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
+mkdir -p "$SWORK/dl" "$SWORK/src/$SP_NAME"
+for f in encoder.int8.onnx decoder.int8.onnx joiner.int8.onnx tokens.txt; do
+  echo "fixture $f" > "$SWORK/src/$SP_NAME/$f"
+done
+(cd "$SWORK/src" && tar -cjf "$SWORK/dl/$SP_NAME.tar.bz2" "$SP_NAME")
+echo "fixture vad" > "$SWORK/dl/silero_vad.onnx"
+SP_SHA_MODEL="$(sha256_of "$SWORK/dl/$SP_NAME.tar.bz2")"
+SP_SHA_VAD="$(sha256_of "$SWORK/dl/silero_vad.onnx")"
+check "sha256_of gives a 64-character digest" test "${#SP_SHA_MODEL}" = "64"
+# run_speech <env-file> <speech-dir> [on|off]; output lands in <env-file>.out.
+# RS_SHA_MODEL and RS_LIB override the checksum and the library check.
+run_speech() {
+  rs_env="$1"; rs_dir="$2"; shift 2
+  JAWBS_ENV_FILE="$rs_env" JAWBS_SPEECH_DIR="$rs_dir" JAWBS_SPEECH_URL_BASE="file://$SWORK/dl" \
+  JAWBS_SPEECH_SHA_MODEL="${RS_SHA_MODEL:-$SP_SHA_MODEL}" JAWBS_SPEECH_SHA_VAD="$SP_SHA_VAD" \
+  JAWBS_SPEECH_LIB_OK="${RS_LIB:-yes}" \
+    bash "$SETUP_DIR/jawbs-speech.sh" "$@" >"$rs_env.out" 2>&1
+}
+speech_installed() { # speech_installed <speech-dir>
+  test -f "$1/silero_vad.onnx" && test -f "$1/parakeet/encoder.int8.onnx" \
+    && test -f "$1/parakeet/decoder.int8.onnx" && test -f "$1/parakeet/joiner.int8.onnx" \
+    && test -f "$1/parakeet/tokens.txt"
+}
+
+# set_env_line: replace, append, leave comments alone, cope with no final newline.
+printf 'PORT=1\nSPEECH_TO_TEXT=off\nNAME=x\n' > "$SWORK/e1"
+set_env_line "$SWORK/e1" SPEECH_TO_TEXT on
+check "set_env_line replaces the line in place" test "$(cat "$SWORK/e1")" = "$(printf 'PORT=1\nSPEECH_TO_TEXT=on\nNAME=x')"
+printf 'PORT=1' > "$SWORK/e2"
+set_env_line "$SWORK/e2" SPEECH_TO_TEXT on
+check "set_env_line appends after a file with no final newline" test "$(cat "$SWORK/e2")" = "$(printf 'PORT=1\nSPEECH_TO_TEXT=on')"
+printf '#SPEECH_TO_TEXT=on\nPORT=1\n' > "$SWORK/e3"
+set_env_line "$SWORK/e3" SPEECH_TO_TEXT on
+check "set_env_line leaves a commented line alone" test "$(cat "$SWORK/e3")" = "$(printf '#SPEECH_TO_TEXT=on\nPORT=1\nSPEECH_TO_TEXT=on')"
+printf 'SPEECH_TO_TEXT=off\nSPEECH_TO_TEXT=off\n' > "$SWORK/e4"
+set_env_line "$SWORK/e4" SPEECH_TO_TEXT on
+check "set_env_line leaves one line where there were two" test "$(cat "$SWORK/e4")" = "SPEECH_TO_TEXT=on"
+printf 'SECRET=s\n' > "$SWORK/e5"; chmod 600 "$SWORK/e5"
+set_env_line "$SWORK/e5" SPEECH_TO_TEXT on
+check "set_env_line keeps the file's permissions" test "$(ls -l "$SWORK/e5" | cut -c1-10)" = "-rw-------"
+check "set_env_line leaves no temporary file" test "$(ls "$SWORK" | grep -c '^e5\.')" = "0"
+
+# Switching on: downloads, checks, unpacks, and sets the one line.
+printf 'PORT=1\n' > "$SWORK/env1"
+run_speech "$SWORK/env1" "$SWORK/sp1" || fail "jawbs-speech.sh exited non-zero on a good install"
+check "the model is installed" speech_installed "$SWORK/sp1"
+check "speech is switched on" grep -qx 'SPEECH_TO_TEXT=on' "$SWORK/env1"
+check "other settings are kept" grep -qx 'PORT=1' "$SWORK/env1"
+check "no download leftovers remain" test "$(ls "$SWORK/sp1" | grep -c incoming)" = "0"
+check "the person is told it is on" grep -q "switched on" "$SWORK/env1.out"
+
+# A second run finds the install and does not download again.
+mv "$SWORK/dl" "$SWORK/dl-away"
+run_speech "$SWORK/env1" "$SWORK/sp1" || fail "a rerun with the model in place exited non-zero"
+check "a rerun says the download is already here" grep -q "already here" "$SWORK/env1.out"
+mv "$SWORK/dl-away" "$SWORK/dl"
+
+# Off keeps the download.
+run_speech "$SWORK/env1" "$SWORK/sp1" off || fail "switching off exited non-zero"
+check "speech is switched off" grep -qx 'SPEECH_TO_TEXT=off' "$SWORK/env1"
+check "switching off keeps the model" speech_installed "$SWORK/sp1"
+
+# A download that is not the file expected is thrown away and speech stays off.
+printf 'PORT=1\n' > "$SWORK/env2"
+if RS_SHA_MODEL="0000000000000000000000000000000000000000000000000000000000000000" run_speech "$SWORK/env2" "$SWORK/sp2"; then
+  fail "a wrong checksum should exit non-zero"
+else
+  pass
+fi
+check "a wrong checksum installs nothing" test ! -e "$SWORK/sp2/parakeet"
+check "a wrong checksum leaves speech off" sh -c "! grep -q 'SPEECH_TO_TEXT=on' '$SWORK/env2'"
+check "a wrong checksum leaves no leftovers" test "$(ls "$SWORK/sp2" 2>/dev/null | grep -c incoming)" = "0"
+check "a wrong checksum says how to try again" grep -q "To try again" "$SWORK/env2.out"
+
+# A half-finished install (an interrupted earlier run) is completed, not trusted.
+mkdir -p "$SWORK/sp3/parakeet" "$SWORK/sp3/incoming.999"
+echo "partial" > "$SWORK/sp3/parakeet/tokens.txt"
+echo "partial" > "$SWORK/sp3/incoming.999/$SP_NAME.tar.bz2"
+printf 'PORT=1\n' > "$SWORK/env3"
+run_speech "$SWORK/env3" "$SWORK/sp3" || fail "completing a half-finished install exited non-zero"
+check "a half-finished install is completed" speech_installed "$SWORK/sp3"
+check "the old partial file is replaced" grep -q "fixture tokens.txt" "$SWORK/sp3/parakeet/tokens.txt"
+check "the interrupted download is cleared away" test ! -e "$SWORK/sp3/incoming.999"
+
+# No speech program on this computer: nothing is downloaded.
+printf 'PORT=1\n' > "$SWORK/env4"
+if RS_LIB=no run_speech "$SWORK/env4" "$SWORK/sp4"; then fail "a missing speech program should exit non-zero"; else pass; fi
+check "a missing speech program downloads nothing" test ! -e "$SWORK/sp4"
+check "a missing speech program is explained" grep -q "not available on this computer" "$SWORK/env4.out"
+
+# No settings file: Jawbs is not set up yet.
+if run_speech "$SWORK/no-such-env" "$SWORK/sp5"; then fail "a missing settings file should exit non-zero"; else pass; fi
+check "a missing settings file downloads nothing" test ! -e "$SWORK/sp5"
+
+# jawbs-local.sh switches speech on when the wizard's answer was yes, and a
+# failure there never stops the rest of setup.
+printf 'SPEECH="yes"\n' | cat "$TEST_DIR/answers-local.env" - > "$SWORK/yes.env"
+PORTAL_REGISTRY="$SWORK/users.json" JAWBS_SKIP_LOCAL=yes \
+  bash "$SETUP_DIR/setup.sh" --answers "$SWORK/yes.env" --target "$SWORK/proj" --skip-deps >/dev/null 2>&1
+mkdir -p "$SWORK/fakebin" "$SWORK/home"
+printf '#!/bin/sh\n[ "$1 $2" = "login status" ] && exit 0\nexit 1\n' > "$SWORK/fakebin/codex"
+printf '#!/bin/sh\nexit 0\n' > "$SWORK/fakebin/claude"
+chmod +x "$SWORK/fakebin/codex" "$SWORK/fakebin/claude"
+run_local_speech() { # run_local_speech <env-file> <lib yes|no>
+  JAWBS_STATUS_FILE="$1.status" HOME="$SWORK/home" PORTAL_REGISTRY="$SWORK/users.json" JAWBS_ENV_FILE="$1" \
+  JAWBS_SKIP_NPM=yes JAWBS_SKIP_LAUNCH=yes JAWBS_PORT_BASE=59700 PATH="$SWORK/fakebin:$PATH" \
+  JAWBS_SPEECH_DIR="$1.speech" JAWBS_SPEECH_URL_BASE="file://$SWORK/dl" \
+  JAWBS_SPEECH_SHA_MODEL="$SP_SHA_MODEL" JAWBS_SPEECH_SHA_VAD="$SP_SHA_VAD" JAWBS_SPEECH_LIB_OK="$2" \
+    bash "$SETUP_DIR/jawbs-local.sh" "$SWORK/proj" >"$1.out" 2>&1
+}
+run_local_speech "$SWORK/lenv1" yes || fail "jawbs-local.sh with speech exited non-zero"
+check "setup with speech chosen switches it on" grep -qx 'SPEECH_TO_TEXT=on' "$SWORK/lenv1"
+check "setup with speech chosen installs the model" speech_installed "$SWORK/lenv1.speech"
+check "setup with speech chosen still finishes" grep -qx skipped "$SWORK/lenv1.status"
+run_local_speech "$SWORK/lenv2" no || fail "jawbs-local.sh exited non-zero when speech could not be set up"
+check "a speech failure leaves it off" sh -c "! grep -q 'SPEECH_TO_TEXT=on' '$SWORK/lenv2'"
+check "a speech failure does not stop setup" grep -qx skipped "$SWORK/lenv2.status"
+check "a speech failure is explained" grep -q "was not switched on" "$SWORK/lenv2.out"
+check "a speech failure says how to try again" grep -q "jawbs-speech.sh" "$SWORK/lenv2.out"
+# A project that said no is left alone.
+awk '/^- Speech: / { print "- Speech: no"; next } { print }' "$SWORK/proj/SETUP.md" > "$SWORK/SETUP.tmp" \
+  && mv "$SWORK/SETUP.tmp" "$SWORK/proj/SETUP.md"
+run_local_speech "$SWORK/lenv3" yes || fail "jawbs-local.sh without speech exited non-zero"
+check "setup with speech declined downloads nothing" test ! -e "$SWORK/lenv3.speech"
+check "setup with speech declined leaves the setting out" sh -c "! grep -q 'SPEECH_TO_TEXT' '$SWORK/lenv3'"
+rm -rf "$SWORK"
+
 # --- Summary ----------------------------------------------------------------
 
 rm -rf "$WORK0" "$WORK1" "$WORK2" "$WORK3" "$WORK4"

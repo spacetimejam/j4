@@ -255,6 +255,16 @@ else
   exit 0
 fi
 
+# 4b. Talking to Jawbs, when the wizard's answer was yes. It comes after the
+# settings because it adds a line to them, and it never stops setup: without
+# it the person simply types.
+if [ "$(answer Speech)" = "yes" ]; then
+  if ! JAWBS_ENV_FILE="$ENV_FILE" JAWBS_NODE="$NODE_BIN" bash "$SETUP_DIR/jawbs-speech.sh"; then
+    echo "Talking to Jawbs was not switched on. Everything else carries on as normal."
+    echo "To try again later: $SETUP_DIR/jawbs-speech.sh"
+  fi
+fi
+
 # 5. Register.
 register_portal_user "$PORTAL_REGISTRY" "$USER_EMAIL" "$USER_NAME" "$PROJECT" "yes" >/dev/null
 
