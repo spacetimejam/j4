@@ -13,7 +13,7 @@ sed_escape() {
 # file for portability (no sed -i).
 # Full token list: USER_NAME, USER_EMAIL, USER_PHONE, USER_LOCATION, FIELD,
 # SENIORITY, EMPLOYMENT_STATUS, AI_TOOL, DATE, PORTAL, JAWBS_MODE, CREATIVE,
-# WRITER, KIT_DIR.
+# WRITER, SPEECH, KIT_DIR.
 # KIT_DIR resolves to the kit checkout, so a project can point at shared kit
 # files (the email sign-off bank) wherever the project itself was created.
 substitute_all() {
@@ -30,6 +30,7 @@ substitute_all() {
   mode_esc="$(sed_escape "${JAWBS_MODE:-}")"
   creative_esc="$(sed_escape "${CREATIVE:-no}")"
   writer_esc="$(sed_escape "${WRITER:-not asked}")"
+  speech_esc="$(sed_escape "${SPEECH:-not asked}")"
   date_esc="$(sed_escape "$(date +%Y-%m-%d)")"
   kit_esc="$(sed_escape "${KIT_DIR:-}")"
 
@@ -48,6 +49,7 @@ substitute_all() {
         -e "s/{{JAWBS_MODE}}/$mode_esc/g" \
         -e "s/{{CREATIVE}}/$creative_esc/g" \
         -e "s/{{WRITER}}/$writer_esc/g" \
+        -e "s/{{SPEECH}}/$speech_esc/g" \
         -e "s/{{DATE}}/$date_esc/g" \
         -e "s/{{KIT_DIR}}/$kit_esc/g" \
         "$file" > "$tmp" && mv "$tmp" "$file"
@@ -110,15 +112,21 @@ ask() {
   eval "$var=\$reply"
 }
 
-# ask_menu [--quiet] <varname> <prompt> <opt1> <opt2> [...]
+# ask_menu [--quiet] [--required] <varname> <prompt> <opt1> <opt2> [...]
 # Numbered menu; default is option 1. --quiet skips printing the prompt and
 # the numbered options, for callers that already printed their own menu text.
+# --required removes the default, for a choice that must not be made by a
+# stray Return: it asks again, and returns 1 if the input runs out.
 ask_menu() {
   quiet=no
-  if [ "$1" = "--quiet" ]; then
-    quiet=yes
-    shift
-  fi
+  required=no
+  while :; do
+    case "${1:-}" in
+      --quiet) quiet=yes; shift ;;
+      --required) required=yes; shift ;;
+      *) break ;;
+    esac
+  done
   var="$1"
   prompt="$2"
   shift 2
@@ -132,10 +140,16 @@ ask_menu() {
   fi
   choice=""
   while :; do
-    read -r -p "Choose a number [1]: " choice
-    [ -z "$choice" ] && choice=1
+    if [ "$required" = "yes" ]; then
+      # No default: a bare Return asks again. If the input has run out there is
+      # nobody to ask, so fail rather than spin; the caller picks what that means.
+      read -r -p "Choose a number: " choice || return 1
+    else
+      read -r -p "Choose a number [1]: " choice
+      [ -z "$choice" ] && choice=1
+    fi
     case "$choice" in
-      *[!0-9]*) ;;
+      ''|*[!0-9]*) ;;
       *) [ "$choice" -ge 1 ] && [ "$choice" -le $# ] && break ;;
     esac
     echo "Please enter a number between 1 and $#."
@@ -148,6 +162,30 @@ ask_menu() {
     fi
     i=$((i + 1))
   done
+}
+
+# print_speech_question
+# The "talk to Jawbs" question, asked only for Jawbs on this computer. Kept
+# here as one function so the tests can read the wording.
+print_speech_question() {
+  echo "Would you like to talk to Jawbs as well as type?"
+  echo
+  echo "  Jawbs does its best work when you give it long answers with plenty of"
+  echo "  detail, and those are far easier to say out loud than to type. With this"
+  echo "  on, each text box gets a microphone button. You talk, and your words"
+  echo "  appear in the box for you to check before sending."
+  echo
+  echo "  It is free of charge. There is no subscription and nothing to pay. Your"
+  echo "  voice is turned into text on this computer and never leaves it."
+  echo
+  echo "  What it costs: a one-off download of about 490 MB, which takes about"
+  echo "  640 MB of disk space. While it turns your speech into text, usually under"
+  echo "  a minute, your computer works hard and uses about 1 GB of memory. The"
+  echo "  rest of the time it uses nothing."
+  echo
+  echo "  1) Yes, set it up"
+  echo "  2) No thanks (you can switch it on later)"
+  echo
 }
 
 # register_portal_user <registry_file> <email> <name> <project_dir> <admin yes|no>

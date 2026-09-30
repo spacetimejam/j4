@@ -454,6 +454,40 @@ check "PORTAL=no is terminal" grep -q "How Jawbs is used: terminal" "$MWORK/n/SE
 
 printf 'JAWBS_MODE="sideways"\n' | cat "$TEST_DIR/answers-terminal.env" - > "$MWORK/bad.env"
 if run_mode "$MWORK/bad.env" "$MWORK/b"; then fail "an unknown JAWBS_MODE should stop setup"; else pass; fi
+# Speech to text is asked only for Jawbs on this computer, and is off unless chosen.
+check "local with no speech answer stays off" grep -qx -- "- Speech: no" "$MWORK/l/SETUP.md"
+check "terminal mode is not asked about speech" grep -qx -- "- Speech: not asked" "$MWORK/t/SETUP.md"
+check "shared mode is not asked about speech" grep -qx -- "- Speech: not asked" "$MWORK/s/SETUP.md"
+printf 'SPEECH="yes"\n' | cat "$TEST_DIR/answers-local.env" - > "$MWORK/sp.env"
+run_mode "$MWORK/sp.env" "$MWORK/sp" || fail "a speech choice exited non-zero"
+check "SETUP.md records the speech choice" grep -qx -- "- Speech: yes" "$MWORK/sp/SETUP.md"
+printf 'SPEECH="yes"\n' | cat "$TEST_DIR/answers-terminal.env" - > "$MWORK/spt.env"
+run_mode "$MWORK/spt.env" "$MWORK/spt" || fail "a speech answer in terminal mode exited non-zero"
+check "a speech answer outside local mode is not acted on" grep -qx -- "- Speech: not asked" "$MWORK/spt/SETUP.md"
+printf 'SPEECH="maybe"\n' | cat "$TEST_DIR/answers-local.env" - > "$MWORK/spbad.env"
+if run_mode "$MWORK/spbad.env" "$MWORK/spb"; then fail "an unknown SPEECH should stop setup"; else pass; fi
+check "no placeholder is left in SETUP.md" sh -c "! grep -q '{{SPEECH}}' '$MWORK/l/SETUP.md'"
+
+# The question has no default: a bare Return or a wrong number asks again.
+PICK="$(printf '\n7\n2\n' | { ask_menu --quiet --required PICKED "" yes no >/dev/null; echo "$PICKED"; })"
+check "a required menu waits for a real choice" test "$PICK" = "no"
+ASKED="$(printf '\n7\n1\n' | { ask_menu --quiet --required PICKED "" yes no; } | grep -c "Please enter a number")"
+check "a required menu says so each time it asks again" test "$ASKED" = "2"
+if ask_menu --quiet --required PICKED "" yes no </dev/null >/dev/null 2>&1; then
+  fail "a required menu with no input should fail rather than loop or pick"
+else
+  pass
+fi
+PICK="$(printf '\n' | { ask_menu --quiet PICKED "" yes no >/dev/null; echo "$PICKED"; })"
+check "an ordinary menu still takes option 1 on Return" test "$PICK" = "yes"
+
+# The wording says why it helps, that it is free, and what it costs.
+SQ="$(print_speech_question)"
+for phrase in "talk to Jawbs as well as type" "far easier to say out loud than to type" \
+    "free of charge" "nothing to pay" "never leaves it" "about 490 MB" "640 MB of disk space" \
+    "about 1 GB of memory" "you can switch it on later"; do
+  if printf '%s\n' "$SQ" | grep -q "$phrase"; then pass; else fail "speech question should say: $phrase"; fi
+done
 rm -rf "$MWORK"
 
 # --- jawbs-local.sh -----------------------------------------------------------

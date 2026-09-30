@@ -89,7 +89,10 @@ else
       echo "  3) ChatGPT does everything"
       echo "     Needs a ChatGPT subscription only. Newer and less tested than the others."
       echo
-      ask_menu --quiet WRITER "" both claude-only chatgpt-only ;;
+      ask_menu --quiet WRITER "" both claude-only chatgpt-only
+      echo
+      print_speech_question
+      ask_menu --quiet --required SPEECH "" yes no || SPEECH="no" ;;
     terminal) JAWBS_MODE="terminal" ;;
     shared) JAWBS_MODE="shared"
       ask PORTAL_ADMIN "Should this person receive failure alerts? [y/N]" "no" ;;
@@ -155,6 +158,19 @@ if [ "$JAWBS_MODE" != "local" ]; then
   WRITER="not asked"
 elif [ -z "$WRITER" ]; then
   WRITER="detect"
+fi
+
+# Talking to Jawbs: asked only for Jawbs on this computer, and off unless the
+# person said yes. jawbs-local.sh acts on the answer recorded in SETUP.md.
+SPEECH="${SPEECH:-}"
+case "$SPEECH" in
+  yes|no|'') ;;
+  *) echo "Unknown SPEECH: $SPEECH (expected yes or no)" >&2; exit 1 ;;
+esac
+if [ "$JAWBS_MODE" != "local" ]; then
+  SPEECH="not asked"
+elif [ -z "$SPEECH" ]; then
+  SPEECH="no"
 fi
 
 # Normalise the creative answer like PORTAL_ADMIN below.
