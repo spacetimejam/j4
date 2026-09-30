@@ -29,6 +29,10 @@ export const config = {
   // writes the CV and letter copy), claude-only or chatgpt-only. An explicit
   // opt-in; preflight.js checks it against AGENT_RUNNER and the Codex install.
   subscriptions: (process.env.SUBSCRIPTIONS || 'both').trim().toLowerCase(),
+  // Speech to text: a mic on the text boxes, transcribed here by an open model.
+  // Off unless setup/jawbs-speech.sh has downloaded the model and said so.
+  speech: (process.env.SPEECH_TO_TEXT || '').trim().toLowerCase() === 'on',
+  speechDir: process.env.SPEECH_MODEL_DIR || new URL('../data/speech', import.meta.url).pathname,
   agentCmd: process.env.AGENT_CMD || '',
   agentCmdResume: process.env.AGENT_CMD_RESUME || '',
   emailProvider: process.env.EMAIL_PROVIDER || 'webhook',

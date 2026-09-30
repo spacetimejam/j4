@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { CODEX_BIN } from './drafting.js';
+import { speechReady } from './speech.js';
 
 // How many people this portal serves: the registry's entries, or the legacy
 // allowlist when there is no registry. Local mode serves exactly one.
@@ -78,7 +79,7 @@ export function codexLoggedIn(bin) {
 // deserve saying out loud. `exists` is injected so tests need no filesystem.
 export function checkConfig(cfg, {
   exists = existsSync, lookupBin = onPath, codexBin = CODEX_BIN, codexSignedIn = codexLoggedIn,
-  countUsers = countRegisteredUsers,
+  countUsers = countRegisteredUsers, speechIsReady = speechReady,
 } = {}) {
   const issues = [];
   const err = message => issues.push({ level: 'error', message });
@@ -198,6 +199,13 @@ export function checkConfig(cfg, {
     } else if (!codexSignedIn(codexBin)) {
       warn(`Codex is installed at ${codexBin} but not signed in to ChatGPT, so CV and cover letter drafts will wait until someone runs \`codex login\` as the user this portal runs as.`);
     }
+  }
+
+  // --- Speech ---------------------------------------------------------------
+  // A warning, not an error: a missing model file hides the mic and nothing
+  // else, and refusing to start would turn that into an outage.
+  if (cfg.speech && !speechIsReady(cfg)) {
+    warn(`SPEECH_TO_TEXT is on but the speech model is not installed in ${cfg.speechDir}, so the microphone button is hidden. Run setup/jawbs-speech.sh to install it, or set SPEECH_TO_TEXT=off.`);
   }
 
   // --- Bind ----------------------------------------------------------------

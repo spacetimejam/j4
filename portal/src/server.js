@@ -14,6 +14,7 @@ import { readTracker, stageFor } from './tracker.js';
 import { setupPending, findSetupSession, startSetupSession, canChangeDesign } from './setup-session.js';
 import { startDesignSession } from './design-session.js';
 import { saveUpload, MAX_UPLOAD_BYTES } from './upload.js';
+import { speechReady, createTranscriber, MAX_AUDIO_BYTES } from './speech.js';
 import { fileURLToPath } from 'node:url';
 
 // The kit checkout this portal runs from, resolved, so bin/jawbs-open can
@@ -93,15 +94,21 @@ function delayedFor(db, session) {
   };
 }
 
-export function createApp({ send = sendEmail, quit = null } = {}) {
+export function createApp({ send = sendEmail, quit = null, speech = speechReady(config), transcribe = null } = {}) {
   const app = express();
   const local = isLocal();
+  // Made once per app so every request shares the one queue.
+  const runTranscribe = speech ? (transcribe || createTranscriber({ dir: config.speechDir })) : null;
   // Before static files: a rebinding attack's first request is for index.html.
   if (local) app.use(localHostGuard);
   app.use(express.json({ limit: '1mb' }));
   app.use(express.static(new URL('../public', import.meta.url).pathname));
 
-  app.get('/api/meta', (req, res) => res.json(local ? { title: config.portalTitle, local: true, kit: KIT_DIR } : { title: config.portalTitle }));
+  app.get('/api/meta', (req, res) => res.json({
+    title: config.portalTitle,
+    ...(local ? { local: true, kit: KIT_DIR } : {}),
+    ...(speech ? { speech: true } : {}),
+  }));
 
   if (!local) {
     // Local mode has no sign-in, so the login routes do not exist there.
@@ -352,6 +359,31 @@ export function createApp({ send = sendEmail, quit = null } = {}) {
         if (err.code === 'bad_type') return res.status(415).json({ error: err.message });
         if (err.code === 'outside') return res.status(400).json({ error: err.message });
         throw err;
+      }
+    });
+
+  // A recording from the mic button: raw 16 kHz mono 16-bit PCM in, text out.
+  // The audio lives in memory for the length of the request and is never
+  // written to disk or logged. Readiness is checked before the body parser so
+  // a portal without speech does not read 20 MB to say no.
+  app.post('/api/transcribe', requireAuth,
+    (req, res, next) => (runTranscribe ? next() : res.status(404).json({ error: 'not found' })),
+    express.raw({ type: () => true, limit: MAX_AUDIO_BYTES }),
+    async (req, res) => {
+      // express.json has already parsed a JSON body into an object, so
+      // anything that is not a Buffer here was not sent as audio.
+      if (!Buffer.isBuffer(req.body) || !req.body.length || req.body.length % 2) {
+        return res.status(400).json({ error: 'expected 16-bit PCM audio' });
+      }
+      const started = Date.now();
+      try {
+        const text = await runTranscribe(req.body);
+        console.log(`speech: ${Math.round(req.body.length / 32000)}s of audio transcribed in ${((Date.now() - started) / 1000).toFixed(1)}s`);
+        res.json({ text });
+      } catch (err) {
+        if (err.code === 'busy') return res.status(503).json({ error: 'busy' });
+        console.error('transcription failed:', err.message);
+        res.status(500).json({ error: 'transcription failed' });
       }
     });
 

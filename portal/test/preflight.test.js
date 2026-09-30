@@ -457,3 +457,18 @@ test('local does not warn about the loopback bind or a missing EXPOSURE', () => 
 test('EXPOSURE accepts local case-insensitively', () => {
   assert.deepEqual(errors(checkConfig(localCfg({ exposure: 'LOCAL' }), { ...ok, countUsers: oneUser })), []);
 });
+
+test('speech on but not installed warns and does not stop the portal', () => {
+  const issues = checkConfig(
+    valid({ speech: true, speechDir: '/portal/data/speech' }), { ...ok, speechIsReady: () => false });
+  assert.deepEqual(errors(issues), []);
+  assert.equal(warns(issues).length, 1);
+  assert.match(warns(issues)[0].message, /SPEECH_TO_TEXT/);
+  assert.match(warns(issues)[0].message, /\/portal\/data\/speech/);
+  assert.match(warns(issues)[0].message, /jawbs-speech\.sh/);
+});
+
+test('speech that is ready, or off, says nothing', () => {
+  assert.deepEqual(checkConfig(valid({ speech: true, speechDir: '/m' }), { ...ok, speechIsReady: () => true }), []);
+  assert.deepEqual(checkConfig(valid({ speech: false, speechDir: '/m' }), { ...ok, speechIsReady: () => false }), []);
+});

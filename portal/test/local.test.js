@@ -78,6 +78,14 @@ test('a POST from a foreign Origin is refused; no Origin or our own is fine', as
   assert.equal((await call('/api/sessions', { method: 'POST', origin: `http://localhost:${port}`, body })).status, 200);
 });
 
+test('transcribe is covered by the same Host and Origin guard', async () => {
+  // Refused by the guard before the route is reached, so speech being off in
+  // this test app does not matter: a 404 here would mean the guard was skipped.
+  assert.equal((await call('/api/transcribe', { method: 'POST', origin: 'https://evil.example', body: { a: 1 } })).status, 403);
+  assert.equal((await call('/api/transcribe', { method: 'POST', host: 'evil.example:' + port, body: { a: 1 } })).status, 403);
+  assert.equal((await call('/api/transcribe', { method: 'POST', body: { a: 1 } })).status, 404);
+});
+
 test('quit calls the injected quit function', async () => {
   const r = await call('/api/quit', { method: 'POST', origin: `http://localhost:${port}` });
   assert.equal(r.status, 200);
